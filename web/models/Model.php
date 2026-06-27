@@ -1,44 +1,45 @@
 <?php
 
-class Model{
+class Model {
     protected static $conn;
     protected static $table;
+    protected static $primaryKey = 'id';
 
-    public static function setConnection($conn){
+    public static function setConnection($conn) {
         self::$conn = $conn;
     }
 
-    public static function all(){
+    public static function all() {
         $sql = "SELECT * FROM " . static::$table;
         $result = mysqli_query(self::$conn, $sql);
         return (mysqli_num_rows($result) > 0) ? mysqli_fetch_all($result, MYSQLI_ASSOC) : null;
     }
 
-    public static function find($id){
-        $sql = "SELECT * FROM " . static::$table . " WHERE id = " . $id;
+    public static function find($id) {
+        $sql = "SELECT * FROM " . static::$table . " WHERE " . static::$primaryKey . " = " . $id;
         $result = mysqli_query(self::$conn, $sql);
         return (mysqli_num_rows($result) > 0) ? mysqli_fetch_assoc($result) : null;
     }
 
-    public static function create(array $data){
+    public static function create(array $data) {
         $columns = implode(", ", array_keys($data));
-        $values = implode(", ", array_fill(0, count($data), '?'));
-        $sql = "INSERT INTO " . static::$table . " ($columns) VALUES ($values)";
+        $placeholders = implode(", ", array_fill(0, count($data), '?'));
+        $sql = "INSERT INTO " . static::$table . " ($columns) VALUES ($placeholders)";
         $stmt = mysqli_prepare(self::$conn, $sql);
 
-        if(!$stmt){
-            die("Error preparing statement " . mysqli_error(self::$conn));
+        if (!$stmt) {
+            die("Error preparing statement: " . mysqli_error(self::$conn));
         }
 
         $types = '';
         $values = [];
 
-        foreach($data as $value){
-            if(is_int($value)){
+        foreach ($data as $value) {
+            if (is_int($value)) {
                 $types .= 'i';
-            } elseif(is_float($value)){
+            } elseif (is_float($value)) {
                 $types .= 'd';
-            } else{
+            } else {
                 $types .= 's';
             }
             $values[] = $value;
@@ -47,32 +48,32 @@ class Model{
         mysqli_stmt_bind_param($stmt, $types, ...$values);
         $result = mysqli_stmt_execute($stmt);
 
-        if(!$result){
-            die("Error executing statement " . mysqli_error(self::$conn));
-        } else{
-            $id = mysqli_insert_id(self::$conn);
-            return self::find($id);
+        if (!$result) {
+            die("Error executing statement: " . mysqli_error(self::$conn));
         }
+
+        $id = mysqli_insert_id(self::$conn);
+        return self::find($id);
     }
 
-    public static function updateById($id, array $data){
+    public static function updateById($id, array $data) {
         $set = implode(", ", array_map(fn($key) => "$key = ?", array_keys($data)));
-        $sql = "UPDATE " . static::$table . " SET $set WHERE id = ?";
+        $sql = "UPDATE " . static::$table . " SET $set WHERE " . static::$primaryKey . " = ?";
         $stmt = mysqli_prepare(self::$conn, $sql);
 
-        if(!$stmt){
-            die("Error preparing statement " . mysqli_error(self::$conn));
+        if (!$stmt) {
+            die("Error preparing statement: " . mysqli_error(self::$conn));
         }
 
         $types = '';
         $values = [];
 
-        foreach($data as $value){
-            if(is_int($value)){
+        foreach ($data as $value) {
+            if (is_int($value)) {
                 $types .= 'i';
-            } elseif(is_float($value)){
+            } elseif (is_float($value)) {
                 $types .= 'd';
-            } else{
+            } else {
                 $types .= 's';
             }
             $values[] = $value;
@@ -80,32 +81,33 @@ class Model{
 
         $types .= 'i';
         $values[] = $id;
+
         mysqli_stmt_bind_param($stmt, $types, ...$values);
         $result = mysqli_stmt_execute($stmt);
 
-        if(!$result){
-            die("Error executing statement " . mysqli_error(self::$conn));
-        } else{
-            return self::find($id);
+        if (!$result) {
+            die("Error executing statement: " . mysqli_error(self::$conn));
         }
+
+        return self::find($id);
     }
 
-    public static function deleteById($id){
-        $sql = "DELETE FROM " . static::$table . " WHERE id = ?";
+    public static function deleteById($id) {
+        $sql = "DELETE FROM " . static::$table . " WHERE " . static::$primaryKey . " = ?";
         $stmt = mysqli_prepare(self::$conn, $sql);
 
-        if(!$stmt){
-            die("Error preparing statement " . mysqli_error(self::$conn));
+        if (!$stmt) {
+            die("Error preparing statement: " . mysqli_error(self::$conn));
         }
 
         mysqli_stmt_bind_param($stmt, 'i', $id);
         $result = mysqli_stmt_execute($stmt);
 
-        if(!$result){
-            die("Error executing statement " . mysqli_error(self::$conn));
-        } else{
-            return true;
+        if (!$result) {
+            die("Error executing statement: " . mysqli_error(self::$conn));
         }
+
+        return true;
     }
 
     public static function countAll() {

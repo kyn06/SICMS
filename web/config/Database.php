@@ -2,9 +2,9 @@
 
 class Database{
     
-    private $host = "localhost";
+    private $host = "localhost:3307";
     private $username= "root";
-    private $password = " ";
+    private $password = "";
     private $database = "sicms";
     private $conn;
 
@@ -27,6 +27,10 @@ class Database{
 
     public function getConnection(){
         return $this->conn;
+    }
+
+    public function isConnected(){
+        return $this->conn !== null && $this->conn !== false;
     }
 
     public function __destruct(){
