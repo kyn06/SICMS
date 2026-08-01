@@ -1,6 +1,7 @@
 <?php
 
 require_once 'Model.php';
+require_once 'AuditLog.php';
 
 class User extends Model {
     protected static $table = 'accounts';
@@ -60,8 +61,10 @@ class User extends Model {
                     $_SESSION['error'] = "Your account is deactivated. Please contact the super-admin.";
                     return false;
                 }
+                session_regenerate_id(true);
                 $_SESSION['email'] = $email;
                 $_SESSION['role']  = $userData['role'];
+                AuditLog::record($userData, 'User Login', 'User logged in successfully.');
                 return true;
             }
         }
@@ -72,6 +75,9 @@ class User extends Model {
 
     public static function create(array $data) {
         $result = parent::create($data);
+        if ($result) {
+            AuditLog::record($result, 'User Creation', 'User account created for ' . ($result['email'] ?? 'new account') . '.');
+        }
 
         return $result
             ? new self($result)
@@ -79,6 +85,8 @@ class User extends Model {
     }
 
     public function update(array $data) {
+        $previousRole = $this->role;
+        $previousStatus = $this->status;
         $result = parent::updateById($this->account_id, $data);
 
         if ($result) {
@@ -87,6 +95,18 @@ class User extends Model {
                     $this->$key = $value;
                 }
             }
+
+            AuditLog::record($this, 'User Update', 'User account updated.');
+
+            if (array_key_exists('role', $data) && $previousRole !== $data['role']) {
+                AuditLog::record($this, 'Role Change', 'Role changed from ' . $previousRole . ' to ' . $data['role'] . '.');
+            }
+
+            if (array_key_exists('status', $data) && $previousStatus !== $data['status']) {
+                $action = $data['status'] === 'active' ? 'User Activation' : 'User Deactivation';
+                AuditLog::record($this, $action, 'User status changed from ' . $previousStatus . ' to ' . $data['status'] . '.');
+            }
+
             return true;
         }
 
@@ -152,6 +172,50 @@ class User extends Model {
 
     public static function countUsersByStatus($status) {
         return self::countByStatus($status);
+    }
+
+    public static function listAccounts(array $filters = []) {
+        $sql = "SELECT account_id, first_name, last_name, email, role, status, created_at, updated_at
+                FROM accounts
+                WHERE 1 = 1";
+        $params = [];
+        $types = '';
+
+        if (!empty($filters['search'])) {
+            $sql .= " AND (first_name LIKE ? OR last_name LIKE ? OR email LIKE ?)";
+            $like = '%' . $filters['search'] . '%';
+            array_push($params, $like, $like, $like);
+            $types .= 'sss';
+        }
+
+        if (!empty($filters['role'])) {
+            $sql .= " AND role = ?";
+            $params[] = $filters['role'];
+            $types .= 's';
+        }
+
+        if (!empty($filters['status'])) {
+            $sql .= " AND status = ?";
+            $params[] = $filters['status'];
+            $types .= 's';
+        }
+
+        $sql .= " ORDER BY created_at DESC, account_id DESC";
+
+        $stmt = self::$conn->prepare($sql);
+
+        if (!$stmt) {
+            return [];
+        }
+
+        if (!empty($params)) {
+            $stmt->bind_param($types, ...$params);
+        }
+
+        $stmt->execute();
+        $result = $stmt->get_result();
+
+        return $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
     }
 
     private $user;

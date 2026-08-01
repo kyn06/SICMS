@@ -11,14 +11,32 @@ class Model {
 
     public static function all() {
         $sql = "SELECT * FROM " . static::$table;
-        $result = mysqli_query(self::$conn, $sql);
+        $stmt = mysqli_prepare(self::$conn, $sql);
+
+        if (!$stmt) {
+            return null;
+        }
+
+        mysqli_stmt_execute($stmt);
+        $result = mysqli_stmt_get_result($stmt);
+
         return (mysqli_num_rows($result) > 0) ? mysqli_fetch_all($result, MYSQLI_ASSOC) : null;
     }
 
     public static function find($id) {
-        $sql = "SELECT * FROM " . static::$table . " WHERE " . static::$primaryKey . " = " . $id;
-        $result = mysqli_query(self::$conn, $sql);
-        return (mysqli_num_rows($result) > 0) ? mysqli_fetch_assoc($result) : null;
+        $sql = "SELECT * FROM " . static::$table . " WHERE " . static::$primaryKey . " = ?";
+        $stmt = mysqli_prepare(self::$conn, $sql);
+
+        if (!$stmt) {
+            return null;
+        }
+
+        $id = (int) $id;
+        mysqli_stmt_bind_param($stmt, 'i', $id);
+        mysqli_stmt_execute($stmt);
+        $result = mysqli_stmt_get_result($stmt);
+
+        return ($result && mysqli_num_rows($result) > 0) ? mysqli_fetch_assoc($result) : null;
     }
 
     public static function create(array $data) {
@@ -112,7 +130,15 @@ class Model {
 
     public static function countAll() {
         $query = "SELECT COUNT(*) as total FROM " . static::$table;
-        $result = self::$conn->query($query);
+        $stmt = self::$conn->prepare($query);
+
+        if (!$stmt) {
+            die("Query failed: " . self::$conn->error);
+        }
+
+        $stmt->execute();
+        $result = $stmt->get_result();
+
         if ($result) {
             $row = $result->fetch_assoc();
             return $row['total'];
