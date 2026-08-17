@@ -22,6 +22,10 @@ class AuditLog extends Model {
                 $userRole = $user['role'] ?? 'User';
             }
 
+            if (self::isStudentRole($userRole)) {
+                return null;
+            }
+
             $sql = "INSERT INTO audit_logs
                         (account_id, user_name, user_role, action, description, ip_address, user_agent, created_at)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
@@ -182,6 +186,10 @@ class AuditLog extends Model {
         }
 
         return $values;
+    }
+
+    private static function isStudentRole($role) {
+        return strtolower(str_replace(['_', ' '], '-', (string) $role)) === 'student';
     }
 
     private static function dateValue($value) {

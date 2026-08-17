@@ -55,8 +55,8 @@ if (!function_exists('app_route')) {
         <?php endif; ?>
     <?php endforeach; ?>
 
-    <a class="logout-fixed" href="<?= h(app_route('logout')) ?>">
+    <!-- <a class="logout-fixed" href="<?= h(app_route('logout')) ?>">
         <i class="bi bi-box-arrow-right" aria-hidden="true"></i>
         Logout
-    </a>
+    </a> -->
 </aside>
