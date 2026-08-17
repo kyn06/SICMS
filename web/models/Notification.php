@@ -90,6 +90,26 @@ class Notification extends Model {
         }
     }
 
+    public static function filteredForUser($accountId, array $filters = []) {
+        $sql = "SELECT * FROM notifications WHERE account_id = ?";
+        $params = [(int) $accountId];
+        $types = 'i';
+        if (($filters['search'] ?? '') !== '') {
+            $sql .= " AND (title LIKE ? OR message LIKE ? OR type LIKE ?)";
+            $like = '%' . $filters['search'] . '%';
+            array_push($params, $like, $like, $like);
+            $types .= 'sss';
+        }
+        if (($filters['read'] ?? '') === 'unread') $sql .= " AND is_read = 0";
+        if (($filters['read'] ?? '') === 'read') $sql .= " AND is_read = 1";
+        $sql .= " ORDER BY created_at DESC";
+        $stmt = self::$conn->prepare($sql);
+        $stmt->bind_param($types, ...$params);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        return $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
+    }
+
     public static function markAsRead($notificationId, $accountId) {
         $now = date('Y-m-d H:i:s');
         $stmt = self::$conn->prepare("UPDATE notifications SET is_read = 1, read_at = ? WHERE notification_id = ? AND account_id = ?");

@@ -1,0 +1,573 @@
+<?php
+
+require_once __DIR__ . '/../config/Database.php';
+require_once __DIR__ . '/../models/User.php';
+require_once __DIR__ . '/../models/Complaint.php';
+require_once __DIR__ . '/../models/Case.php';
+require_once __DIR__ . '/../models/Message.php';
+require_once __DIR__ . '/../models/Notification.php';
+require_once __DIR__ . '/../models/AuditLog.php';
+require_once __DIR__ . '/../helpers/Security.php';
+require_once __DIR__ . '/../helpers/Colleges.php';
+require_once __DIR__ . '/../helpers/Courses.php';
+
+class ComplaintController {
+    private $database;
+    private $db;
+    private $user;
+    private $classifications = [
+        'Bullying',
+        'Harassment',
+        'Physical Misconduct',
+        'Verbal Misconduct',
+        'Academic Dishonesty',
+        'Property Damage',
+        'Other',
+    ];
+
+    public function __construct() {
+        Security::startSession();
+
+        $this->authenticate();
+    }
+
+    public function handleCreateRequest() {
+        $errors = $_SESSION['complaint_errors'] ?? [];
+        $old = $_SESSION['complaint_old'] ?? [];
+        $success = $_SESSION['complaint_success'] ?? null;
+
+        unset($_SESSION['complaint_errors'], $_SESSION['complaint_old'], $_SESSION['complaint_success']);
+
+        if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
+            Security::requireCsrfToken();
+            $this->store();
+        }
+
+        return [
+            'user' => $this->user,
+            'classifications' => $this->classifications,
+            'errors' => $errors,
+            'old' => $old,
+            'success' => $success,
+        ];
+    }
+
+    public function handleTrackingRequest() {
+        $filters = $this->trackingFilters($_GET);
+        $page = max(1, (int) ($_GET['page'] ?? 1));
+        $perPage = 8;
+        $total = Complaint::countForStudent((int) $this->user['account_id'], $filters);
+
+        return [
+            'user' => $this->user,
+            'filters' => $filters,
+            'cases' => Complaint::forStudent((int) $this->user['account_id'], $perPage, $filters, ($page - 1) * $perPage),
+            'total' => $total,
+            'page' => $page,
+            'perPage' => $perPage,
+            'totalPages' => max(1, (int) ceil($total / $perPage)),
+            'statuses' => ['Submitted', 'Verified', 'Returned for Revision', 'Rejected', 'Resolved', 'Archived'],
+            'classifications' => $this->classifications,
+        ];
+    }
+
+    public function handleStudentCaseDetails($complaintId) {
+        $complaintId = (int) $complaintId;
+        $case = Complaint::findForStudent($complaintId, (int) $this->user['account_id']);
+
+        if (!$case) {
+            http_response_code(403);
+            echo 'Access denied.';
+            exit;
+        }
+
+        Message::markCaseMessagesRead($complaintId, (int) $this->user['account_id']);
+
+        return [
+            'user' => $this->user,
+            'case' => $case,
+            'respondents' => CaseRecord::getRespondents($complaintId),
+            'witnesses' => CaseRecord::getWitnesses($complaintId),
+            'evidence' => CaseRecord::getEvidence($complaintId),
+            'history' => CaseRecord::getHistory($complaintId),
+            'hearings' => Complaint::hearingsForStudentCase($complaintId, (int) $this->user['account_id']),
+            'messages' => Message::forCaseForUser($complaintId, (int) $this->user['account_id']),
+        ];
+    }
+
+    public function handleRevisionRequest($complaintId) {
+        $complaintId = (int) $complaintId;
+        $case = Complaint::findForStudent($complaintId, (int) $this->user['account_id']);
+
+        if (!$case || $case['status'] !== 'Returned for Revision') {
+            http_response_code(403);
+            echo 'This complaint is not available for revision.';
+            exit;
+        }
+
+        $revision = CaseRecord::getLatestRevisionRequest($complaintId);
+        if (!$revision || empty($revision['revision_fields'])) {
+            http_response_code(409);
+            echo 'Revision instructions are incomplete. Please contact SDRU.';
+            exit;
+        }
+
+        if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
+            Security::requireCsrfToken();
+            $this->storeRevision($case, $revision);
+        }
+
+        $errors = $_SESSION['revision_errors'] ?? [];
+        $old = $_SESSION['revision_old'] ?? [];
+        unset($_SESSION['revision_errors'], $_SESSION['revision_old']);
+
+        return [
+            'user' => $this->user,
+            'case' => $case,
+            'revision' => $revision,
+            'respondents' => CaseRecord::getRespondents($complaintId),
+            'witnesses' => CaseRecord::getWitnesses($complaintId),
+            'evidence' => CaseRecord::getEvidence($complaintId),
+            'errors' => $errors,
+            'old' => $old,
+        ];
+    }
+
+    private function authenticate() {
+        if (!isset($_SESSION['email'])) {
+            header('Location: ../auth/login.php');
+            exit;
+        }
+
+        $this->database = new Database();
+        $this->db = $this->database->getConnection();
+
+        User::setConnection($this->db);
+        Complaint::setConnection($this->db);
+        CaseRecord::setConnection($this->db);
+        Message::setConnection($this->db);
+        Notification::setConnection($this->db);
+        AuditLog::setConnection($this->db);
+
+        $this->user = User::findByEmail($_SESSION['email']);
+
+        if (!$this->user || $this->user['status'] !== 'active') {
+            session_unset();
+            session_destroy();
+            header('Location: ../auth/login.php');
+            exit;
+        }
+
+        if ($this->normalizeRole($this->user['role']) !== 'student') {
+            http_response_code(403);
+            echo 'Access denied. Complaint submission is only available to student accounts.';
+            exit;
+        }
+    }
+
+    private function normalizeRole($role) {
+        return strtolower(str_replace(['_', ' '], '-', $role));
+    }
+
+    private function trackingFilters(array $input) {
+        $sort = $input['sort'] ?? 'newest';
+
+        return [
+            'case_number' => trim($input['case_number'] ?? ''),
+            'status' => trim($input['status'] ?? ''),
+            'classification' => trim($input['classification'] ?? ''),
+            'date_from' => preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) ($input['date_from'] ?? '')) ? $input['date_from'] : '',
+            'date_to' => preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) ($input['date_to'] ?? '')) ? $input['date_to'] : '',
+            'academic_year' => preg_match('/^\d{4}$/', (string) ($input['academic_year'] ?? '')) ? $input['academic_year'] : '',
+            'sort' => in_array($sort, ['newest', 'oldest', 'updated'], true) ? $sort : 'newest',
+        ];
+    }
+
+    private function store() {
+        $errors = $this->validate($_POST, $_FILES);
+
+        if (!empty($errors)) {
+            $_SESSION['complaint_errors'] = $errors;
+            $_SESSION['complaint_old'] = $_POST;
+            header('Location: create.php');
+            exit;
+        }
+
+        $savedFiles = [];
+
+        try {
+            $savedFiles = $this->saveEvidenceFiles($_FILES['evidence']);
+            $now = date('Y-m-d H:i:s');
+            $complainantType = in_array($_POST['complainant_type'] ?? '', ['Student', 'Employee', 'Private Individual', 'Others'], true) ? $_POST['complainant_type'] : 'Student';
+            $isStudentComplainant = $complainantType === 'Student';
+
+            $complaint = [
+                'complaint_title' => trim($_POST['complaint_title'] ?? $_POST['case_classification']),
+                'submitted_by_account_id' => (int) $this->user['account_id'],
+                'complainant_type' => $complainantType,
+                'complainant_name' => $isStudentComplainant ? trim($this->user['first_name'] . ' ' . $this->user['last_name']) : trim($_POST['complainant_name']),
+                'complainant_relationship' => $complainantType === 'Private Individual' ? trim($_POST['complainant_relationship'] ?? '') : '',
+                'complainant_employee_no' => $complainantType === 'Employee' ? trim($_POST['complainant_employee_no'] ?? '') : '',
+                'complainant_department' => $complainantType === 'Employee' ? trim($_POST['complainant_department'] ?? '') : '',
+                'complainant_position' => $complainantType === 'Employee' ? trim($_POST['complainant_position'] ?? '') : '',
+                'complainant_affiliation' => $complainantType === 'Others' ? trim($_POST['complainant_affiliation'] ?? '') : '',
+                'complainant_purpose' => $complainantType === 'Others' ? trim($_POST['complainant_purpose'] ?? '') : '',
+                'complainant_student_no' => $isStudentComplainant ? trim($_POST['complainant_student_no'] ?? '') : '',
+                'complainant_email' => $isStudentComplainant ? trim($this->user['email']) : trim($_POST['complainant_email'] ?? ''),
+                'complainant_contact' => trim($_POST['complainant_contact']),
+                'complainant_college' => $isStudentComplainant ? trim($_POST['complainant_college'] ?? '') : '',
+                'complainant_course' => $isStudentComplainant ? trim($_POST['complainant_course'] ?? '') : '',
+                'complainant_year_level' => $isStudentComplainant ? trim($_POST['complainant_year_level'] ?? '') : '',
+                'complainant_section' => $isStudentComplainant ? trim($_POST['complainant_section'] ?? '') : '',
+                'complainant_course_year' => $isStudentComplainant ? trim($_POST['complainant_course_year'] ?? '') : '',
+                'case_classification' => trim($_POST['case_classification']),
+                'incident_datetime' => date('Y-m-d H:i:s', strtotime($_POST['incident_datetime'])),
+                'incident_location' => trim($_POST['incident_location']),
+                'complaint_details' => trim($_POST['complaint_details']),
+                'status' => 'Submitted',
+                'submitted_at' => $now,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
+
+            $createdComplaint = Complaint::createComplaint(
+                $complaint,
+                $this->normalizeRespondents($_POST),
+                $this->normalizeWitnesses($_POST),
+                $savedFiles
+            );
+
+            Notification::createForUser(
+                (int) $this->user['account_id'],
+                'complaint_submitted',
+                'Complaint Submitted',
+                'Your complaint was submitted successfully. Case Number: ' . $createdComplaint['case_number'],
+                'web/views/complaints/create.php'
+            );
+
+            Notification::createForStaff(
+                'complaint_submitted',
+                'New Complaint Submitted',
+                $createdComplaint['case_number'] . ' was submitted by ' . $complaint['complainant_name'] . '.',
+                'web/views/cases/show.php?id=' . $createdComplaint['complaint_id']
+            );
+
+            AuditLog::record(
+                $this->user,
+                'Complaint Submission',
+                'Submitted complaint ' . $createdComplaint['case_number'] . '.'
+            );
+
+            $_SESSION['complaint_success'] = 'Complaint submitted successfully. Case Number: ' . $createdComplaint['case_number'];
+            header('Location: create.php');
+            exit;
+        } catch (Throwable $exception) {
+            foreach ($savedFiles as $file) {
+                $absolutePath = dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . $file['file_path'];
+                if (is_file($absolutePath)) {
+                    unlink($absolutePath);
+                }
+            }
+
+            $_SESSION['complaint_errors'] = ['Unable to submit complaint. Please try again.'];
+            $_SESSION['complaint_old'] = $_POST;
+            header('Location: create.php');
+            exit;
+        }
+    }
+
+    private function validate(array $post, array $files) {
+        $errors = [];
+        $complainantType = trim((string) ($post['complainant_type'] ?? ''));
+
+        $required = [
+            'complaint_title' => 'Complaint title is required.',
+            'complainant_name' => 'Complainant name is required.',
+            'complainant_email' => 'Complainant email is required.',
+            'complainant_contact' => 'Complainant contact number is required.',
+            'case_classification' => 'Case classification is required.',
+            'incident_datetime' => 'Incident date and time is required.',
+            'incident_location' => 'Incident location is required.',
+            'complaint_details' => 'Complaint details are required.',
+        ];
+
+        foreach ($required as $field => $message) {
+            if (empty(trim($post[$field] ?? ''))) {
+                $errors[] = $message;
+            }
+        }
+
+        if (!in_array($complainantType, ['Student', 'Employee', 'Private Individual', 'Others'], true)) {
+            $errors[] = 'Please select a valid complainant type.';
+        } elseif ($complainantType === 'Student') {
+            foreach (['complainant_student_no' => 'Student number', 'complainant_college' => 'College', 'complainant_course' => 'Course', 'complainant_year_level' => 'Year level', 'complainant_section' => 'Section'] as $field => $label) {
+                if (trim((string) ($post[$field] ?? '')) === '') $errors[] = $label . ' is required for student complainants.';
+            }
+            $validSections = array_merge(...array_values(Courses::sections()));
+            $yearPrefixes = ['First Year' => '1-', 'Second Year' => '2-', 'Third Year' => '3-', 'Fourth Year' => '4-', 'Fifth Year' => '5-'];
+            if (!Colleges::contains($post['complainant_college'] ?? '')) $errors[] = 'Please select a valid college.';
+            if (!in_array($post['complainant_course'] ?? '', Courses::all(), true)) $errors[] = 'Please select a valid course.';
+            if (!isset($yearPrefixes[$post['complainant_year_level'] ?? ''])) $errors[] = 'Please select a valid year level.';
+            if (!in_array($post['complainant_section'] ?? '', $validSections, true)) $errors[] = 'Please select a valid section.';
+            if (isset($yearPrefixes[$post['complainant_year_level'] ?? '']) && !str_starts_with((string) ($post['complainant_section'] ?? ''), $yearPrefixes[$post['complainant_year_level']])) {
+                $errors[] = 'The selected section does not match the year level.';
+            }
+        } elseif ($complainantType === 'Employee') {
+            foreach (['complainant_employee_no' => 'Employee number', 'complainant_department' => 'College, office, or department', 'complainant_position' => 'Position'] as $field => $label) {
+                if (trim((string) ($post[$field] ?? '')) === '') $errors[] = $label . ' is required for employee complainants.';
+            }
+        } elseif ($complainantType === 'Private Individual' && !in_array(trim((string) ($post['complainant_relationship'] ?? '')), ['', 'Parent', 'Guardian', 'Alumni', 'Visitor', 'Community Member', 'Other'], true)) {
+            $errors[] = 'Please select a valid relationship to CLSU.';
+        }
+
+        if (!empty($post['complainant_email']) && !filter_var($post['complainant_email'], FILTER_VALIDATE_EMAIL)) {
+            $errors[] = 'Please enter a valid complainant email address.';
+        }
+
+        if (!empty($post['case_classification']) && !in_array($post['case_classification'], $this->classifications, true)) {
+            $errors[] = 'Please select a valid case classification.';
+        }
+
+        if (empty($this->normalizeRespondents($post))) {
+            $errors[] = 'At least one respondent is required.';
+        }
+
+        if (empty($this->normalizeWitnesses($post))) {
+            $errors[] = 'At least one witness is required.';
+        }
+
+        if (empty($files['evidence']['name'][0])) {
+            $errors[] = 'At least one supporting evidence file is required.';
+        }
+
+        return array_merge($errors, $this->validateEvidenceFiles($files['evidence'] ?? []));
+    }
+
+    private function storeRevision(array $case, array $revision) {
+        $allowed = array_values(array_intersect(
+            ['complaint_title', 'complaint_details', 'incident_date', 'incident_time', 'incident_location', 'respondents', 'witnesses', 'evidence'],
+            $revision['revision_fields']
+        ));
+        $errors = [];
+
+        if (empty($_POST['revision_confirmation'])) $errors[] = 'Please confirm that you completed all requested revisions.';
+        foreach (['complaint_title', 'complaint_details', 'incident_date', 'incident_time', 'incident_location'] as $field) {
+            if (in_array($field, $allowed, true) && trim((string) ($_POST[$field] ?? '')) === '') {
+                $errors[] = ucwords(str_replace('_', ' ', $field)) . ' is required.';
+            }
+        }
+
+        $respondents = in_array('respondents', $allowed, true) ? $this->normalizeRespondents($_POST) : null;
+        $witnesses = in_array('witnesses', $allowed, true) ? $this->normalizeWitnesses($_POST) : null;
+        if ($respondents !== null && !$respondents) $errors[] = 'At least one respondent is required.';
+        if ($witnesses !== null && !$witnesses) $errors[] = 'At least one witness is required.';
+
+        $newFiles = $_FILES['evidence'] ?? [];
+        if (in_array('evidence', $allowed, true) && !empty($newFiles['name'][0])) {
+            $errors = array_merge($errors, $this->validateEvidenceFiles($newFiles));
+        }
+        if (in_array('evidence', $allowed, true)) {
+            $existingEvidence = CaseRecord::getEvidence((int) $case['complaint_id']);
+            $existingIds = array_map('intval', array_column($existingEvidence, 'evidence_id'));
+            $removeIds = array_intersect($existingIds, array_map('intval', (array) ($_POST['remove_evidence'] ?? [])));
+            $newFileCount = count(array_filter((array) ($newFiles['name'] ?? [])));
+            if (count($existingIds) - count($removeIds) + $newFileCount < 1) $errors[] = 'At least one supporting evidence file must remain.';
+        }
+
+        if ($errors) {
+            $_SESSION['revision_errors'] = $errors;
+            $_SESSION['revision_old'] = $_POST;
+            header('Location: revise.php?id=' . (int) $case['complaint_id']);
+            exit;
+        }
+
+        $updates = [];
+        foreach (['complaint_title', 'complaint_details', 'incident_location'] as $field) {
+            if (in_array($field, $allowed, true)) $updates[$field] = trim($_POST[$field]);
+        }
+        if (in_array('incident_date', $allowed, true) || in_array('incident_time', $allowed, true)) {
+            $existing = strtotime($case['incident_datetime']);
+            $date = in_array('incident_date', $allowed, true) ? $_POST['incident_date'] : date('Y-m-d', $existing);
+            $time = in_array('incident_time', $allowed, true) ? $_POST['incident_time'] : date('H:i', $existing);
+            $timestamp = strtotime($date . ' ' . $time);
+            if (!$timestamp) {
+                $_SESSION['revision_errors'] = ['Please provide a valid incident date and time.'];
+                $_SESSION['revision_old'] = $_POST;
+                header('Location: revise.php?id=' . (int) $case['complaint_id']);
+                exit;
+            }
+            $updates['incident_datetime'] = date('Y-m-d H:i:s', $timestamp);
+        }
+
+        $savedFiles = [];
+        try {
+            if (in_array('evidence', $allowed, true) && !empty($newFiles['name'][0])) $savedFiles = $this->saveEvidenceFiles($newFiles);
+            $removeIds = in_array('evidence', $allowed, true) ? array_map('intval', (array) ($_POST['remove_evidence'] ?? [])) : [];
+            $removedPaths = Complaint::submitRevision(
+                (int) $case['complaint_id'], (int) $this->user['account_id'], $updates,
+                $respondents, $witnesses, $savedFiles, $removeIds
+            );
+            foreach ($removedPaths as $path) {
+                $absolute = dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $path);
+                if (is_file($absolute)) unlink($absolute);
+            }
+
+            try {
+                $recipientIds = array_unique(array_filter([
+                    (int) ($revision['created_by_account_id'] ?? 0),
+                    (int) ($case['assigned_coordinator_account_id'] ?? 0),
+                ]));
+                foreach ($recipientIds as $recipientId) {
+                    Notification::createForUser($recipientId, 'complaint_revised', 'Revised Complaint Submitted',
+                        $case['case_number'] . ' was revised and submitted for verification.',
+                        'web/views/cases/show.php?id=' . (int) $case['complaint_id']);
+                }
+                AuditLog::record($this->user, 'Complaint Revision', 'Submitted revisions for ' . $case['case_number'] . '. Fields: ' . implode(', ', $allowed) . '.');
+            } catch (Throwable $notificationException) {
+                // The committed revision remains valid if a secondary notification cannot be created.
+            }
+            $_SESSION['complaint_success'] = 'Complaint Revised Successfully. Your revised complaint is awaiting SDRU verification.';
+            header('Location: my_cases.php');
+            exit;
+        } catch (Throwable $exception) {
+            foreach ($savedFiles as $file) {
+                $absolute = dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $file['file_path']);
+                if (is_file($absolute)) unlink($absolute);
+            }
+            $_SESSION['revision_errors'] = ['Unable to submit the revised complaint. Please try again.'];
+            $_SESSION['revision_old'] = $_POST;
+            header('Location: revise.php?id=' . (int) $case['complaint_id']);
+            exit;
+        }
+    }
+
+    private function normalizeRespondents(array $post) {
+        $respondents = [];
+        $names = $post['respondent_name'] ?? [];
+
+        foreach ($names as $index => $name) {
+            $name = trim($name);
+
+            if ($name === '') {
+                continue;
+            }
+
+            $respondents[] = [
+                'full_name' => $name,
+                'student_no' => trim($post['respondent_student_no'][$index] ?? ''),
+                'college' => trim($post['respondent_college'][$index] ?? ''),
+                'course_year' => trim($post['respondent_course_year'][$index] ?? ''),
+                'contact_info' => trim($post['respondent_contact'][$index] ?? ''),
+                'details' => trim($post['respondent_details'][$index] ?? ''),
+            ];
+        }
+
+        return $respondents;
+    }
+
+    private function normalizeWitnesses(array $post) {
+        $witnesses = [];
+        $names = $post['witness_name'] ?? [];
+
+        foreach ($names as $index => $name) {
+            $name = trim($name);
+
+            if ($name === '') {
+                continue;
+            }
+
+            $witnesses[] = [
+                'full_name' => $name,
+                'student_no' => trim($post['witness_student_no'][$index] ?? ''),
+                'contact_info' => trim($post['witness_contact'][$index] ?? ''),
+                'statement' => trim($post['witness_statement'][$index] ?? ''),
+            ];
+        }
+
+        return $witnesses;
+    }
+
+    private function validateEvidenceFiles(array $files) {
+        $errors = [];
+        $allowedExtensions = ['pdf', 'jpg', 'jpeg', 'png', 'docx'];
+        $allowedMimeTypes = [
+            'application/pdf',
+            'image/jpeg',
+            'image/png',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        ];
+        $maxBytes = 5 * 1024 * 1024;
+
+        foreach (($files['name'] ?? []) as $index => $name) {
+            if ($name === '') {
+                continue;
+            }
+
+            if (($files['error'][$index] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+                $errors[] = $name . ' could not be uploaded.';
+                continue;
+            }
+
+            if (empty($files['tmp_name'][$index]) || !is_uploaded_file($files['tmp_name'][$index])) {
+                $errors[] = $name . ' is not a valid uploaded file.';
+                continue;
+            }
+
+            if (($files['size'][$index] ?? 0) > $maxBytes) {
+                $errors[] = $name . ' exceeds the 5MB file limit.';
+            }
+
+            $extension = strtolower(pathinfo($name, PATHINFO_EXTENSION));
+
+            if (!in_array($extension, $allowedExtensions, true)) {
+                $errors[] = $name . ' has an invalid file type.';
+                continue;
+            }
+
+            $mimeType = mime_content_type($files['tmp_name'][$index]);
+
+            if (!in_array($mimeType, $allowedMimeTypes, true)) {
+                $errors[] = $name . ' has an invalid file content type.';
+            }
+        }
+
+        return $errors;
+    }
+
+    private function saveEvidenceFiles(array $files) {
+        $savedFiles = [];
+        $uploadDir = dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'storage' . DIRECTORY_SEPARATOR . 'evidence';
+
+        if (!is_dir($uploadDir)) {
+            mkdir($uploadDir, 0755, true);
+        }
+
+        foreach ($files['name'] as $index => $name) {
+            if ($name === '') {
+                continue;
+            }
+
+            if (empty($files['tmp_name'][$index]) || !is_uploaded_file($files['tmp_name'][$index])) {
+                throw new Exception('Invalid uploaded file.');
+            }
+
+            $extension = strtolower(pathinfo($name, PATHINFO_EXTENSION));
+            $storedFilename = date('YmdHis') . '_' . bin2hex(random_bytes(12)) . '.' . $extension;
+            $destination = $uploadDir . DIRECTORY_SEPARATOR . $storedFilename;
+
+            if (!move_uploaded_file($files['tmp_name'][$index], $destination)) {
+                throw new Exception('Unable to save uploaded file.');
+            }
+
+            $savedFiles[] = [
+                'original_filename' => basename($name),
+                'stored_filename' => $storedFilename,
+                'file_path' => 'storage/evidence/' . $storedFilename,
+                'mime_type' => mime_content_type($destination),
+                'file_size' => (int) $files['size'][$index],
+            ];
+        }
+
+        return $savedFiles;
+    }
+}

@@ -1,31 +1,58 @@
 <?php
-require '../layout/header.php';
-require '../../config/Database.php';
-require '../../models/User.php';
+require_once __DIR__ . '/../../helpers/Security.php';
+Security::startSession();
 
-session_start([
-    'cookie_lifetime' => 86400,
-]);
-
-$database = new Database();
-$db = $database->getConnection();
-
-User::setConnection($db);
+function app_base_path() {
+    $script = str_replace('\\', '/', $_SERVER['SCRIPT_NAME'] ?? '/index.php');
+    return rtrim(preg_replace('#/web/views/auth/login\.php$#', '', $script), '/');
+}
 
 if (isset($_SESSION['email'])) {
-    header('Location: ../../../index.php');
+    header('Location: ' . app_base_path() . '/index.php');
     exit;
 }
 
-if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+$successMessage = $_SESSION['success'] ?? null;
+$errorMessage = $_SESSION['error'] ?? null;
+$requestMethod = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+
+if ($requestMethod !== 'POST') {
+    unset($_SESSION['success'], $_SESSION['error']);
+    session_write_close();
+}
+
+if ($requestMethod == 'POST') {
+    Security::requireCsrfToken();
+    require '../../config/Database.php';
+    require '../../models/User.php';
+
+    $database = new Database();
+    $db = $database->getConnection();
+
+    User::setConnection($db);
+
     $email = $_POST['email'];
     $password = $_POST['password'];
 
+    if (Security::isLoginLocked($email)) {
+        $remainingMinutes = max(1, (int) ceil(Security::loginLockRemaining($email) / 60));
+        $_SESSION['error'] = 'Too many failed login attempts. Please try again in ' . $remainingMinutes . ' minute(s).';
+        header('Location: login.php');
+        exit;
+    }
+
     if (User::login($email, $password)) {
-        header('Location: ../../../index.php');
+        Security::clearLoginAttempts($email);
+        header('Location: ' . app_base_path() . '/index.php');
         exit;
     } else {
-        $_SESSION['error'] = 'Invalid email or password.';
+        Security::recordFailedLogin($email);
+        if (Security::isLoginLocked($email)) {
+            $remainingMinutes = max(1, (int) ceil(Security::loginLockRemaining($email) / 60));
+            $_SESSION['error'] = 'Too many failed login attempts. Please try again in ' . $remainingMinutes . ' minute(s).';
+        } else {
+            $_SESSION['error'] = 'Invalid email or password.';
+        }
         header('Location: login.php');
         exit;
     }
@@ -39,7 +66,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login</title>
-    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Poppins:wght@400;500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="../layout/style.css">
 </head>
 
@@ -48,26 +74,25 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     <img class="seal" src="../../../public/assets/clsulogo.png" alt="clsu logo">
     <p class="org-name">Office of Student Affairs - Student<br>Discipline and Reformation Unit</p>
     <form class="form-wrap" action="login.php" method="POST">
+        <?= Security::csrfField() ?>
 
-        <?php if (isset($_SESSION['success'])): ?>
+        <?php if ($successMessage): ?>
             <div class="alert-success">
-                <?= htmlspecialchars($_SESSION['success']) ?>
+                <?= htmlspecialchars($successMessage) ?>
             </div>
-            <?php unset($_SESSION['success']); ?>
         <?php endif; ?>
 
         <input
             type="email"
-            class="pill-input <?= isset($_SESSION['error']) ? 'is-invalid' : '' ?>"
+            class="pill-input <?= $errorMessage ? 'is-invalid' : '' ?>"
             id="email"
             name="email"
             placeholder="Email"
             value="<?= htmlspecialchars($_POST['email'] ?? '') ?>"
         >
 
-        <?php if (isset($_SESSION['error'])): ?>
-            <p class="error-msg"><?= htmlspecialchars($_SESSION['error']) ?></p>
-            <?php unset($_SESSION['error']); ?>
+        <?php if ($errorMessage): ?>
+            <p class="error-msg"><?= htmlspecialchars($errorMessage) ?></p>
         <?php endif; ?>
 
         <input
@@ -78,7 +103,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             placeholder="Password"
         >
 
-        <a class="create-link" href="create_acc.php">Create an account.</a>  <!--ref wala pa --->
+        <a class="create-link" href="create_acc.php">Create an account.</a>
 
         <button type="submit" class="btn-login">Log In</button>
 
@@ -99,9 +124,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         </a>
 
     </form>
-
-    <?php include '../layout/footer.php'; ?>
-
 </body>
 
 </html>

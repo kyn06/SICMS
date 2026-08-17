@@ -1,23 +1,30 @@
 <?php
-require '../layout/header.php';
-require '../../config/Database.php';
-require '../../models/User.php';
-
-session_start([
-    'cookie_lifetime' => 86400,
-]);
-
-$database = new Database();
-$db = $database->getConnection();
-
-User::setConnection($db);
+require_once __DIR__ . '/../../helpers/Security.php';
+Security::startSession();
 
 if (isset($_SESSION['email'])) {
     header('Location: ../../../index.php');
     exit;
 }
 
-if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+$errorMessage = $_SESSION['error'] ?? null;
+$requestMethod = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+
+if ($requestMethod !== 'POST') {
+    unset($_SESSION['error']);
+    session_write_close();
+}
+
+if ($requestMethod == 'POST') {
+    Security::requireCsrfToken();
+    require '../../config/Database.php';
+    require '../../models/User.php';
+
+    $database = new Database();
+    $db = $database->getConnection();
+
+    User::setConnection($db);
+
     $first_name = trim($_POST['first_name']);
     $last_name  = trim($_POST['last_name']);
     $email      = trim($_POST['email']);
@@ -88,7 +95,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Create Account</title>
-    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Poppins:wght@400;500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="../layout/style.css">
     <style>
         .name-row {
@@ -126,12 +132,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     <p class="org-name">Office of Student Affairs - Student<br>Discipline and Reformation Unit</p>
 
     <form class="form-wrap" action="create_acc.php" method="POST">
+        <?= Security::csrfField() ?>
 
-        <?php if (isset($_SESSION['error'])): ?>
+        <?php if ($errorMessage): ?>
             <div class="error-banner">
-                <?= htmlspecialchars($_SESSION['error']) ?>
+                <?= htmlspecialchars($errorMessage) ?>
             </div>
-            <?php unset($_SESSION['error']); ?>
         <?php endif; ?>
 
         <div class="name-row">
@@ -178,9 +184,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         <button type="submit" class="btn-login">Create Account</button>
 
     </form>
-
-    <?php include '../layout/footer.php'; ?>
-
 </body>
 
 </html>
