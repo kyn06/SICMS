@@ -1,0 +1,167 @@
+<?php
+require_once __DIR__ . '/../../controllers/HearingController.php';
+
+$controller = new HearingController();
+if (($_GET['ajax'] ?? '') === '1') $controller->search();
+$viewData = $controller->index();
+
+$user = $viewData['user'];
+$hearings = $viewData['hearings'];
+$message = $viewData['message'];
+$errors = $viewData['errors'];
+$scheduledCount = count(array_filter($hearings, fn($hearing) => $hearing['status'] === 'Scheduled'));
+$todayCount = count(array_filter($hearings, fn($hearing) => substr($hearing['hearing_datetime'], 0, 10) === date('Y-m-d')));
+$completedCount = count(array_filter($hearings, fn($hearing) => $hearing['status'] === 'Completed'));
+$cancelledCount = count(array_filter($hearings, fn($hearing) => $hearing['status'] === 'Cancelled'));
+
+$controller->clearFlash();
+
+function h($value) {
+    return htmlspecialchars((string) $value);
+}
+?>
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hearing Management | SICMS</title>
+    <link rel="stylesheet" href="../layout/style.css">
+    <link rel="stylesheet" href="../layout/sidebar.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        body { align-items: stretch; justify-content: flex-start; background: #f5f7f4; padding: 0; }
+        .page { min-height: 100vh; width: 100%; }
+        .header { align-items: center; background: #123c1b; color: #fff; display: flex; justify-content: space-between; gap: 16px; padding: 22px 30px; }
+        .header h1 { font-size: 24px; margin-bottom: 4px; }
+        .header p { color: #dbe9d9; font-size: 13px; }
+        .actions { display: flex; gap: 10px; }
+        .actions a, .btn { border: 0; border-radius: 8px; cursor: pointer; font-family: inherit; font-size: 14px; text-decoration: none; }
+        .actions a { background: #fff; color: #123c1b; padding: 10px 14px; }
+        .wrap { max-width: 1180px; margin: 0 auto; padding: 24px; }
+        .panel { background: #fff; border: 1px solid #dce5da; border-radius: 8px; padding: 18px; }
+        .alert { border-radius: 8px; font-size: 14px; margin-bottom: 18px; padding: 12px 14px; }
+        .alert-success { background: #f0fdf0; border: 1px solid #1A9D00; color: #137500; }
+        .alert-error { background: #fff5f5; border: 1px solid #dc3545; color: #b42318; }
+        table { border-collapse: collapse; width: 100%; }
+        th, td { border-bottom: 1px solid #e4ece2; font-size: 14px; padding: 12px 10px; text-align: left; vertical-align: top; }
+        th { color: #536052; font-weight: 600; }
+        .status { background: #edf4eb; border-radius: 999px; color: #123c1b; display: inline-block; font-size: 12px; padding: 5px 10px; }
+        .btn-edit { background: #e9f5e7; color: #123c1b; display: inline-block; padding: 9px 12px; }
+        .btn-cancel { background: #b42318; color: #fff; padding: 9px 12px; }
+        .btn-complete { background: #1A9D00; color: #fff; padding: 9px 12px; }
+        .row-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+        .empty { color: #536052; padding: 18px 0; text-align: center; }
+        @media (max-width: 900px) { .header { align-items: flex-start; flex-direction: column; } table { display: block; overflow-x: auto; white-space: nowrap; } }
+    </style>
+    <link rel="stylesheet" href="../layout/system.css">
+    <link rel="stylesheet" href="../layout/hearings.css">
+</head>
+
+<body>
+    <div class="dashboard-shell">
+        <?php require __DIR__ . '/../layout/sidebar.php'; ?>
+        <div class="app-content">
+            <?php $pageTitle = 'Hearing Management'; require __DIR__ . '/../layout/topbar.php'; ?>
+
+        <main class="wrap hearings-page">
+            <div class="hearing-toolbar">
+                <div><h2>Hearing Schedule</h2><p><?= count($hearings) ?> hearing record<?= count($hearings) === 1 ? '' : 's' ?></p></div>
+                <div class="actions">
+                    <a class="btn btn-primary" href="create.php"><i class="bi bi-calendar-plus"></i> Schedule Hearing</a>
+                    <a class="btn btn-secondary" href="../cases/index.php"><i class="bi bi-folder2-open"></i> View Cases</a>
+                </div>
+            </div>
+            <?php if ($message): ?><div class="alert alert-success"><?= h($message) ?></div><?php endif; ?>
+            <?php if (!empty($errors)): ?>
+                <div class="alert alert-error">
+                    <?php foreach ($errors as $error): ?><div><?= h($error) ?></div><?php endforeach; ?>
+                </div>
+            <?php endif; ?>
+
+            <section class="hearing-summary" aria-label="Hearing summary">
+                <?php foreach ([
+                    ['label' => 'Scheduled', 'value' => $scheduledCount, 'icon' => 'bi-calendar-event'],
+                    ['label' => 'Hearings Today', 'value' => $todayCount, 'icon' => 'bi-calendar-day'],
+                    ['label' => 'Completed', 'value' => $completedCount, 'icon' => 'bi-check2-circle'],
+                    ['label' => 'Cancelled', 'value' => $cancelledCount, 'icon' => 'bi-calendar-x'],
+                ] as $item): ?>
+                    <article class="hearing-summary-card">
+                        <div><span><?= h($item['label']) ?></span><strong data-hearing-summary="<?= strtolower(str_replace(['hearings ', ' '], ['', '-'], $item['label'])) ?>"><?= (int) $item['value'] ?></strong></div>
+                        <i class="bi <?= h($item['icon']) ?>" aria-hidden="true"></i>
+                    </article>
+                <?php endforeach; ?>
+            </section>
+
+            <section class="panel hearing-table-panel">
+                <div class="hearing-panel-heading">
+                    <div><h2>All Hearings</h2><p>Case hearing activity and status</p></div>
+                </div>
+                <form id="hearingFilters" method="GET" action="index.php" style="display:grid;grid-template-columns:minmax(220px,2fr) repeat(2,minmax(150px,1fr)) auto;gap:12px;margin-bottom:16px;align-items:end">
+                    <div class="field"><label for="hearing_search">Search</label><input id="hearing_search" name="search" placeholder="Case number, student, or venue"></div>
+                    <div class="field"><label for="hearing_status">Status</label><select id="hearing_status" name="status"><option value="">All Statuses</option><option>Scheduled</option><option>Completed</option><option>Cancelled</option></select></div>
+                    <div class="field"><label for="hearing_year">Year</label><select id="hearing_year" name="year"><option value="">All Years</option><?php for ($year=(int)date('Y');$year>=2020;$year--): ?><option><?= $year ?></option><?php endfor; ?></select></div>
+                    <button class="btn btn-secondary" id="resetHearingFilters" type="button">Reset</button>
+                </form>
+                <?php if (empty($hearings)): ?>
+                    <div class="empty hearing-empty"><i class="bi bi-calendar2-x"></i><strong>No hearings found</strong><span>Scheduled hearings will appear here.</span></div>
+                <?php else: ?>
+                    <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Case Number</th>
+                                <th>Complainant</th>
+                                <th>Date and Time</th>
+                                <th>Venue</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="hearingTableBody">
+                            <?php foreach ($hearings as $hearing): ?>
+                                <tr>
+                                    <td><a class="hearing-case-link" href="../cases/show.php?id=<?= (int) $hearing['complaint_id'] ?>"><?= h($hearing['case_number']) ?></a></td>
+                                    <td><div class="hearing-student"><span class="hearing-avatar" aria-hidden="true"><?= h(strtoupper(substr($hearing['complainant_name'], 0, 1))) ?></span><strong><?= h($hearing['complainant_name']) ?></strong></div></td>
+                                    <td class="hearing-date"><strong><?= h(date('M d, Y', strtotime($hearing['hearing_datetime']))) ?></strong><span><?= h(date('h:i A', strtotime($hearing['hearing_datetime']))) ?></span></td>
+                                    <td>
+                                        <div class="hearing-venue"><i class="bi bi-geo-alt"></i><span><?= h($hearing['venue']) ?></span></div>
+                                        <?php if (!empty($hearing['google_meet_link'])): ?>
+                                            <a class="meet-link" href="<?= h($hearing['google_meet_link']) ?>" target="_blank" rel="noopener"><i class="bi bi-camera-video"></i> Google Meet</a>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td><span class="status"><?= h($hearing['status']) ?></span></td>
+                                    <td>
+                                        <div class="row-actions">
+                                            <a class="btn btn-edit" href="edit.php?id=<?= (int) $hearing['hearing_id'] ?>"><i class="bi bi-pencil"></i> Edit</a>
+                                            <?php if ($hearing['status'] === 'Scheduled'): ?>
+                                                <form method="POST" action="index.php" data-confirm="Cancel this scheduled hearing?">
+                                                    <?= Security::csrfField() ?>
+                                                    <input type="hidden" name="hearing_id" value="<?= (int) $hearing['hearing_id'] ?>">
+                                                    <button class="btn btn-cancel" type="submit" name="hearing_action" value="cancel"><i class="bi bi-x-circle"></i> Cancel</button>
+                                                </form>
+                                                <form method="POST" action="index.php" data-confirm="Mark this hearing as completed?">
+                                                    <?= Security::csrfField() ?>
+                                                    <input type="hidden" name="hearing_id" value="<?= (int) $hearing['hearing_id'] ?>">
+                                                    <button class="btn btn-complete" type="submit" name="hearing_action" value="complete"><i class="bi bi-check2-circle"></i> Complete</button>
+                                                </form>
+                                            <?php endif; ?>
+                                        </div>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                    </div>
+                <?php endif; ?>
+            </section>
+        </main>
+        </div>
+    </div>
+    <script>
+    (()=>{const form=document.getElementById('hearingFilters'),body=document.getElementById('hearingTableBody');if(!form||!body)return;const csrf='<?= h(Security::csrfToken()) ?>',esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));let timer,request;async function load(){if(request)request.abort();request=new AbortController();const p=new URLSearchParams(new FormData(form));p.set('ajax','1');const r=await fetch(`index.php?${p}`,{headers:{'X-Requested-With':'XMLHttpRequest'},signal:request.signal});const d=await r.json();if(!d.success)throw Error(d.message);body.innerHTML=d.hearings.length?d.hearings.map(h=>{const actions=h.status==='Scheduled'?`<form method="POST" action="index.php" data-confirm="Cancel this scheduled hearing?"><input type="hidden" name="csrf_token" value="${csrf}"><input type="hidden" name="hearing_id" value="${+h.hearing_id}"><button class="btn btn-cancel" name="hearing_action" value="cancel">Cancel</button></form><form method="POST" action="index.php" data-confirm="Mark this hearing as completed?"><input type="hidden" name="csrf_token" value="${csrf}"><input type="hidden" name="hearing_id" value="${+h.hearing_id}"><button class="btn btn-complete" name="hearing_action" value="complete">Complete</button></form>`:'';return `<tr><td><a class="hearing-case-link" href="../cases/show.php?id=${+h.complaint_id}">${esc(h.case_number)}</a></td><td><strong>${esc(h.complainant_name)}</strong></td><td>${esc(new Date(h.hearing_datetime.replace(' ','T')).toLocaleString())}</td><td>${esc(h.venue)}</td><td><span class="status">${esc(h.status)}</span></td><td><div class="row-actions"><a class="btn btn-edit" href="edit.php?id=${+h.hearing_id}"><i class="bi bi-pencil"></i> Edit</a>${actions}</div></td></tr>`}).join(''):'<tr><td colspan="6" class="empty">No hearings found.</td></tr>';Object.entries(d.summary).forEach(([k,v])=>{const n=document.querySelector(`[data-hearing-summary="${k}"]`);if(n)n.textContent=v});p.delete('ajax');history.replaceState(null,'',p.toString()?`index.php?${p}`:'index.php')}form.addEventListener('submit',e=>{e.preventDefault();load().catch(()=>{})});form.querySelectorAll('select').forEach(x=>x.addEventListener('change',load));form.elements.search.addEventListener('input',()=>{clearTimeout(timer);timer=setTimeout(load,400)});document.getElementById('resetHearingFilters').addEventListener('click',()=>{form.reset();load()})})();
+    </script>
+</body>
+
+</html>

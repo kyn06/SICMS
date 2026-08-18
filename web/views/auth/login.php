@@ -1,31 +1,58 @@
 <?php
-require '../layout/header.php';
-require '../../config/Database.php';
-require '../../models/User.php';
+require_once __DIR__ . '/../../helpers/Security.php';
+Security::startSession();
 
-session_start([
-    'cookie_lifetime' => 86400,
-]);
-
-$database = new Database();
-$db = $database->getConnection();
-
-User::setConnection($db);
+function app_base_path() {
+    $script = str_replace('\\', '/', $_SERVER['SCRIPT_NAME'] ?? '/index.php');
+    return rtrim(preg_replace('#/web/views/auth/login\.php$#', '', $script), '/');
+}
 
 if (isset($_SESSION['email'])) {
-    header('Location: ../../../index.php');
+    header('Location: ' . app_base_path() . '/index.php');
     exit;
 }
 
-if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+$successMessage = $_SESSION['success'] ?? null;
+$errorMessage = $_SESSION['error'] ?? null;
+$requestMethod = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+
+if ($requestMethod !== 'POST') {
+    unset($_SESSION['success'], $_SESSION['error']);
+    session_write_close();
+}
+
+if ($requestMethod == 'POST') {
+    Security::requireCsrfToken();
+    require '../../config/Database.php';
+    require '../../models/User.php';
+
+    $database = new Database();
+    $db = $database->getConnection();
+
+    User::setConnection($db);
+
     $email = $_POST['email'];
     $password = $_POST['password'];
 
+    if (Security::isLoginLocked($email)) {
+        $remainingMinutes = max(1, (int) ceil(Security::loginLockRemaining($email) / 60));
+        $_SESSION['error'] = 'Too many failed login attempts. Please try again in ' . $remainingMinutes . ' minute(s).';
+        header('Location: login.php');
+        exit;
+    }
+
     if (User::login($email, $password)) {
-        header('Location: ../../../index.php');
+        Security::clearLoginAttempts($email);
+        header('Location: ' . app_base_path() . '/index.php');
         exit;
     } else {
-        $_SESSION['error'] = 'Invalid email or password.';
+        Security::recordFailedLogin($email);
+        if (Security::isLoginLocked($email)) {
+            $remainingMinutes = max(1, (int) ceil(Security::loginLockRemaining($email) / 60));
+            $_SESSION['error'] = 'Too many failed login attempts. Please try again in ' . $remainingMinutes . ' minute(s).';
+        } else {
+            $_SESSION['error'] = 'Invalid email or password.';
+        }
         header('Location: login.php');
         exit;
     }
@@ -39,8 +66,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login</title>
-    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Poppins:wght@400;500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="../layout/style.css">
+    <link rel="stylesheet" href="../layout/login-chatbot.css">
 </head>
 
 <body>
@@ -48,26 +75,25 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     <img class="seal" src="../../../public/assets/clsulogo.png" alt="clsu logo">
     <p class="org-name">Office of Student Affairs - Student<br>Discipline and Reformation Unit</p>
     <form class="form-wrap" action="login.php" method="POST">
+        <?= Security::csrfField() ?>
 
-        <?php if (isset($_SESSION['success'])): ?>
+        <?php if ($successMessage): ?>
             <div class="alert-success">
-                <?= htmlspecialchars($_SESSION['success']) ?>
+                <?= htmlspecialchars($successMessage) ?>
             </div>
-            <?php unset($_SESSION['success']); ?>
         <?php endif; ?>
 
         <input
             type="email"
-            class="pill-input <?= isset($_SESSION['error']) ? 'is-invalid' : '' ?>"
+            class="pill-input <?= $errorMessage ? 'is-invalid' : '' ?>"
             id="email"
             name="email"
             placeholder="Email"
             value="<?= htmlspecialchars($_POST['email'] ?? '') ?>"
         >
 
-        <?php if (isset($_SESSION['error'])): ?>
-            <p class="error-msg"><?= htmlspecialchars($_SESSION['error']) ?></p>
-            <?php unset($_SESSION['error']); ?>
+        <?php if ($errorMessage): ?>
+            <p class="error-msg"><?= htmlspecialchars($errorMessage) ?></p>
         <?php endif; ?>
 
         <input
@@ -78,7 +104,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             placeholder="Password"
         >
 
-        <a class="create-link" href="create_acc.php">Create an account.</a>  <!--ref wala pa --->
+        <a class="create-link" href="create_acc.php">Create an account.</a>
 
         <button type="submit" class="btn-login">Log In</button>
 
@@ -100,8 +126,52 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
     </form>
 
-    <?php include '../layout/footer.php'; ?>
+    <!-- Public SDRU Procedural and Inquiry Chatbot -->
+    <button type="button" id="sdruchatLauncher" class="sdruchat-launcher" aria-controls="sdruchatPanel" aria-expanded="false">
+        <span class="sdruchat-launcher-icon">?</span>
+        <span class="sdruchat-launcher-copy">
+            <strong>Need help?</strong>
+            <small>Ask the SDRU Assistant</small>
+        </span>
+        <span class="sdruchat-launcher-arrow">↗</span>
+    </button>
 
+    <section id="sdruchatPanel" class="sdruchat-panel" aria-label="SDRU Assistant chatbot">
+        <div class="sdruchat-head">
+            <div class="sdruchat-title">
+                <div class="sdruchat-avatar">SD</div>
+                <div>
+                    <strong>SDRU Assistant</strong>
+                    <small>Procedural &amp; Inquiry Assistant</small>
+                </div>
+            </div>
+            <button type="button" id="sdruchatClose" class="sdruchat-close" aria-label="Close chatbot">&times;</button>
+        </div>
+
+        <div class="sdruchat-notice">
+            Ask about complaint procedures, requirements, case workflow, hearings, evidence, notifications, messaging, and general SDRU services. Do not enter confidential case details here.
+        </div>
+
+        <div id="sdruchatMessages" class="sdruchat-messages" aria-live="polite">
+            <div class="sdruchat-msg bot">Hello! I am the SDRU Assistant. How can I help you today?</div>
+        </div>
+
+        <div id="sdruchatSuggestions" class="sdruchat-suggestions">
+            <button type="button" class="sdruchat-suggestion">How do I file a complaint?</button>
+            <button type="button" class="sdruchat-suggestion">What are the requirements?</button>
+            <button type="button" class="sdruchat-suggestion">How does the case process work?</button>
+        </div>
+
+        <div class="sdruchat-input">
+            <textarea id="sdruchatInput" placeholder="Ask the SDRU Assistant..." aria-label="Chatbot question"></textarea>
+            <button type="button" id="sdruchatSend" class="sdruchat-send" aria-label="Send question">&#10148;</button>
+        </div>
+    </section>
+
+    <script>
+        window.SDRU_CHAT_API = <?= json_encode(app_base_path() . '/web/chatbot/api/chat.php') ?>;
+    </script>
+    <script src="../layout/login-chatbot.js"></script>
 </body>
 
 </html>

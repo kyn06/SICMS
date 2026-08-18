@@ -177,7 +177,7 @@ class User extends Model {
     public static function listAccounts(array $filters = []) {
         $sql = "SELECT account_id, first_name, last_name, email, role, status, created_at, updated_at
                 FROM accounts
-                WHERE 1 = 1";
+                WHERE role != 'student'";
         $params = [];
         $types = '';
 

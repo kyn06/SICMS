@@ -1,0 +1,230 @@
+.hearings-page,
+.hearing-form-page {
+    display: grid;
+    gap: 20px;
+}
+
+.hearing-toolbar,
+.hearing-form-toolbar {
+    align-items: center;
+    display: flex;
+    justify-content: space-between;
+}
+
+.hearing-toolbar h2 {
+    color: var(--sicms-green-900);
+    font-size: 19px;
+    margin: 0 0 3px;
+}
+
+.hearing-toolbar p,
+.hearing-panel-heading p,
+.hearing-form-heading p {
+    color: var(--sicms-muted);
+    font-size: 12px;
+    margin: 0;
+}
+
+.hearing-toolbar .actions,
+.hearing-form-panel .actions {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: flex-end;
+    margin: 0;
+}
+
+.hearing-summary {
+    display: grid;
+    gap: 14px;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.hearing-summary-card {
+    align-items: center;
+    background: #fff;
+    border: 1px solid var(--sicms-line);
+    border-radius: var(--sicms-radius);
+    box-shadow: var(--sicms-shadow);
+    display: flex;
+    justify-content: space-between;
+    min-height: 102px;
+    padding: 18px;
+}
+
+.hearing-summary-card span {
+    color: var(--sicms-muted);
+    display: block;
+    font-size: 12px;
+    font-weight: 700;
+    margin-bottom: 8px;
+}
+
+.hearing-summary-card strong {
+    color: var(--sicms-green-900);
+    font-size: 27px;
+    line-height: 1;
+}
+
+.hearing-summary-card > i,
+.hearing-form-heading > span:first-child {
+    align-items: center;
+    background: var(--sicms-green-100);
+    border-radius: 8px;
+    color: var(--sicms-green-700);
+    display: inline-flex;
+    font-size: 19px;
+    height: 42px;
+    justify-content: center;
+    width: 42px;
+}
+
+.hearings-page .panel,
+.hearing-form-page .panel {
+    margin: 0 !important;
+}
+
+.hearing-panel-heading {
+    margin-bottom: 16px;
+}
+
+.hearing-panel-heading h2,
+.hearing-form-heading h2 {
+    margin: 0 0 3px !important;
+}
+
+.hearing-table-panel table {
+    min-width: 980px;
+}
+
+.hearing-case-link {
+    color: var(--sicms-green-900);
+    font-weight: 800;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.hearing-case-link:hover,
+.meet-link:hover {
+    text-decoration: underline;
+}
+
+.hearing-student {
+    align-items: center;
+    display: flex;
+    gap: 9px;
+    min-width: 155px;
+}
+
+.hearing-student strong { font-size: 12px; }
+
+.hearing-avatar {
+    align-items: center;
+    background: var(--sicms-green-100);
+    border-radius: 50%;
+    color: var(--sicms-green-900);
+    display: inline-flex;
+    flex: 0 0 32px;
+    font-size: 11px;
+    font-weight: 800;
+    height: 32px;
+    justify-content: center;
+}
+
+.hearing-date strong,
+.hearing-date span {
+    display: block;
+    white-space: nowrap;
+}
+
+.hearing-date span {
+    color: var(--sicms-muted);
+    font-size: 11px;
+    margin-top: 3px;
+}
+
+.hearing-venue {
+    align-items: flex-start;
+    display: flex;
+    gap: 6px;
+    min-width: 150px;
+}
+
+.hearing-venue i { color: var(--sicms-green-700); }
+
+.meet-link {
+    align-items: center;
+    color: var(--sicms-green-700);
+    display: inline-flex;
+    font-size: 11px;
+    font-weight: 700;
+    gap: 5px;
+    margin-top: 7px;
+    text-decoration: none;
+}
+
+.hearing-table-panel .row-actions form { margin: 0; }
+.hearing-table-panel .row-actions .btn { min-height: 36px; padding: 7px 10px !important; }
+
+.hearing-empty {
+    align-items: center;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    min-height: 220px;
+    justify-content: center;
+}
+
+.hearing-empty i { color: var(--sicms-green-700); font-size: 28px; margin-bottom: 6px; }
+.hearing-empty strong { color: var(--sicms-text); }
+.hearing-empty span { font-size: 12px; }
+
+.hearing-form-page {
+    max-width: 920px !important;
+}
+
+.hearing-form-toolbar {
+    justify-content: flex-start;
+}
+
+.hearing-form-heading {
+    align-items: center;
+    border-bottom: 1px solid var(--sicms-line);
+    display: flex;
+    gap: 12px;
+    margin-bottom: 20px;
+    padding-bottom: 18px;
+}
+
+.hearing-current-status {
+    margin-left: auto;
+}
+
+.hearing-form-grid {
+    gap: 16px !important;
+}
+
+.hearing-form-panel textarea {
+    min-height: 120px;
+    resize: vertical;
+}
+
+.hearing-form-panel .actions {
+    border-top: 1px solid var(--sicms-line);
+    margin-top: 20px;
+    padding-top: 18px;
+}
+
+@media (max-width: 1050px) {
+    .hearing-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 700px) {
+    .hearings-page, .hearing-form-page { gap: 16px; }
+    .hearing-toolbar { align-items: flex-start; flex-direction: column; gap: 12px; }
+    .hearing-summary, .hearing-form-grid { grid-template-columns: 1fr !important; }
+    .hearing-form-grid .field.full { grid-column: auto; }
+    .hearing-toolbar .actions, .hearing-form-panel .actions { align-items: stretch; flex-direction: column; width: 100%; }
+    .hearing-toolbar .actions .btn, .hearing-form-panel .actions .btn { width: 100%; }
+}
