@@ -6,49 +6,73 @@ class AuditLog extends Model {
     protected static $table = 'audit_logs';
     protected static $primaryKey = 'audit_log_id';
 
-    public static function record($user, $action, $description) {
-        try {
-            $accountId = null;
-            $userName = 'System';
-            $userRole = 'System';
+public static function record($user, $action, $description) {
+    try {
+        $accountId = null;
+        $userName = 'System';
+        $userRole = 'System';
 
-            if (is_object($user)) {
-                $user = get_object_vars($user);
-            }
+        if (is_object($user)) {
+            $user = get_object_vars($user);
+        }
 
-            if (is_array($user)) {
-                $accountId = isset($user['account_id']) ? (int) $user['account_id'] : null;
-                $userName = trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? '')) ?: ($user['email'] ?? 'User');
-                $userRole = $user['role'] ?? 'User';
-            }
+        if (is_array($user)) {
+            $accountId = isset($user['account_id']) ? (int) $user['account_id'] : null;
+            $userName = trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? '')) ?: ($user['email'] ?? 'User');
+            $userRole = $user['role'] ?? 'User';
 
-            if (self::isStudentRole($userRole)) {
+            $roleKey = strtolower(str_replace(['_', ' '], '-', trim($userRole)));
+
+            $allowedRoles = [
+                'super-admin',
+                'admin',
+                'sdru-staff',
+                'coordinator',
+                'head-of-sdru',
+                'sdru-head',
+            ];
+
+            if (!in_array($roleKey, $allowedRoles, true)) {
                 return null;
             }
+        }
 
-            $sql = "INSERT INTO audit_logs
-                        (account_id, user_name, user_role, action, description, ip_address, user_agent, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
-            $stmt = self::$conn->prepare($sql);
+        $sql = "INSERT INTO audit_logs
+                    (account_id, user_name, user_role, action, description, ip_address, user_agent, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
 
-            if (!$stmt) {
-                return null;
-            }
+        $stmt = self::$conn->prepare($sql);
 
-            $ipAddress = self::ipAddress();
-            $userAgent = substr($_SERVER['HTTP_USER_AGENT'] ?? '', 0, 255);
-            $createdAt = date('Y-m-d H:i:s');
-            $stmt->bind_param("isssssss", $accountId, $userName, $userRole, $action, $description, $ipAddress, $userAgent, $createdAt);
-
-            if (!$stmt->execute()) {
-                return null;
-            }
-
-            return self::find(mysqli_insert_id(self::$conn));
-        } catch (Throwable $exception) {
+        if (!$stmt) {
             return null;
         }
+
+        $ipAddress = self::ipAddress();
+        $userAgent = substr($_SERVER['HTTP_USER_AGENT'] ?? '', 0, 255);
+        $createdAt = date('Y-m-d H:i:s');
+
+        $stmt->bind_param(
+            "isssssss",
+            $accountId,
+            $userName,
+            $userRole,
+            $action,
+            $description,
+            $ipAddress,
+            $userAgent,
+            $createdAt
+        );
+
+        if (!$stmt->execute()) {
+            return null;
+        }
+
+        return self::find(mysqli_insert_id(self::$conn));
+
+    } catch (Throwable $exception) {
+        return null;
     }
+}
 
     public static function filters(array $input) {
         return [

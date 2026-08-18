@@ -1,5 +1,7 @@
 <?php
 
+date_default_timezone_set('Asia/Manila');
+
 $routes = [
     'dashboard' => 'index.php',
     'accounts.index' => 'web/views/accounts/index.php',

@@ -284,7 +284,7 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
                         </div>
                     </details>
 
-                    <details class="dropdown">
+                    <!-- <details class="dropdown">
                         <summary class="profile-button">
                             <span class="avatar" style="height: 30px; width: 30px; font-size: 12px;"><?= h($initials) ?></span>
                             <i class="bi bi-chevron-down" aria-hidden="true"></i>
@@ -294,7 +294,7 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
                             <a href="#change-password"><i class="bi bi-key"></i> Change Password</a>
                             <a href="<?= h(app_route('logout')) ?>"><i class="bi bi-box-arrow-right"></i> Logout</a>
                         </div>
-                    </details>
+                    </details> -->
                 </div>
             </header>
 
