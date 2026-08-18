@@ -61,7 +61,7 @@ body {
 .case-wrap,
 .complaint-wrap {
     margin: 0 auto !important;
-    max-width: 1240px !important;
+    max-width: 1400px !important;
     padding: clamp(16px, 3vw, 28px) !important;
     width: 100% !important;
 }
@@ -96,15 +96,15 @@ body {
     padding: var(--sicms-space-4) !important;
 }
 
-.stats-grid > .stat-card,
-.student-summary-grid > .stat-card,
-.cards > .card {
+.stats-grid>.stat-card,
+.student-summary-grid>.stat-card,
+.cards>.card {
     height: 100%;
 }
 
-.panel + .panel,
-.form-section + .form-section,
-.filter-panel + .table-panel {
+.panel+.panel,
+.form-section+.form-section,
+.filter-panel+.table-panel {
     margin-top: var(--sicms-space-5) !important;
 }
 
@@ -282,27 +282,62 @@ tbody tr:hover {
 }
 
 .status[data-status="submitted"],
-.status-pill[data-status="submitted"] { background: #eaf1f8 !important; color: #315d7d !important; }
+.status-pill[data-status="submitted"] {
+    background: #eaf1f8 !important;
+    color: #315d7d !important;
+}
+
 .status[data-status="verified"],
-.status-pill[data-status="verified"] { background: #e7f6e5 !important; color: #176b20 !important; }
+.status-pill[data-status="verified"] {
+    background: #e7f6e5 !important;
+    color: #176b20 !important;
+}
+
 .status[data-status="returned-for-revision"],
-.status-pill[data-status="returned-for-revision"] { background: #fff4d6 !important; color: #8a5a00 !important; }
+.status-pill[data-status="returned-for-revision"] {
+    background: #fff4d6 !important;
+    color: #8a5a00 !important;
+}
+
 .status[data-status="rejected"],
-.status-pill[data-status="rejected"] { background: #fff0ef !important; color: var(--sicms-danger) !important; }
+.status-pill[data-status="rejected"] {
+    background: #fff0ef !important;
+    color: var(--sicms-danger) !important;
+}
+
 .status[data-status="resolved"],
-.status-pill[data-status="resolved"] { background: #e4f5f0 !important; color: #116554 !important; }
+.status-pill[data-status="resolved"] {
+    background: #e4f5f0 !important;
+    color: #116554 !important;
+}
+
 .status[data-status="archived"],
-.status-pill[data-status="archived"] { background: #eef1ee !important; color: #536052 !important; }
+.status-pill[data-status="archived"] {
+    background: #eef1ee !important;
+    color: #536052 !important;
+}
+
 .status[data-status="active"],
 .status-pill[data-status="active"],
 .status[data-status="completed"],
-.status-pill[data-status="completed"] { background: #e4f5f0 !important; color: #116554 !important; }
+.status-pill[data-status="completed"] {
+    background: #e4f5f0 !important;
+    color: #116554 !important;
+}
+
 .status[data-status="inactive"],
 .status-pill[data-status="inactive"],
 .status[data-status="cancelled"],
-.status-pill[data-status="cancelled"] { background: #fff0ef !important; color: var(--sicms-danger) !important; }
+.status-pill[data-status="cancelled"] {
+    background: #fff0ef !important;
+    color: var(--sicms-danger) !important;
+}
+
 .status[data-status="scheduled"],
-.status-pill[data-status="scheduled"] { background: #eaf1f8 !important; color: #315d7d !important; }
+.status-pill[data-status="scheduled"] {
+    background: #eaf1f8 !important;
+    color: #315d7d !important;
+}
 
 .alert,
 .alert-success,
@@ -358,8 +393,15 @@ tbody tr:hover {
     z-index: 1000;
 }
 
-.sicms-ajax-notice.error { background: #8f211a; border-color: #b83b32; }
-.sicms-ajax-notice.show { opacity: 1; transform: translate(-50%, 0); }
+.sicms-ajax-notice.error {
+    background: #8f211a;
+    border-color: #b83b32;
+}
+
+.sicms-ajax-notice.show {
+    opacity: 1;
+    transform: translate(-50%, 0);
+}
 
 .filter-grid,
 .form-grid,
@@ -375,8 +417,13 @@ tbody tr:hover {
     overflow-x: auto;
 }
 
-.table-wrap table th:first-child { border-top-left-radius: var(--sicms-radius); }
-.table-wrap table th:last-child { border-top-right-radius: var(--sicms-radius); }
+.table-wrap table th:first-child {
+    border-top-left-radius: var(--sicms-radius);
+}
+
+.table-wrap table th:last-child {
+    border-top-right-radius: var(--sicms-radius);
+}
 
 .sicms-pagination {
     align-items: center;
@@ -458,6 +505,7 @@ tbody tr:hover {
 }
 
 @media (max-width: 900px) {
+
     .header,
     .case-header,
     .complaint-header {
@@ -476,7 +524,10 @@ tbody tr:hover {
 }
 
 @media (prefers-reduced-motion: reduce) {
-    *, *::before, *::after {
+
+    *,
+    *::before,
+    *::after {
         scroll-behavior: auto !important;
         transition-duration: 0.01ms !important;
     }
