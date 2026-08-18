@@ -3,9 +3,9 @@
 class Database{
     
     private $host = "127.0.0.1";
-    private $port = 3306;
+    private $port = 3307;
     private $username= "root";
-    private $password = "1234";
+    private $password = "";
     private $database = "sicms";
     private $conn;
 
