@@ -132,7 +132,6 @@ function selected($left, $right) {
                         <label for="filter_role">Role</label>
                         <select id="filter_role" name="role">
                             <option value="">All Roles</option>
-                            <option value="student" <?= selected($filters['role'], 'student') ?>>Student</option>
                             <?php foreach ($roles as $role => $label): ?>
                                 <option value="<?= h($role) ?>" <?= selected($filters['role'], $role) ?>><?= h($label) ?></option>
                             <?php endforeach; ?>

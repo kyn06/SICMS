@@ -212,6 +212,10 @@ public static function record($user, $action, $description) {
         return $values;
     }
 
+    private static function isStudentRole($role) {
+        return strtolower(str_replace(['_', ' '], '-', (string) $role)) === 'student';
+    }
+
     private static function dateValue($value) {
         return preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) $value) ? $value : '';
     }

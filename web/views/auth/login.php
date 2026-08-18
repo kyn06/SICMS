@@ -67,6 +67,7 @@ if ($requestMethod == 'POST') {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login</title>
     <link rel="stylesheet" href="../layout/style.css">
+    <link rel="stylesheet" href="../layout/login-chatbot.css">
 </head>
 
 <body>
@@ -124,6 +125,53 @@ if ($requestMethod == 'POST') {
         </a>
 
     </form>
+
+    <!-- Public SDRU Procedural and Inquiry Chatbot -->
+    <button type="button" id="sdruchatLauncher" class="sdruchat-launcher" aria-controls="sdruchatPanel" aria-expanded="false">
+        <span class="sdruchat-launcher-icon">?</span>
+        <span class="sdruchat-launcher-copy">
+            <strong>Need help?</strong>
+            <small>Ask the SDRU Assistant</small>
+        </span>
+        <span class="sdruchat-launcher-arrow">↗</span>
+    </button>
+
+    <section id="sdruchatPanel" class="sdruchat-panel" aria-label="SDRU Assistant chatbot">
+        <div class="sdruchat-head">
+            <div class="sdruchat-title">
+                <div class="sdruchat-avatar">SD</div>
+                <div>
+                    <strong>SDRU Assistant</strong>
+                    <small>Procedural &amp; Inquiry Assistant</small>
+                </div>
+            </div>
+            <button type="button" id="sdruchatClose" class="sdruchat-close" aria-label="Close chatbot">&times;</button>
+        </div>
+
+        <div class="sdruchat-notice">
+            Ask about complaint procedures, requirements, case workflow, hearings, evidence, notifications, messaging, and general SDRU services. Do not enter confidential case details here.
+        </div>
+
+        <div id="sdruchatMessages" class="sdruchat-messages" aria-live="polite">
+            <div class="sdruchat-msg bot">Hello! I am the SDRU Assistant. How can I help you today?</div>
+        </div>
+
+        <div id="sdruchatSuggestions" class="sdruchat-suggestions">
+            <button type="button" class="sdruchat-suggestion">How do I file a complaint?</button>
+            <button type="button" class="sdruchat-suggestion">What are the requirements?</button>
+            <button type="button" class="sdruchat-suggestion">How does the case process work?</button>
+        </div>
+
+        <div class="sdruchat-input">
+            <textarea id="sdruchatInput" placeholder="Ask the SDRU Assistant..." aria-label="Chatbot question"></textarea>
+            <button type="button" id="sdruchatSend" class="sdruchat-send" aria-label="Send question">&#10148;</button>
+        </div>
+    </section>
+
+    <script>
+        window.SDRU_CHAT_API = <?= json_encode(app_base_path() . '/web/chatbot/api/chat.php') ?>;
+    </script>
+    <script src="../layout/login-chatbot.js"></script>
 </body>
 
 </html>
