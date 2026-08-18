@@ -54,6 +54,8 @@ if (!function_exists('app_route')) {
         <?php endif; ?>
     <?php endforeach; ?>
 
+    <div class="sidebar-spacer"></div>
+
     <a class="logout-fixed" href="<?= h(app_route('logout')) ?>">
         <i class="bi bi-box-arrow-right" aria-hidden="true"></i>
         Logout
