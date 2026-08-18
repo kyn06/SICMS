@@ -24,8 +24,7 @@ if (!function_exists('app_route')) {
     <div class="brand">
         <img src="<?= h(app_url('public/assets/clsulogo.png')) ?>" alt="CLSU logo">
         <div>
-            <div class="brand-title">SICMS Dashboard</div>
-            <div class="brand-subtitle">Student Discipline and Reformation Unit</div>
+            <div class="brand-title">Student Discipline and Reformation Unit</div>
         </div>
     </div>
 
