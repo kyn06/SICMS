@@ -330,7 +330,7 @@ body {
     font-size: 17px;
     font-weight: 800;
     gap: 9px;
-    margin-bottom: 13px;
+    margin-bottom: 5px;
 }
 
 .filter-grid {
@@ -361,6 +361,35 @@ body {
     min-height: 42px;
     padding: 9px 11px;
     width: 100%;
+}
+
+.field .password-wrapper {
+    position: relative;
+}
+
+.field .password-wrapper input {
+    padding-right: 40px;
+}
+
+.field .password-toggle {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #7b8878;
+    font-size: 16px;
+    padding: 2px;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.field .password-toggle:hover {
+    color: #1A9D00;
 }
 
 .filter-actions,
@@ -454,7 +483,7 @@ body {
 
 .side-stack .section-title {
     font-size: 14px;
-    margin-bottom: 9px;
+    margin-bottom: 4px;
 }
 
 .side-stack .panel {
@@ -492,10 +521,9 @@ body {
 
 .activity-description,
 .activity-time {
-    color: var(--muted);
-    font-size: 12px;
+    font-size: 14px;
+    font-weight: 500;
     line-height: 1.4;
-    margin-top: 3px;
 }
 
 .hearing-table {
@@ -539,36 +567,26 @@ body {
     border-radius: 8px;
     box-shadow: var(--shadow);
     margin-bottom: 18px;
-    padding: 22px;
+    padding: 20px;
 }
 
 .student-hero {
-    background: linear-gradient(135deg, #0f3a19, #1a7f22);
-    color: #fff;
+    background: #fff;
+    color: #000000;
     display: grid;
-    gap: 14px;
+    gap: 5px;
     grid-template-columns: minmax(0, 1fr) auto;
 }
 
 .student-hero .section-title,
 .student-hero .activity-description {
-    color: #fff;
+    color: #000000;
 }
 
 .student-id {
     color: #d9ead6;
     font-size: 13px;
     margin-top: 6px;
-}
-
-.student-date {
-    background: rgba(255, 255, 255, 0.14);
-    border: 1px solid rgba(255, 255, 255, 0.18);
-    border-radius: 8px;
-    font-size: 13px;
-    font-weight: 800;
-    padding: 12px 14px;
-    text-align: center;
 }
 
 .student-summary-grid {
@@ -589,8 +607,8 @@ body {
 }
 
 .student-main-panel .student-hero {
-    min-height: 148px;
-    padding: 28px;
+    min-height: 80px;
+    padding: 20px;
 }
 
 .student-main-panel .student-hero .section-title {
@@ -607,19 +625,20 @@ body {
 }
 
 .student-main-panel .student-panel {
-    padding: 24px;
+    padding: 20px;
 }
 
 .student-actions {
     display: grid;
     gap: 16px;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    margin-bottom: 22px;
+    margin-top: 60px;
+    margin-bottom: 60px;
 }
 
 .student-actions-compact {
     grid-template-columns: repeat(2, minmax(220px, 320px));
-    justify-content: start;
+    justify-content: center;
 }
 
 .student-dashboard-focused {
@@ -629,13 +648,13 @@ body {
 
 .student-action {
     align-items: center;
-    background: #fff;
+    background: linear-gradient(to bottom,#3D7A4A 10%,#103719 90%);
     border: 1px solid var(--line);
     border-radius: 8px;
     box-shadow: var(--shadow);
-    color: var(--green-900);
+    color: #fff;
     display: flex;
-    font-weight: 800;
+    font-weight: 700;
     gap: 10px;
     min-height: 82px;
     padding: 18px;

@@ -66,6 +66,7 @@ if ($requestMethod == 'POST') {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link rel="stylesheet" href="../layout/style.css">
     <link rel="stylesheet" href="../layout/login-chatbot.css">
 </head>
@@ -96,13 +97,44 @@ if ($requestMethod == 'POST') {
             <p class="error-msg"><?= htmlspecialchars($errorMessage) ?></p>
         <?php endif; ?>
 
-        <input
-            type="password"
-            class="pill-input"
-            id="password"
-            name="password"
-            placeholder="Password"
-        >
+        <div class="password-wrapper">
+            <input 
+                type="password" 
+                class="pill-input" 
+                id="password" 
+                name="password" 
+                placeholder="Password"
+            >
+
+            <button 
+                type="button" 
+                class="password-toggle"
+                id="passwordToggle"
+                aria-label="Show password"
+            >
+                <i class="bi bi-eye"></i>
+            </button>
+        </div>
+
+        <script>
+            const password = document.getElementById("password");
+            const passwordToggle = document.getElementById("passwordToggle");
+
+            passwordToggle.addEventListener("click", function () {
+                const isPassword = password.type === "password";
+
+                password.type = isPassword ? "text" : "password";
+
+                this.innerHTML = isPassword
+                    ? '<i class="bi bi-eye-slash"></i>'
+                    : '<i class="bi bi-eye"></i>';
+
+                this.setAttribute(
+                    "aria-label",
+                    isPassword ? "Hide password" : "Show password"
+                );
+            });
+        </script>
 
         <a class="create-link" href="create_acc.php">Create an account.</a>
 

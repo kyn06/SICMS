@@ -77,6 +77,42 @@ body {
     box-shadow: 0 0 0 3px rgba(220, 53, 69, 0.12);
 }
 
+.password-wrapper {
+    position: relative;
+    width: 100%;
+}
+
+.password-wrapper .pill-input {
+    width: 100%;
+    padding-right: 50px; /* Space for the eye icon */
+}
+
+.password-toggle {
+    position: absolute;
+    right: 15px;
+    top: 43%;
+    transform: translateY(-50%);
+
+    border: none;
+    background: transparent;
+    padding: 5px;
+
+    cursor: pointer;
+    color: #6c6c6c;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.password-toggle:hover {
+    color: #4A4466;
+}
+
+.password-toggle i {
+    font-size: 18px;
+}
+
 .error-msg {
     color: #dc3545;
     font-size: 13px;
