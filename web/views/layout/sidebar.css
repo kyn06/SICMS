@@ -161,6 +161,22 @@
     z-index: 1;
 }
 
+.sidebar-footer {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.5);
+    text-align: center;
+    padding: 10px 0 4px;
+}
+
+.sidebar-footer a {
+    color: rgba(255, 255, 255, 0.6);
+    text-decoration: none;
+}
+
+.sidebar-footer a:hover {
+    color: #fff;
+}
+
 .app-content {
     min-width: 0;
     width: 100%;

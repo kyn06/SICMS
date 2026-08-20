@@ -60,4 +60,9 @@ if (!function_exists('app_route')) {
         <i class="bi bi-box-arrow-right" aria-hidden="true"></i>
         Logout
     </a>
+
+    <div class="sidebar-footer">
+        <a href="<?= h(app_url('web/views/auth/terms.php')) ?>">Terms of Service</a> &middot;
+        <a href="<?= h(app_url('web/views/auth/privacy.php')) ?>">Privacy Policy</a>
+    </div>
 </aside>
