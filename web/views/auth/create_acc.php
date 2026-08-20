@@ -30,10 +30,13 @@ if ($requestMethod == 'POST') {
     $email      = trim($_POST['email']);
     $password   = $_POST['password'];
     $confirm    = $_POST['confirm_password'];
+    $phone      = trim($_POST['phone_number'] ?? '');
+    $gender     = trim($_POST['gender'] ?? '');
+    $address    = trim($_POST['address'] ?? '');
     $accept_terms = isset($_POST['accept_terms']);
 
     // Basic validation
-    if (empty($first_name) || empty($last_name) || empty($email) || empty($password)) {
+    if (empty($first_name) || empty($last_name) || empty($email) || empty($password) || empty($phone) || empty($gender) || empty($address)) {
         $_SESSION['error'] = 'All fields are required.';
         header('Location: create_acc.php');
         exit;
@@ -77,6 +80,9 @@ if ($requestMethod == 'POST') {
         'last_name'     => $last_name,
         'email'         => $email,
         'password_hash' => password_hash($password, PASSWORD_DEFAULT),
+        'phone_number'  => $phone,
+        'gender'        => $gender,
+        'address'       => $address,
         'role'          => 'student',
         'status'        => 'active',
         'created_at'    => date('Y-m-d H:i:s'),
@@ -220,6 +226,31 @@ if ($requestMethod == 'POST') {
             name="email"
             placeholder="Email"
             value="<?= htmlspecialchars($_POST['email'] ?? '') ?>"
+        >
+
+        <div class="name-row">
+            <input
+                type="text"
+                class="pill-input"
+                name="phone_number"
+                placeholder="Phone number"
+                value="<?= htmlspecialchars($_POST['phone_number'] ?? '') ?>"
+                required
+            >
+            <select class="pill-input" name="gender" required style="color: <?= empty($_POST['gender']) ? '#7b8878' : '#000' ?>;">
+                <option value="" disabled <?= empty($_POST['gender']) ? 'selected' : '' ?>>Gender</option>
+                <option value="Male" <?= ($_POST['gender'] ?? '') === 'Male' ? 'selected' : '' ?>>Male</option>
+                <option value="Female" <?= ($_POST['gender'] ?? '') === 'Female' ? 'selected' : '' ?>>Female</option>
+            </select>
+        </div>
+
+        <input
+            type="text"
+            class="pill-input"
+            name="address"
+            placeholder="Address"
+            value="<?= htmlspecialchars($_POST['address'] ?? '') ?>"
+            required
         >
 
         <div class="password-wrapper">
