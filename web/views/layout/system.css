@@ -61,7 +61,7 @@ body {
 .case-wrap,
 .complaint-wrap {
     margin: 0 auto !important;
-    max-width: 1400px !important;
+    max-width: 1800px !important;
     padding: clamp(16px, 3vw, 28px) !important;
     width: 100% !important;
 }

@@ -104,11 +104,17 @@ function selected($left, $right) {
                     </div>
                     <div class="field">
                         <label for="password">Temporary Password</label>
-                        <input id="password" name="password" type="password" autocomplete="new-password" required>
+                        <div class="password-wrapper">
+                            <input id="password" name="password" type="password" autocomplete="new-password" required>
+                            <button type="button" class="password-toggle" aria-label="Show password" onclick="const p=this.previousElementSibling;p.type=p.type==='password'?'text':'password';this.innerHTML=p.type==='password'?'<i class=\'bi bi-eye\'></i>':'<i class=\'bi bi-eye-slash\'></i>';this.setAttribute('aria-label',p.type==='password'?'Show password':'Hide password')"><i class="bi bi-eye"></i></button>
+                        </div>
                     </div>
                     <div class="field">
                         <label for="confirm_password">Confirm Password</label>
-                        <input id="confirm_password" name="confirm_password" type="password" autocomplete="new-password" required>
+                        <div class="password-wrapper">
+                            <input id="confirm_password" name="confirm_password" type="password" autocomplete="new-password" required>
+                            <button type="button" class="password-toggle" aria-label="Show password" onclick="const p=this.previousElementSibling;p.type=p.type==='password'?'text':'password';this.innerHTML=p.type==='password'?'<i class=\'bi bi-eye\'></i>':'<i class=\'bi bi-eye-slash\'></i>';this.setAttribute('aria-label',p.type==='password'?'Show password':'Hide password')"><i class="bi bi-eye"></i></button>
+                        </div>
                     </div>
                 </div>
                 <div class="actions">

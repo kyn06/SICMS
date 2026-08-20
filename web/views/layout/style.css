@@ -77,6 +77,42 @@ body {
     box-shadow: 0 0 0 3px rgba(220, 53, 69, 0.12);
 }
 
+.password-wrapper {
+    position: relative;
+    width: 100%;
+}
+
+.password-wrapper .pill-input {
+    width: 100%;
+    padding-right: 50px; /* Space for the eye icon */
+}
+
+.password-toggle {
+    position: absolute;
+    right: 15px;
+    top: 43%;
+    transform: translateY(-50%);
+
+    border: none;
+    background: transparent;
+    padding: 5px;
+
+    cursor: pointer;
+    color: #6c6c6c;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.password-toggle:hover {
+    color: #4A4466;
+}
+
+.password-toggle i {
+    font-size: 18px;
+}
+
 .error-msg {
     color: #dc3545;
     font-size: 13px;
@@ -193,4 +229,203 @@ body {
     padding: 10px 16px;
     margin-bottom: 14px;
     text-align: center;
+}
+
+.auth-footer {
+    font-size: 12px;
+    color: #7b8878;
+    text-align: center;
+    margin-top: 16px;
+}
+
+.auth-footer a {
+    color: #1A9D00;
+    text-decoration: none;
+}
+
+.auth-footer a:hover {
+    text-decoration: underline;
+}
+
+.legal-modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    background: rgba(0, 0, 0, 0.5);
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+}
+
+.legal-modal.active {
+    display: flex;
+}
+
+.legal-modal-content {
+    background: #fff;
+    border-radius: 10px;
+    width: 100%;
+    max-width: 640px;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+.legal-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 24px;
+    border-bottom: 1px solid #e8ede6;
+}
+
+.legal-modal-header h2 {
+    font-size: 17px;
+    color: #123c1b;
+    margin: 0;
+}
+
+.legal-modal-close {
+    background: none;
+    border: none;
+    font-size: 22px;
+    color: #7b8878;
+    cursor: pointer;
+    padding: 0 4px;
+    line-height: 1;
+}
+
+.legal-modal-close:hover {
+    color: #123c1b;
+}
+
+.legal-modal-body {
+    padding: 24px;
+    overflow-y: auto;
+}
+
+.legal-modal-body .legal-updated {
+    font-size: 12px;
+    color: #7b8878;
+    margin-bottom: 18px;
+}
+
+.legal-modal-body h3 {
+    font-size: 14px;
+    color: #123c1b;
+    margin-top: 18px;
+    margin-bottom: 6px;
+}
+
+.legal-modal-body p,
+.legal-modal-body li {
+    font-size: 13px;
+    color: #333;
+    line-height: 1.7;
+}
+
+.legal-modal-body ul {
+    padding-left: 20px;
+    margin-bottom: 8px;
+}
+
+.legal-modal-body li {
+    margin-bottom: 3px;
+}
+
+.cookie-banner {
+    position: fixed;
+    bottom: 24px;
+    left: 24px;
+    z-index: 900;
+    background: #fff;
+    border: 1px solid #dce7d9;
+    border-radius: 12px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+    padding: 22px 24px;
+    width: 380px;
+    max-width: calc(100vw - 48px);
+}
+
+.cookie-banner-inner {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.cookie-banner-text {
+    flex: 1;
+}
+
+.cookie-banner-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: #123c1b;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.cookie-banner-text p {
+    font-size: 12px;
+    color: #555;
+    line-height: 1.6;
+    margin-bottom: 6px;
+}
+
+.cookie-banner-text ul {
+    padding-left: 18px;
+    margin-bottom: 6px;
+}
+
+.cookie-banner-text li {
+    font-size: 12px;
+    color: #555;
+    line-height: 1.6;
+    margin-bottom: 2px;
+}
+
+.cookie-banner-note {
+    font-size: 11px !important;
+    color: #7b8878 !important;
+    margin-top: 4px !important;
+}
+
+.cookie-banner-actions {
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+    padding-top: 2px;
+}
+
+.cookie-btn {
+    border: none;
+    border-radius: 6px;
+    font-family: 'Poppins', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 8px 20px;
+    cursor: pointer;
+    transition: background 0.15s, opacity 0.15s;
+}
+
+.cookie-deny {
+    background: #f0f0f0;
+    color: #555;
+}
+
+.cookie-deny:hover {
+    background: #e0e0e0;
+}
+
+.cookie-accept {
+    background: #1A9D00;
+    color: #fff;
+}
+
+.cookie-accept:hover {
+    background: #158a00;
 }

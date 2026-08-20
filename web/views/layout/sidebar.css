@@ -161,6 +161,22 @@
     z-index: 1;
 }
 
+.sidebar-footer {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.5);
+    text-align: center;
+    padding: 10px 0 4px;
+}
+
+.sidebar-footer a {
+    color: rgba(255, 255, 255, 0.6);
+    text-decoration: none;
+}
+
+.sidebar-footer a:hover {
+    color: #fff;
+}
+
 .app-content {
     min-width: 0;
     width: 100%;
@@ -168,18 +184,16 @@
 
 .app-topbar-container {
     position: relative;
-    margin: 25px 25px 20px 30px;
-    border: 2px solid #dce7d9;
-    border-radius: 10px;
-    
+    margin: 25px 25px 0px 25px;
+    border: 0.1px solid #dce7d9;
+    border-radius: 8px;
 }
 
 .app-topbar {
     align-items: center;
     background: #fff;
-    border-bottom: 1px solid #dce7d9;
     display: flex;
-    gap: 16px;
+    gap: 10px;
     justify-content: space-between;
     min-height: 76px;
     padding: 14px 24px;

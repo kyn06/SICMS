@@ -60,4 +60,52 @@ if (!function_exists('app_route')) {
         <i class="bi bi-box-arrow-right" aria-hidden="true"></i>
         Logout
     </a>
+
+    <div class="sidebar-footer">
+        <a href="<?= h(app_url('web/views/auth/terms.php')) ?>">Terms of Service</a> &middot;
+        <a href="<?= h(app_url('web/views/auth/privacy.php')) ?>">Privacy Policy</a>
+    </div>
 </aside>
+
+<!-- Cookie Consent Banner -->
+<div id="cookieConsent" class="cookie-banner" style="display:none;">
+    <div class="cookie-banner-inner">
+        <div class="cookie-banner-text">
+            <div class="cookie-banner-title"><i class="bi bi-cookie"></i> Cookie Consent</div>
+            <p>SICMS uses cookies to ensure the system works properly. These include:</p>
+            <ul>
+                <li><strong>Session cookies</strong> &mdash; Keep you logged in and maintain your session state.</li>
+                <li><strong>CSRF tokens</strong> &mdash; Protect forms from cross-site request forgery attacks.</li>
+            </ul>
+            <p>These are strictly necessary for the system to function and are always active. No tracking or analytics cookies are currently used.</p>
+            <p class="cookie-banner-note">Your preference is saved for 12 months. You can change it anytime by clearing your browser cookies.</p>
+        </div>
+        <div class="cookie-banner-actions">
+            <button type="button" class="cookie-btn cookie-deny" onclick="setCookieConsent('denied')">Deny</button>
+            <button type="button" class="cookie-btn cookie-accept" onclick="setCookieConsent('accepted')">Accept All</button>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    var banner = document.getElementById('cookieConsent');
+    if (!banner) return;
+
+    function getCookie(name) {
+        var match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
+        return match ? match[2] : null;
+    }
+
+    if (!getCookie('sicms_cookie_consent')) {
+        banner.style.display = 'block';
+    }
+
+    window.setCookieConsent = function(choice) {
+        var date = new Date();
+        date.setTime(date.getTime() + (365 * 24 * 60 * 60 * 1000));
+        document.cookie = 'sicms_cookie_consent=' + choice + ';expires=' + date.toUTCString() + ';path=/;SameSite=Lax';
+        banner.style.display = 'none';
+    };
+})();
+</script>

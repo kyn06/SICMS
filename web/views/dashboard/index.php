@@ -301,11 +301,10 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
             <?php if (!$canViewAnalytics): ?>
                 <section class="student-panel student-hero">
                     <div>
-                        <div class="welcome-label">Student Dashboard</div>
-                        <div class="section-title"><i class="bi bi-person-circle"></i> Welcome, <?= h($displayName) ?></div>
+                        <div class="welcome-label">Complainant Portal</div>
+                        <!-- <div class="section-title"><i class="bi bi-person-circle"></i> Welcome, <?= h($displayName) ?></div> -->
                         <p class="activity-description">Submit a complaint or check the latest updates from SDRU.</p>
                     </div>
-                    <div class="student-date"><?= h(date('F d, Y')) ?></div>
                 </section>
 
                 <section class="student-actions student-actions-compact" aria-label="Student quick actions">
