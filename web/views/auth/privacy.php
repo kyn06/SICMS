@@ -151,7 +151,7 @@
         </ul>
 
         <h2>8. Cookies and Session Data</h2>
-        <p>SICMS uses session cookies to maintain your logged-in state and ensure secure navigation. These cookies are temporary, stored only for the duration of your session, and are automatically deleted when you log out or your session expires.</p>
+        <p>SICMS uses strictly necessary cookies to maintain your logged-in state and protect against cross-site request forgery. A cookie consent banner is displayed on your first visit to inform you of cookie usage and to record your preference. Your consent choice is stored in a cookie that expires after 12 months.</p>
 
         <h2>9. Children's Privacy</h2>
         <p>SICMS is designed for use by college students who are 18 years of age or older. We do not knowingly collect personal information from individuals under the age of 18.</p>
