@@ -82,7 +82,7 @@ function preview_text($text) {
     <style>
         * { box-sizing: border-box; }
         body { align-items: stretch; background: #eef2ec; display: block; justify-content: flex-start; min-height: 100vh; padding: 0; }
-        .messenger-shell { display: grid; grid-template-columns: 300px minmax(0, 1fr); height: calc(100vh - 76px); width: 100%; }
+        .messenger-shell { display: grid; grid-template-columns: 300px minmax(0, 1fr); height: calc(100vh - 76px); }
         .conversation-sidebar { background: #fff; border-right: 1px solid #dce5da; display: flex; flex-direction: column; min-width: 0; }
         .sidebar-top { border-bottom: 1px solid #edf4eb; padding: 18px 16px 14px; position: relative; }
         .new-conversation-btn { align-items: center; background: transparent; border: 0; border-radius: 8px; color: #123c1b; cursor: pointer; display: inline-flex; font-size: 22px; height: 34px; justify-content: center; position: absolute; right: 12px; top: 14px; width: 34px; }
@@ -159,8 +159,8 @@ function preview_text($text) {
         .modal-confirm { background: #b3261e; color: #fff; }
         .modal-confirm:hover { background: #99201a; }
         .hidden { display: none; }
-        @media (max-width: 820px) {
-            .messenger-shell { grid-template-columns: 1fr; height: auto; min-height: 100vh; }
+        @media (max-width: 1100px) {
+            .messenger-shell { grid-template-columns: 1fr; height: auto; min-height: 100vh; max-width: 100%; }
             .conversation-sidebar { border-bottom: 1px solid #dce5da; border-right: 0; max-height: 42vh; }
             .chat { min-height: 58vh; }
             .bubble-wrap { max-width: 86%; }
@@ -175,10 +175,8 @@ function preview_text($text) {
     <div class="dashboard-shell">
         <?php require __DIR__ . '/../layout/sidebar.php'; ?>
         <div class="app-content messages-content">
-    <button class="messages-sidebar-toggle" type="button" aria-label="Open navigation" aria-controls="app-sidebar" aria-expanded="false">
-        <i class="bi bi-list" aria-hidden="true"></i>
-    </button>
-    <main class="messenger-shell">
+        <?php $pageTitle = 'Messages'; require __DIR__ . '/../layout/topbar.php'; ?>
+    <div class="messenger-shell">
         <aside class="conversation-sidebar">
             <div class="sidebar-top">
                 <?php if ($canStartConversation): ?>
@@ -274,7 +272,7 @@ function preview_text($text) {
                 <div class="attachment-name hidden" id="attachmentName"></div>
             </form>
         </section>
-    </main>
+    </div>
         </div>
     </div>
 
@@ -289,13 +287,6 @@ function preview_text($text) {
         </div>
     </div>
 
-    <script>
-        document.querySelector('.messages-sidebar-toggle')?.addEventListener('click', function () {
-            const open = document.body.classList.toggle('sidebar-open');
-            this.setAttribute('aria-expanded', open ? 'true' : 'false');
-        });
-    </script>
-    <script src="<?= h(app_url('web/views/layout/system.js')) ?>" defer></script>
     <script>
         const currentUserId = <?= (int) $user['account_id'] ?>;
         const currentUserRole = <?= json_encode((string) $user['role']) ?>;
