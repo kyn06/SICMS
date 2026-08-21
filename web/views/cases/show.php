@@ -13,7 +13,7 @@ $evidence = $viewData['evidence'];
 $history = $viewData['history'];
 $coordinators = $viewData['coordinators'];
 $messages = $viewData['messages'];
-$messageRecipients = $viewData['messageRecipients'];
+$messageReceiver = $viewData['messageReceiver'];
 $message = $viewData['message'];
 $errors = $viewData['errors'];
 
@@ -223,6 +223,20 @@ function person_name($first, $last) {
             background: #123c1b;
         }
 
+        .btn-resolve {
+            background: #157000;
+        }
+
+        .btn-archive {
+            background: #59635a;
+        }
+
+        .btn-resolve:disabled,
+        .btn-archive:disabled {
+            cursor: not-allowed;
+            opacity: .45;
+        }
+
         .list {
             display: flex;
             flex-direction: column;
@@ -318,8 +332,12 @@ function person_name($first, $last) {
             gap: 10px;
         }
 
-        .message-send-row select {
+        .message-receiver-note {
             flex: 1;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
         .message-send-row .btn {
@@ -358,6 +376,7 @@ function person_name($first, $last) {
             <?php $pageTitle = $case['case_number']; require __DIR__ . '/../layout/topbar.php'; ?>
 
         <main class="case-wrap">
+            <div style="margin-bottom:14px"><a class="btn btn-secondary" href="<?= h(app_route('cases.index')) ?>"><i class="bi bi-arrow-left"></i> Back to Case Management</a></div>
             <?php if ($message): ?>
                 <div class="alert alert-success"><?= h($message) ?></div>
             <?php endif; ?>
@@ -478,7 +497,7 @@ function person_name($first, $last) {
                     </section>
 
                     <section class="panel">
-                        <h2>Conversation</h2>
+                        <h2>Conversation<?php if ($messageReceiver): ?> — <?= h(trim(($messageReceiver['first_name'] ?? '') . ' ' . ($messageReceiver['last_name'] ?? ''))) ?><?php endif; ?></h2>
                         <div class="message-thread" id="caseConversation">
                             <?php if (empty($messages)): ?>
                                 <p class="muted">No messages yet.</p>
@@ -501,14 +520,10 @@ function person_name($first, $last) {
                             <input type="hidden" name="complaint_id" value="<?= (int) $case['complaint_id'] ?>">
                             <textarea name="message" placeholder="Write a message" required></textarea>
                             <div class="message-send-row">
-                                <select name="receiver_account_id" required>
-                                    <option value="">Select recipient</option>
-                                    <?php foreach ($messageRecipients as $recipient): ?>
-                                        <option value="<?= (int) $recipient['account_id'] ?>">
-                                            <?= h(trim($recipient['first_name'] . ' ' . $recipient['last_name'])) ?> (<?= h($recipient['role']) ?>)
-                                        </option>
-                                    <?php endforeach; ?>
-                                </select>
+                                <input type="hidden" name="receiver_account_id" value="<?= (int) ($messageReceiver['account_id'] ?? 0) ?>">
+                                <?php if ($messageReceiver): ?>
+                                    <span class="muted message-receiver-note">Sending to <?= h(trim(($messageReceiver['first_name'] ?? '') . ' ' . ($messageReceiver['last_name'] ?? ''))) ?> (<?= h($messageReceiver['role'] ?? '') ?>)</span>
+                                <?php endif; ?>
                                 <button class="btn btn-assign" type="submit">Send</button>
                             </div>
                         </form>
@@ -516,17 +531,22 @@ function person_name($first, $last) {
                 </div>
 
                 <aside>
+                    <?php $caseStatus = $case['status'] ?? ''; $caseLocked = in_array($caseStatus, ['Resolved', 'Archived'], true); ?>
                     <section class="panel">
                         <h2>Staff Actions</h2>
+                        <?php if ($caseLocked): ?><p class="muted" style="margin-bottom:10px"><i class="bi bi-lock-fill"></i> This case is closed. Only archiving remains available.</p><?php endif; ?>
                         <form class="action-form" method="POST" action="show.php?id=<?= (int) $case['complaint_id'] ?>">
                             <?= Security::csrfField() ?>
                             <textarea name="remarks" placeholder="Remarks"></textarea>
                             <div class="button-row">
-                                <button class="btn btn-verify" type="submit" name="case_action" value="verify">Verify</button>
-                                <button class="btn btn-reject" type="submit" name="case_action" value="reject" data-confirm="Reject this complaint? This action changes its workflow status.">Reject</button>
+                                <button class="btn btn-verify" type="submit" name="case_action" value="verify" <?= $caseLocked ? 'disabled title="This case is closed."' : '' ?>>Verify</button>
+                                <button class="btn btn-reject" type="submit" name="case_action" value="reject" <?= $caseLocked ? 'disabled title="This case is closed."' : '' ?> data-confirm="Reject this complaint? This action changes its workflow status.">Reject</button>
+                                <button class="btn btn-resolve" type="submit" name="case_action" value="resolve" <?= ($caseStatus === 'Verified') ? 'data-confirm="Mark this case as resolved?"' : 'disabled title="Available once the case is Verified."' ?>>Resolve</button>
+                                <button class="btn btn-archive" type="submit" name="case_action" value="archive" <?= ($caseStatus === 'Resolved') ? 'data-confirm="Archive this case? This action changes its workflow status."' : 'disabled title="Available once the case is Resolved."' ?>>Archive</button>
                             </div>
                         </form>
 
+                        <fieldset class="revision-fieldset" <?= $caseLocked ? 'disabled' : '' ?>>
                         <form class="action-form revision-form" method="POST" action="show.php?id=<?= (int) $case['complaint_id'] ?>">
                             <?= Security::csrfField() ?>
                             <h3>Return for Revision</h3>
@@ -544,7 +564,9 @@ function person_name($first, $last) {
                             </div>
                             <button class="btn btn-return" type="submit" name="case_action" value="return" data-confirm="Return this complaint with the selected revision requirements?">Return for Revision</button>
                         </form>
+                        </fieldset>
 
+                        <fieldset class="revision-fieldset" <?= $caseLocked ? 'disabled' : '' ?>>
                         <form class="action-form" method="POST" action="show.php?id=<?= (int) $case['complaint_id'] ?>">
                             <?= Security::csrfField() ?>
                             <select name="coordinator_account_id" required>
@@ -558,6 +580,7 @@ function person_name($first, $last) {
                             <textarea name="remarks" placeholder="Assignment remarks"></textarea>
                             <button class="btn btn-assign" type="submit" name="case_action" value="assign">Assign Coordinator</button>
                         </form>
+                        </fieldset>
                     </section>
 
                     <section class="panel">

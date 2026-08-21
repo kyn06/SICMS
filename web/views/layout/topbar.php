@@ -58,7 +58,7 @@ if (!function_exists('format_time_ago')) {
                     <?php endif; ?>
 
                     <?php foreach ($recentNotifications as $notification): ?>
-                        <a class="notification-item" href="<?= h(app_route('notifications.index')) ?>">
+                        <a class="notification-item<?= (int) $notification['is_read'] === 0 ? ' unread' : '' ?>" href="<?= h(app_route('notifications.index')) ?>">
                             <span class="notification-icon"><i class="bi bi-info-circle"></i></span>
                             <span>
                                 <span class="notification-title"><?= h($notification['title']) ?></span>

@@ -13,6 +13,8 @@ class CaseRecord extends Model {
             'Verified',
             'Returned for Revision',
             'Rejected',
+            'Resolved',
+            'Archived',
         ];
     }
 

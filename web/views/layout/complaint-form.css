@@ -2,10 +2,13 @@
     max-width: 1120px !important;
 }
 
-.complaint-submission-page .hidden { display: none !important; }
+.complaint-submission-page .hidden {
+    display: none !important;
+}
 
 .complaint-form {
     gap: 22px !important;
+    max-width: 100px !important;
 }
 
 .complaint-form .form-section {
@@ -22,7 +25,7 @@
     padding-bottom: 16px;
 }
 
-.complaint-section-heading > span {
+.complaint-section-heading>span {
     align-items: center;
     background: var(--sicms-green-100);
     border-radius: 8px;
@@ -107,7 +110,7 @@
     padding: 10px 12px;
 }
 
-.evidence-item > div {
+.evidence-item>div {
     align-items: center;
     display: grid;
     gap: 3px 9px;
@@ -190,7 +193,11 @@
     width: 18px;
 }
 
-@keyframes submission-spin { to { transform: rotate(360deg); } }
+@keyframes submission-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
 
 .submission-success {
     align-items: flex-start;
@@ -205,7 +212,7 @@
     padding: 20px;
 }
 
-.submission-success > i {
+.submission-success>i {
     color: var(--sicms-green-600);
     font-size: 38px;
 }
@@ -237,7 +244,10 @@
     padding: 8px 10px;
 }
 
-.success-meta strong { color: var(--sicms-green-900); margin-left: 5px; }
+.success-meta strong {
+    color: var(--sicms-green-900);
+    margin-left: 5px;
+}
 
 .review-dialog {
     background: #fff;
@@ -251,7 +261,9 @@
     width: calc(100% - 28px);
 }
 
-.review-dialog::backdrop { background: rgba(10, 28, 14, 0.55); }
+.review-dialog::backdrop {
+    background: rgba(10, 28, 14, 0.55);
+}
 
 .review-dialog-header {
     align-items: flex-start;
@@ -261,8 +273,17 @@
     padding: 18px 20px;
 }
 
-.review-dialog-header h2 { color: var(--sicms-green-900); font-size: 19px; margin: 0 0 3px; }
-.review-dialog-header p { color: var(--sicms-muted); font-size: 12px; margin: 0; }
+.review-dialog-header h2 {
+    color: var(--sicms-green-900);
+    font-size: 19px;
+    margin: 0 0 3px;
+}
+
+.review-dialog-header p {
+    color: var(--sicms-muted);
+    font-size: 12px;
+    margin: 0;
+}
 
 .review-content {
     display: grid;
@@ -293,9 +314,20 @@
     padding: 8px 11px;
 }
 
-.review-row + .review-row { border-top: 1px solid #edf2eb; }
-.review-row span { color: var(--sicms-muted); font-size: 11px; }
-.review-row strong { font-size: 11px; overflow-wrap: anywhere; white-space: pre-wrap; }
+.review-row+.review-row {
+    border-top: 1px solid #edf2eb;
+}
+
+.review-row span {
+    color: var(--sicms-muted);
+    font-size: 11px;
+}
+
+.review-row strong {
+    font-size: 11px;
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+}
 
 .certification {
     align-items: flex-start;
@@ -306,8 +338,16 @@
     padding: 15px 20px;
 }
 
-.certification input { flex: 0 0 auto; margin-top: 2px; width: auto; }
-.certification span { color: var(--sicms-text); font-size: 12px; }
+.certification input {
+    flex: 0 0 auto;
+    margin-top: 2px;
+    width: auto;
+}
+
+.certification span {
+    color: var(--sicms-text);
+    font-size: 12px;
+}
 
 .review-actions {
     display: flex;
@@ -316,15 +356,40 @@
     padding: 0 20px 18px;
 }
 
-@media (max-width: 760px) {
-    .complaint-form .form-section { padding: 17px !important; }
-    .form-actions, .review-actions { align-items: stretch; flex-direction: column; }
-    .form-actions .btn-submit, .form-actions .btn-secondary, .review-actions .btn { width: 100%; }
-    .submission-progress { margin: 0 0 8px; }
-    .submission-success { grid-template-columns: 1fr; }
-    .review-row { grid-template-columns: 1fr; gap: 3px; }
+@media (max-width: 1800px) {
+    .complaint-form .form-section {
+        padding: 17px !important;
+        max-width: 100% !important;
+    }
+
+    .form-actions,
+    .review-actions {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .form-actions .btn-submit,
+    .form-actions .btn-secondary,
+    .review-actions .btn {
+        width: 100%;
+    }
+
+    .submission-progress {
+        margin: 0 0 8px;
+    }
+
+    .submission-success {
+        grid-template-columns: 1fr;
+    }
+
+    .review-row {
+        grid-template-columns: 1fr;
+        gap: 3px;
+    }
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .submission-progress span { animation: none; }
+    .submission-progress span {
+        animation: none;
+    }
 }

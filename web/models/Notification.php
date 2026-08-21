@@ -25,8 +25,6 @@ class Notification extends Model {
                 'created_at' => date('Y-m-d H:i:s'),
             ]);
 
-            AuditLog::record(null, 'Notification Creation', 'Created notification "' . $title . '" for account #' . (int) $accountId . '.');
-
             return $notification;
         } catch (Throwable $exception) {
             return null;

@@ -23,6 +23,18 @@ function old_value($old, $key, $default = '') {
     return htmlspecialchars($old[$key] ?? $default);
 }
 
+function type_visible($types, $current) {
+    return in_array($current, array_map('trim', explode(',', (string) $types)), true);
+}
+
+function type_field_hidden($types, $current) {
+    return type_visible($types, $current) ? '' : 'hidden';
+}
+
+function type_field_disabled($types, $current) {
+    return type_visible($types, $current) ? '' : 'disabled';
+}
+
 function old_array_value($old, $key, $index) {
     return htmlspecialchars($old[$key][$index] ?? '');
 }
@@ -97,7 +109,7 @@ function h($value) {
         }
 
         .complaint-wrap {
-            max-width: 1080px;
+            max-width: 100%;
             margin: 0 auto;
             padding: 24px;
         }
@@ -125,6 +137,7 @@ function h($value) {
             display: flex;
             flex-direction: column;
             gap: 18px;
+            max-width: 100%;
         }
 
         .form-section {
@@ -291,9 +304,9 @@ function h($value) {
                             <label for="complainant_name">Full Name</label>
                             <input id="complainant_name" name="complainant_name" value="<?= h($complainantName) ?>" required>
                         </div>
-                        <div class="field" data-complainant-types="Student">
+                        <div class="field" data-complainant-types="Student" <?= type_field_hidden('Student', $complainantType) ?>>
                             <label for="complainant_student_no">Student Number</label>
-                            <input id="complainant_student_no" name="complainant_student_no" value="<?= old_value($old, 'complainant_student_no') ?>" required>
+                            <input id="complainant_student_no" name="complainant_student_no" value="<?= old_value($old, 'complainant_student_no') ?>" required <?= type_field_disabled('Student', $complainantType) ?>>
                         </div>
                         <div class="field">
                             <label for="complainant_email">Email</label>
@@ -303,27 +316,27 @@ function h($value) {
                             <label for="complainant_contact">Contact Number</label>
                             <input id="complainant_contact" name="complainant_contact" value="<?= old_value($old, 'complainant_contact') ?>" required>
                         </div>
-                        <div class="field" data-complainant-types="Student">
+                        <div class="field" data-complainant-types="Student" <?= type_field_hidden('Student', $complainantType) ?>>
                             <label for="complainant_college">College</label>
-                            <select id="complainant_college" name="complainant_college" required>
+                            <select id="complainant_college" name="complainant_college" required <?= type_field_disabled('Student', $complainantType) ?>>
                                 <option value="">Select College</option>
                                 <?php foreach (Colleges::all() as $college): ?>
                                     <option value="<?= h($college) ?>" <?= (($old['complainant_college'] ?? '') === $college) ? 'selected' : '' ?>><?= h($college) ?></option>
                                 <?php endforeach; ?>
                             </select>
                         </div>
-                        <div class="field" data-complainant-types="Student">
+                        <div class="field" data-complainant-types="Student" <?= type_field_hidden('Student', $complainantType) ?>>
                             <label for="complainant_course">Course</label>
-                            <select id="complainant_course" name="complainant_course" required>
+                            <select id="complainant_course" name="complainant_course" required <?= type_field_disabled('Student', $complainantType) ?>>
                                 <option value="">Select Course</option>
                                 <?php foreach (Courses::all() as $course): ?>
                                     <option value="<?= h($course) ?>" <?= $complainantCourse === $course ? 'selected' : '' ?>><?= h($course) ?></option>
                                 <?php endforeach; ?>
                             </select>
                         </div>
-                        <div class="field" data-complainant-types="Student">
+                        <div class="field" data-complainant-types="Student" <?= type_field_hidden('Student', $complainantType) ?>>
                             <label for="complainant_section">Section</label>
-                            <select id="complainant_section" name="complainant_section" required>
+                            <select id="complainant_section" name="complainant_section" required <?= type_field_disabled('Student', $complainantType) ?>>
                                 <option value="">Select Section</option>
                                 <?php foreach (Courses::sections() as $year => $sections): ?>
                                     <optgroup label="<?= h($year) ?>">
@@ -335,43 +348,43 @@ function h($value) {
                             </select>
                             <input id="complainant_course_year" type="hidden" name="complainant_course_year" value="<?= h(Courses::combine($complainantCourse, $complainantSection)) ?>">
                         </div>
-                        <div class="field" data-complainant-types="Student">
+                        <div class="field" data-complainant-types="Student" <?= type_field_hidden('Student', $complainantType) ?>>
                             <label for="complainant_year_level">Year Level</label>
-                            <select id="complainant_year_level" name="complainant_year_level" required>
+                            <select id="complainant_year_level" name="complainant_year_level" required <?= type_field_disabled('Student', $complainantType) ?>>
                                 <option value="">Select Year Level</option>
                                 <?php foreach (['First Year', 'Second Year', 'Third Year', 'Fourth Year', 'Fifth Year'] as $level): ?>
                                     <option value="<?= h($level) ?>" <?= (($old['complainant_year_level'] ?? '') === $level) ? 'selected' : '' ?>><?= h($level) ?></option>
                                 <?php endforeach; ?>
                             </select>
                         </div>
-                        <div class="field" data-complainant-types="Private Individual">
+                        <div class="field" data-complainant-types="Private Individual" <?= type_field_hidden('Private Individual', $complainantType) ?>>
                             <label for="complainant_relationship">Relationship to CLSU <span class="optional">Optional</span></label>
-                            <select id="complainant_relationship" name="complainant_relationship">
+                            <select id="complainant_relationship" name="complainant_relationship" <?= type_field_disabled('Private Individual', $complainantType) ?>>
                                 <option value="">Select Relationship</option>
                                 <?php foreach (['Parent', 'Guardian', 'Visitor', 'Alumni', 'Community Member', 'Other'] as $relationship): ?>
                                     <option value="<?= h($relationship) ?>" <?= (($old['complainant_relationship'] ?? '') === $relationship) ? 'selected' : '' ?>><?= h($relationship) ?></option>
                                 <?php endforeach; ?>
                             </select>
                         </div>
-                        <div class="field" data-complainant-types="Employee">
+                        <div class="field" data-complainant-types="Employee" <?= type_field_hidden('Employee', $complainantType) ?>>
                             <label for="complainant_employee_no">Employee Number</label>
-                            <input id="complainant_employee_no" name="complainant_employee_no" value="<?= old_value($old, 'complainant_employee_no') ?>" required>
+                            <input id="complainant_employee_no" name="complainant_employee_no" value="<?= old_value($old, 'complainant_employee_no') ?>" required <?= type_field_disabled('Employee', $complainantType) ?>>
                         </div>
-                        <div class="field" data-complainant-types="Employee">
+                        <div class="field" data-complainant-types="Employee" <?= type_field_hidden('Employee', $complainantType) ?>>
                             <label for="complainant_department">College / Office / Department</label>
-                            <input id="complainant_department" name="complainant_department" value="<?= old_value($old, 'complainant_department') ?>" required>
+                            <input id="complainant_department" name="complainant_department" value="<?= old_value($old, 'complainant_department') ?>" required <?= type_field_disabled('Employee', $complainantType) ?>>
                         </div>
-                        <div class="field" data-complainant-types="Employee">
+                        <div class="field" data-complainant-types="Employee" <?= type_field_hidden('Employee', $complainantType) ?>>
                             <label for="complainant_position">Position</label>
-                            <input id="complainant_position" name="complainant_position" value="<?= old_value($old, 'complainant_position') ?>" required>
+                            <input id="complainant_position" name="complainant_position" value="<?= old_value($old, 'complainant_position') ?>" required <?= type_field_disabled('Employee', $complainantType) ?>>
                         </div>
-                        <div class="field" data-complainant-types="Others">
+                        <div class="field" data-complainant-types="Others" <?= type_field_hidden('Others', $complainantType) ?>>
                             <label for="complainant_affiliation">Affiliation / Organization <span class="optional">Optional</span></label>
-                            <input id="complainant_affiliation" name="complainant_affiliation" value="<?= old_value($old, 'complainant_affiliation') ?>">
+                            <input id="complainant_affiliation" name="complainant_affiliation" value="<?= old_value($old, 'complainant_affiliation') ?>" <?= type_field_disabled('Others', $complainantType) ?>>
                         </div>
-                        <div class="field" data-complainant-types="Others">
+                        <div class="field" data-complainant-types="Others" <?= type_field_hidden('Others', $complainantType) ?>>
                             <label for="complainant_purpose">Relationship or Purpose <span class="optional">Optional</span></label>
-                            <input id="complainant_purpose" name="complainant_purpose" value="<?= old_value($old, 'complainant_purpose') ?>">
+                            <input id="complainant_purpose" name="complainant_purpose" value="<?= old_value($old, 'complainant_purpose') ?>" <?= type_field_disabled('Others', $complainantType) ?>>
                         </div>
                     </div>
                 </section>
