@@ -147,6 +147,60 @@
     border-top: 1px solid var(--sicms-line);
 }
 
+.settings-password-form {
+    margin-top: 8px;
+}
+
+.settings-section-header {
+    padding-top: 20px;
+    border-top: 1px solid var(--sicms-line);
+}
+
+.settings-section-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--sicms-text);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+}
+
+.settings-section-title .bi {
+    color: var(--sicms-green-700);
+}
+
+.settings-section-description {
+    font-size: 13px;
+    color: var(--sicms-muted);
+    margin: 4px 0 0;
+}
+
+.settings-field .password-wrapper input {
+    padding-right: 42px;
+}
+
+.settings-field .password-toggle {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #7b8878;
+    font-size: 16px;
+    padding: 2px;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.settings-field .password-toggle:hover {
+    color: #1A9D00;
+}
+
 @media (max-width: 1500px) {
     .settings-field-row {
         grid-template-columns: 1fr;
