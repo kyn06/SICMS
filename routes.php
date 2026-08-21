@@ -16,6 +16,7 @@ $routes = [
     'notifications.index' => 'web/views/notifications/index.php',
     'messages.index' => 'web/views/messages/index.php',
     'messages.send' => 'web/views/messages/send.php',
+    'settings.index' => 'web/views/settings/index.php',
     'logout' => 'web/views/auth/logout.php',
 ];
 
@@ -56,6 +57,7 @@ function app_current_route() {
     if ($path === 'web/views/complaints/create.php') return 'complaints.create';
     if (str_starts_with($path, 'web/views/complaints/')) return 'complaints.my_cases';
     if (str_starts_with($path, 'web/views/messages/')) return 'messages.index';
+    if (str_starts_with($path, 'web/views/settings/')) return 'settings.index';
 
     return null;
 }
