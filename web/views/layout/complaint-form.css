@@ -1,5 +1,5 @@
 .complaint-submission-page {
-    max-width: 1120px !important;
+    max-width: min(1600px, 100%) !important;
 }
 
 .complaint-submission-page .hidden {
@@ -8,7 +8,7 @@
 
 .complaint-form {
     gap: 22px !important;
-    max-width: 100px !important;
+    max-width: 100% !important;
 }
 
 .complaint-form .form-section {
@@ -356,7 +356,7 @@
     padding: 0 20px 18px;
 }
 
-@media (max-width: 1800px) {
+@media (max-width: 1900px) {
     .complaint-form .form-section {
         padding: 17px !important;
         max-width: 100% !important;
