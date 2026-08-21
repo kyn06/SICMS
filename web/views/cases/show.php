@@ -231,6 +231,129 @@ function person_name($first, $last) {
             background: #59635a;
         }
 
+        .btn-reopen {
+            background: #1c6dd0;
+        }
+
+        .btn:disabled,
+        .revision-fieldset:disabled .btn {
+            cursor: not-allowed;
+            filter: grayscale(0.5);
+            opacity: 0.45;
+        }
+
+        .action-banner {
+            align-items: center;
+            border-radius: 8px;
+            display: flex;
+            gap: 12px;
+            margin-bottom: 12px;
+            padding: 12px 14px;
+        }
+
+        .action-banner.hidden {
+            display: none;
+        }
+
+        .action-banner.banner-resolve {
+            animation: banner-slide 0.25s ease;
+            background: #eaf7e8;
+            border: 1px solid #1a9d00;
+        }
+
+        .action-banner.banner-archive {
+            animation: banner-slide 0.25s ease;
+            background: #fff8e6;
+            border: 1px solid #d99a06;
+        }
+
+        .action-banner.banner-reopen {
+            animation: banner-slide 0.25s ease;
+            background: #e8f1fc;
+            border: 1px solid #1c6dd0;
+        }
+
+        .action-banner-icon {
+            font-size: 20px;
+        }
+
+        .banner-resolve .action-banner-icon {
+            color: #157000;
+        }
+
+        .banner-archive .action-banner-icon {
+            color: #b27400;
+        }
+
+        .banner-reopen .action-banner-icon {
+            color: #155fae;
+        }
+
+        .action-banner-text {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            font-size: 13px;
+        }
+
+        .action-banner-text strong {
+            color: #172017;
+            font-size: 14px;
+        }
+
+        .action-banner-text span {
+            color: #5c6a59;
+            font-size: 12px;
+        }
+
+        .action-banner-buttons {
+            display: flex;
+            gap: 8px;
+        }
+
+        .banner-cancel,
+        .banner-confirm {
+            border: 0;
+            border-radius: 6px;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 12px;
+            font-weight: 700;
+            padding: 7px 12px;
+        }
+
+        .banner-cancel {
+            background: #fff;
+            border: 1px solid #c9d4c6;
+            color: #3f4c3e;
+        }
+
+        .banner-confirm {
+            background: #123c1b;
+            color: #fff;
+        }
+
+        .banner-archive .banner-confirm {
+            background: #8a5c00;
+        }
+
+        .banner-reopen .banner-confirm {
+            background: #155fae;
+        }
+
+        .banner-cancel:hover {
+            background: #f2f5f0;
+        }
+
+        .banner-confirm:hover {
+            filter: brightness(1.15);
+        }
+
+        @keyframes banner-slide {
+            from { opacity: 0; transform: translateY(-6px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
         .btn-resolve:disabled,
         .btn-archive:disabled {
             cursor: not-allowed;
@@ -527,7 +650,7 @@ function person_name($first, $last) {
                                 <button class="btn btn-assign" type="submit">Send</button>
                             </div>
                         </form>
-                    </section>
+                    </section>when
                 </div>
 
                 <aside>
@@ -538,11 +661,23 @@ function person_name($first, $last) {
                         <form class="action-form" method="POST" action="show.php?id=<?= (int) $case['complaint_id'] ?>">
                             <?= Security::csrfField() ?>
                             <textarea name="remarks" placeholder="Remarks"></textarea>
+                            <div class="action-banner hidden" id="actionConfirmBanner" role="alert">
+                                <i class="bi bi-exclamation-circle-fill action-banner-icon"></i>
+                                <div class="action-banner-text">
+                                    <strong id="actionBannerTitle"></strong>
+                                    <span>This action will be recorded in the case timeline.</span>
+                                </div>
+                                <div class="action-banner-buttons">
+                                    <button type="button" class="banner-cancel" id="actionBannerCancel">Cancel</button>
+                                    <button type="button" class="banner-confirm" id="actionBannerConfirm">Yes, continue</button>
+                                </div>
+                            </div>
                             <div class="button-row">
                                 <button class="btn btn-verify" type="submit" name="case_action" value="verify" <?= $caseLocked ? 'disabled title="This case is closed."' : '' ?>>Verify</button>
                                 <button class="btn btn-reject" type="submit" name="case_action" value="reject" <?= $caseLocked ? 'disabled title="This case is closed."' : '' ?> data-confirm="Reject this complaint? This action changes its workflow status.">Reject</button>
-                                <button class="btn btn-resolve" type="submit" name="case_action" value="resolve" <?= ($caseStatus === 'Verified') ? 'data-confirm="Mark this case as resolved?"' : 'disabled title="Available once the case is Verified."' ?>>Resolve</button>
-                                <button class="btn btn-archive" type="submit" name="case_action" value="archive" <?= ($caseStatus === 'Resolved') ? 'data-confirm="Archive this case? This action changes its workflow status."' : 'disabled title="Available once the case is Resolved."' ?>>Archive</button>
+                                <button class="btn btn-resolve" type="submit" name="case_action" value="resolve" <?= ($caseStatus === 'Verified') ? 'data-confirm-banner="Mark this case as resolved?"' : ($caseLocked ? 'disabled title="This case is closed."' : 'disabled title="Available once the case is Verified."') ?>>Resolve</button>
+                                <button class="btn btn-archive" type="submit" name="case_action" value="archive" <?= ($caseStatus === 'Resolved') ? 'data-confirm-banner="Archive this case?"' : 'disabled title="Available once the case is Resolved."' ?>>Archive</button>
+                                <button class="btn btn-reopen" type="submit" name="case_action" value="reopen" <?= ($caseStatus === 'Resolved') ? 'data-confirm-banner="Open this case again? Its status will return to Verified."' : 'disabled title="Available once the case is Resolved."' ?>>Open this case again</button>
                             </div>
                         </form>
 
@@ -617,6 +752,42 @@ function person_name($first, $last) {
         if (caseConversation) {
             caseConversation.scrollTop = caseConversation.scrollHeight;
         }
+
+        (() => {
+            const banner = document.getElementById('actionConfirmBanner');
+            const bannerTitle = document.getElementById('actionBannerTitle');
+            const confirmButton = document.getElementById('actionBannerConfirm');
+            const cancelButton = document.getElementById('actionBannerCancel');
+            let pendingAction = null;
+
+            if (!banner) return;
+
+            const hideBanner = () => {
+                pendingAction = null;
+                banner.classList.add('hidden');
+            };
+
+            document.querySelectorAll('[data-confirm-banner]').forEach(button => {
+                button.addEventListener('click', event => {
+                    event.preventDefault();
+                    pendingAction = button;
+                    bannerTitle.textContent = button.dataset.confirmBanner;
+                    const variants = ['banner-resolve', 'banner-archive', 'banner-reopen'];
+                    banner.classList.remove('hidden', ...variants);
+                    banner.classList.add(`banner-${button.value}`);
+                    banner.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                });
+            });
+
+            confirmButton.addEventListener('click', () => {
+                if (!pendingAction) return;
+                const button = pendingAction;
+                hideBanner();
+                button.form.requestSubmit(button);
+            });
+
+            cancelButton.addEventListener('click', hideBanner);
+        })();
     </script>
 </body>
 

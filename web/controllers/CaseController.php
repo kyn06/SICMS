@@ -206,6 +206,16 @@ class CaseController {
                 CaseRecord::updateStatus($complaintId, 'Archived', $remarks, $actorAccountId);
                 AuditLog::record($this->user, 'Case Archival', 'Archived case ' . $caseLabel . '.');
                 $_SESSION['case_message'] = 'Case archived.';
+            } elseif ($action === 'reopen') {
+                if (($case['status'] ?? '') !== 'Resolved') {
+                    $_SESSION['case_errors'] = ['Only resolved cases can be opened again.'];
+                    header('Location: show.php?id=' . $complaintId);
+                    exit;
+                }
+
+                CaseRecord::updateStatus($complaintId, 'Verified', $remarks, $actorAccountId);
+                AuditLog::record($this->user, 'Case Reopened', 'Reopened case ' . $caseLabel . '. Status returned to Verified.');
+                $_SESSION['case_message'] = 'Case opened again. Its status is now Verified.';
             } elseif ($action === 'assign') {
                 $coordinatorId = (int) ($_POST['coordinator_account_id'] ?? 0);
 
