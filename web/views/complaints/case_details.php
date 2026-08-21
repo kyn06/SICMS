@@ -12,7 +12,7 @@ function h($value) { return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8
 function progress_steps($status) {
     if ($status === 'Returned for Revision') return ['Submitted', 'Returned for Revision'];
     if ($status === 'Rejected') return ['Submitted', 'Rejected'];
-    return ['Submitted', 'Verified', 'Resolved', 'Archived'];
+    return ['Submitted', 'Verified', 'Resolved'];
 }
 function stage_done($status, $stage) {
     $order = ['Submitted' => 0, 'Verified' => 1, 'Resolved' => 2, 'Archived' => 3];
