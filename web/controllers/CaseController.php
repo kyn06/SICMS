@@ -80,7 +80,11 @@ class CaseController {
             exit;
         }
 
-        Message::markCaseMessagesRead($complaintId, (int) $this->user['account_id']);
+        $messageReceiver = Message::defaultCounterpartForCase($case, $this->user);
+
+        if ($messageReceiver) {
+            Message::markPairMessagesRead($complaintId, (int) $this->user['account_id'], (int) $messageReceiver['account_id']);
+        }
 
         return [
             'user' => $this->user,
@@ -90,8 +94,10 @@ class CaseController {
             'evidence' => CaseRecord::getEvidence($complaintId),
             'history' => CaseRecord::getHistory($complaintId),
             'coordinators' => CaseRecord::getCoordinators(),
-            'messages' => Message::forCaseForUser($complaintId, (int) $this->user['account_id']),
-            'messageRecipients' => Message::getRecipientsForCase($case, $this->user),
+            'messages' => $messageReceiver
+                ? Message::forPair($complaintId, (int) $this->user['account_id'], (int) $messageReceiver['account_id'])
+                : [],
+            'messageReceiver' => $messageReceiver,
             'message' => $_SESSION['case_message'] ?? null,
             'errors' => $_SESSION['case_errors'] ?? [],
         ];
@@ -134,6 +140,14 @@ class CaseController {
         try {
             $case = CaseRecord::findCase($complaintId);
             $caseLabel = $case['case_number'] ?? ('Case #' . $complaintId);
+            $caseStatus = $case['status'] ?? '';
+            $isClosed = in_array($caseStatus, ['Resolved', 'Archived'], true);
+
+            if (in_array($action, ['verify', 'reject', 'return', 'assign'], true) && $isClosed) {
+                $_SESSION['case_errors'] = ['This case is already closed and can no longer be modified.'];
+                header('Location: show.php?id=' . $complaintId);
+                exit;
+            }
 
             if ($action === 'verify') {
                 CaseRecord::updateStatus($complaintId, 'Verified', $remarks, $actorAccountId);
@@ -155,6 +169,43 @@ class CaseController {
                 CaseRecord::updateStatus($complaintId, 'Rejected', $remarks, $actorAccountId);
                 AuditLog::record($this->user, 'Complaint Updates', 'Rejected complaint ' . $caseLabel . '.');
                 $_SESSION['case_message'] = 'Complaint rejected.';
+            } elseif ($action === 'resolve') {
+                if ($caseStatus !== 'Verified') {
+                    $_SESSION['case_errors'] = ['Only verified cases can be marked as resolved.'];
+                    header('Location: show.php?id=' . $complaintId);
+                    exit;
+                }
+
+                CaseRecord::updateStatus($complaintId, 'Resolved', $remarks, $actorAccountId);
+
+                $actorName = trim(($this->user['first_name'] ?? '') . ' ' . ($this->user['last_name'] ?? '')) ?: 'SDRU';
+                $closureMessage = 'Case ' . $caseLabel . ' has been resolved and is now closed. Thank you for your cooperation. Please contact the SDRU office if you have further concerns.';
+                $closureRecipients = array_unique(array_filter([
+                    (int) ($case['submitted_by_account_id'] ?? 0),
+                    (int) ($case['assigned_coordinator_account_id'] ?? 0),
+                ], fn($accountId) => $accountId > 0 && $accountId !== $actorAccountId));
+
+                foreach ($closureRecipients as $recipientId) {
+                    Message::createMessage($complaintId, $actorAccountId, $recipientId, $closureMessage);
+                    Notification::notifyNewMessage(
+                        $recipientId,
+                        $actorName,
+                        'web/views/messages/index.php?conversation_id=' . $complaintId
+                    );
+                }
+
+                AuditLog::record($this->user, 'Case Resolution', 'Marked case ' . $caseLabel . ' as resolved.');
+                $_SESSION['case_message'] = 'Case marked as resolved. A closure notice was sent to the complainant' . ((int) ($case['assigned_coordinator_account_id'] ?? 0) > 0 ? ' and the assigned coordinator' : '') . '.';
+            } elseif ($action === 'archive') {
+                if (($case['status'] ?? '') !== 'Resolved') {
+                    $_SESSION['case_errors'] = ['Only resolved cases can be archived.'];
+                    header('Location: show.php?id=' . $complaintId);
+                    exit;
+                }
+
+                CaseRecord::updateStatus($complaintId, 'Archived', $remarks, $actorAccountId);
+                AuditLog::record($this->user, 'Case Archival', 'Archived case ' . $caseLabel . '.');
+                $_SESSION['case_message'] = 'Case archived.';
             } elseif ($action === 'assign') {
                 $coordinatorId = (int) ($_POST['coordinator_account_id'] ?? 0);
 

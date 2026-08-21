@@ -1,5 +1,7 @@
 <?php
 
+date_default_timezone_set('Asia/Manila');
+
 class Database{
     
     private $host = "127.0.0.1";

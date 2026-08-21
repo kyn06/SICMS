@@ -68,7 +68,7 @@ rsort($years);
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <style>
         body { align-items: stretch; display: block; justify-content: flex-start; padding: 0; }
-        .track-wrap { max-width: 1240px; margin: 0 auto; padding: 24px; }
+        .track-wrap { max-width: 100%; margin: 0 auto; padding: 24px; }
         .track-intro { align-items: center; display: flex; justify-content: space-between; gap: 16px; margin-bottom: 20px; }
         .track-intro h1 { color: #172017; font-size: 24px; margin: 0 0 4px; }
         .track-intro p { color: #637060; font-size: 13px; margin: 0; }

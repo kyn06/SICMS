@@ -50,12 +50,23 @@ ALTER TABLE accounts
 CREATE TABLE IF NOT EXISTS complaints (
     complaint_id    INT UNSIGNED NOT NULL AUTO_INCREMENT,
     case_number     VARCHAR(50)  NOT NULL,
+    complaint_title VARCHAR(255) NOT NULL,
     submitted_by_account_id INT UNSIGNED NOT NULL,
     complainant_name        VARCHAR(255) NOT NULL,
+    complainant_type        VARCHAR(50)  NOT NULL DEFAULT 'Student',
+    complainant_relationship VARCHAR(100) DEFAULT NULL,
+    complainant_employee_no VARCHAR(100) DEFAULT NULL,
+    complainant_department  VARCHAR(255) DEFAULT NULL,
+    complainant_position    VARCHAR(255) DEFAULT NULL,
+    complainant_affiliation VARCHAR(255) DEFAULT NULL,
+    complainant_purpose     VARCHAR(255) DEFAULT NULL,
     complainant_student_no  VARCHAR(50)  DEFAULT NULL,
     complainant_email       VARCHAR(255) DEFAULT NULL,
     complainant_contact     VARCHAR(50)  DEFAULT NULL,
     complainant_college     VARCHAR(255) DEFAULT NULL,
+    complainant_course      VARCHAR(255) DEFAULT NULL,
+    complainant_year_level  VARCHAR(50)  DEFAULT NULL,
+    complainant_section     VARCHAR(50)  DEFAULT NULL,
     complainant_course_year VARCHAR(100) DEFAULT NULL,
     case_classification     VARCHAR(100) NOT NULL,
     incident_datetime       DATETIME     DEFAULT NULL,
@@ -146,6 +157,7 @@ CREATE TABLE IF NOT EXISTS case_history (
     previous_status VARCHAR(50) DEFAULT NULL,
     new_status      VARCHAR(50) DEFAULT NULL,
     remarks      TEXT,
+    revision_fields TEXT DEFAULT NULL,
     assigned_coordinator_account_id INT UNSIGNED DEFAULT NULL,
     created_by_account_id INT UNSIGNED DEFAULT NULL,
     created_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -214,6 +226,52 @@ CREATE TABLE IF NOT EXISTS case_messages (
         FOREIGN KEY (sender_account_id) REFERENCES accounts (account_id),
     CONSTRAINT fk_messages_receiver
         FOREIGN KEY (receiver_account_id) REFERENCES accounts (account_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- -------------------------------------------------------------
+-- conversation_participants
+-- -------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS conversation_participants (
+    participant_id        INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    complaint_id          INT UNSIGNED NOT NULL,
+    account_id            INT UNSIGNED NOT NULL,
+    counterpart_account_id INT UNSIGNED NOT NULL,
+    created_at            DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (participant_id),
+    UNIQUE KEY uniq_participant_pair (complaint_id, account_id, counterpart_account_id),
+    KEY idx_participant_account (account_id),
+    CONSTRAINT fk_participant_complaint
+        FOREIGN KEY (complaint_id) REFERENCES complaints (complaint_id)
+        ON DELETE CASCADE,
+    CONSTRAINT fk_participant_account
+        FOREIGN KEY (account_id) REFERENCES accounts (account_id)
+        ON DELETE CASCADE,
+    CONSTRAINT fk_participant_counterpart
+        FOREIGN KEY (counterpart_account_id) REFERENCES accounts (account_id)
+        ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- -------------------------------------------------------------
+-- hidden_conversations
+-- -------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS hidden_conversations (
+    hidden_id             INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    complaint_id          INT UNSIGNED NOT NULL,
+    account_id            INT UNSIGNED NOT NULL,
+    counterpart_account_id INT UNSIGNED NOT NULL,
+    hidden_at             DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    visible               TINYINT(1) NOT NULL DEFAULT 0,
+    PRIMARY KEY (hidden_id),
+    UNIQUE KEY uniq_hidden_pair (complaint_id, account_id, counterpart_account_id),
+    CONSTRAINT fk_hidden_complaint
+        FOREIGN KEY (complaint_id) REFERENCES complaints (complaint_id)
+        ON DELETE CASCADE,
+    CONSTRAINT fk_hidden_account
+        FOREIGN KEY (account_id) REFERENCES accounts (account_id)
+        ON DELETE CASCADE,
+    CONSTRAINT fk_hidden_counterpart
+        FOREIGN KEY (counterpart_account_id) REFERENCES accounts (account_id)
+        ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- -------------------------------------------------------------

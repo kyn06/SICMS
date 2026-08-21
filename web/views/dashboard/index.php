@@ -172,7 +172,7 @@ $quickActions = [
     ['label' => 'Generate Report', 'href' => app_route('reports.index'), 'icon' => 'bi-file-earmark-bar-graph', 'roles' => ['super-admin', 'admin', 'sdr-staff', 'sdru-staff', 'head-of-sdru', 'sdru-head']],
     ['label' => 'Schedule Hearing', 'href' => app_route('hearings.index'), 'icon' => 'bi-calendar-plus', 'roles' => ['super-admin', 'admin', 'sdr-staff', 'sdru-staff', 'coordinator', 'head-of-sdru', 'sdru-head']],
     ['label' => 'View Assigned Cases', 'href' => app_route('cases.index'), 'icon' => 'bi-folder-check', 'roles' => ['coordinator']],
-    ['label' => 'Chat & Messaging', 'href' => app_route('messages.index'), 'icon' => 'bi-chat-dots', 'roles' => ['coordinator']],
+    ['label' => 'Chat', 'href' => app_route('messages.index'), 'icon' => 'bi-chat-dots', 'roles' => ['coordinator']],
     ['label' => 'View Calendar', 'href' => app_route('hearings.index'), 'icon' => 'bi-calendar3', 'roles' => ['coordinator']],
     ['label' => 'Notifications', 'href' => app_route('notifications.index'), 'icon' => 'bi-bell', 'roles' => ['coordinator']],
 ];
@@ -264,7 +264,7 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
                             <?php endif; ?>
 
                             <?php foreach ($recentNotifications as $notification): ?>
-                                <a class="notification-item" href="<?= h(app_route('notifications.index')) ?>">
+                                <a class="notification-item<?= (int) $notification['is_read'] === 0 ? ' unread' : '' ?>" href="<?= h(app_route('notifications.index')) ?>">
                                     <span class="notification-icon"><i class="bi bi-info-circle"></i></span>
                                     <span>
                                         <span class="notification-title"><?= h($notification['title']) ?></span>

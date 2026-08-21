@@ -1,20 +1,30 @@
 <?php
 require_once __DIR__ . '/../../controllers/MessageController.php';
 
+header('Cache-Control: no-store, max-age=0');
+
 $controller = new MessageController();
 
 if (($_GET['ajax'] ?? '') === 'conversation') {
-    $controller->conversationJson((int) ($_GET['conversation_id'] ?? 0));
+    $controller->conversationJson($_GET['conversation_id'] ?? '');
+}
+
+if (($_GET['ajax'] ?? '') === 'poll') {
+    $controller->poll();
 }
 
 $viewData = $controller->index();
 
 $user = $viewData['user'];
 $conversations = $viewData['conversations'];
+$candidates = $viewData['candidates'];
 $selectedConversationId = $viewData['selectedConversationId'];
 $case = $viewData['case'];
 $messages = $viewData['messages'];
-$recipients = $viewData['recipients'];
+$recipient = $viewData['recipient'];
+
+$roleKey = strtolower(str_replace(['_', ' '], '-', (string) ($user['role'] ?? '')));
+$canStartConversation = $roleKey !== 'student';
 
 function h($value) {
     return htmlspecialchars((string) $value);
@@ -32,23 +42,12 @@ function normalize_role_label($role) {
     };
 }
 
-function conversation_person(array $conversation, array $user) {
-    $roleKey = strtolower(str_replace(['_', ' '], '-', (string) $user['role']));
-
-    if ($roleKey === 'student') {
-        $name = trim(($conversation['coordinator_first_name'] ?? '') . ' ' . ($conversation['coordinator_last_name'] ?? ''));
-
-        return [
-            'name' => $name !== '' ? $name : 'SDRU Staff',
-            'role' => normalize_role_label($conversation['coordinator_role'] ?? 'Staff'),
-        ];
-    }
-
-    $name = trim(($conversation['submitter_first_name'] ?? '') . ' ' . ($conversation['submitter_last_name'] ?? ''));
+function conversation_person(array $conversation) {
+    $name = trim(($conversation['counterpart_first_name'] ?? '') . ' ' . ($conversation['counterpart_last_name'] ?? ''));
 
     return [
-        'name' => $name !== '' ? $name : ($conversation['complainant_name'] ?? 'Student'),
-        'role' => normalize_role_label($conversation['submitter_role'] ?? 'Student'),
+        'name' => $name !== '' ? $name : 'SDRU',
+        'role' => normalize_role_label($conversation['counterpart_role'] ?? ''),
     ];
 }
 
@@ -85,19 +84,41 @@ function preview_text($text) {
         body { align-items: stretch; background: #eef2ec; display: block; justify-content: flex-start; min-height: 100vh; padding: 0; }
         .messenger-shell { display: grid; grid-template-columns: 300px minmax(0, 1fr); height: calc(100vh - 76px); width: 100%; }
         .conversation-sidebar { background: #fff; border-right: 1px solid #dce5da; display: flex; flex-direction: column; min-width: 0; }
-        .sidebar-top { border-bottom: 1px solid #edf4eb; padding: 18px 16px 14px; }
+        .sidebar-top { border-bottom: 1px solid #edf4eb; padding: 18px 16px 14px; position: relative; }
+        .new-conversation-btn { align-items: center; background: transparent; border: 0; border-radius: 8px; color: #123c1b; cursor: pointer; display: inline-flex; font-size: 22px; height: 34px; justify-content: center; position: absolute; right: 12px; top: 14px; width: 34px; }
+        .new-conversation-btn:hover, .new-conversation-btn.open { background: #dfe8dc; color: #1A9D00; }
+        .new-conversation-banner { background: #fff; border-bottom: 1px solid #dce5da; box-shadow: inset 0 -6px 10px -8px rgba(18, 60, 27, 0.15); display: flex; flex-direction: column; gap: 8px; padding: 14px 16px; }
+        .banner-header { align-items: center; color: #123c1b; display: flex; font-size: 13px; justify-content: space-between; }
+        .banner-close { background: transparent; border: 0; color: #687365; cursor: pointer; font-size: 13px; padding: 2px 4px; }
+        .banner-close:hover { color: #b3261e; }
+        .banner-hint { color: #687365; font-size: 11.5px; line-height: 1.4; margin: 0; }
+        .banner-search { padding: 8px 12px; }
+        .candidate-list { border: 1px solid #e3ebe1; border-radius: 8px; max-height: 240px; overflow-y: auto; }
+        .candidate-item { align-items: center; background: transparent; border: 0; border-bottom: 1px solid #f0f5ee; cursor: pointer; display: grid; gap: 10px; grid-template-columns: 36px minmax(0, 1fr); padding: 9px 10px; text-align: left; width: 100%; }
+        .candidate-item:last-child { border-bottom: 0; }
+        .candidate-item:hover { background: #eef8ec; }
+        .candidate-item .avatar { font-size: 12px; height: 36px; width: 36px; }
+        .candidate-name { color: #172017; display: block; font-size: 13px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .candidate-meta { color: #687365; display: block; font-size: 11.5px; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .candidate-empty { color: #667162; font-size: 12px; padding: 16px 10px; text-align: center; }
         .sidebar-top h1 { color: #123c1b; font-size: 20px; margin: 0 0 12px; }
         .search { background: #f1f4f0; border: 1px solid #dce5da; border-radius: 999px; color: #172017; font: inherit; padding: 10px 14px; width: 100%; }
         .conversation-list { overflow-y: auto; padding: 8px; }
+        .conversation-item { position: relative; }
         .conversation-card { align-items: center; border: 0; border-radius: 8px; background: transparent; cursor: pointer; display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: 10px; padding: 10px; text-align: left; width: 100%; }
         .conversation-card:hover, .conversation-card.active { background: #eef8ec; }
+        .conversation-menu-btn { align-items: center; background: transparent; border: 0; border-radius: 50%; color: #687365; cursor: pointer; display: inline-flex; font-size: 16px; height: 26px; justify-content: center; position: absolute; right: 4px; top: 4px; width: 26px; z-index: 2; }
+        .conversation-menu-btn:hover, .conversation-menu-btn.open { background: #dfe8dc; color: #123c1b; }
+        .conversation-menu { background: #fff; border: 1px solid #dce5da; border-radius: 8px; box-shadow: 0 10px 24px rgba(18, 60, 27, 0.14); min-width: 190px; padding: 6px; position: absolute; right: 8px; top: 32px; z-index: 40; }
+        .conversation-menu-delete { align-items: center; background: transparent; border: 0; border-radius: 6px; color: #b3261e; cursor: pointer; display: flex; font: inherit; font-size: 13px; font-weight: 600; gap: 8px; padding: 8px 10px; text-align: left; white-space: nowrap; width: 100%; }
+        .conversation-menu-delete:hover { background: #fdecea; }
         .avatar { align-items: center; background: #dfe8dc; border-radius: 50%; color: #123c1b; display: inline-flex; font-size: 14px; font-weight: 700; height: 42px; justify-content: center; width: 42px; }
         .avatar.large { font-size: 16px; height: 48px; width: 48px; }
         .conversation-main { min-width: 0; }
-        .name { color: #172017; font-size: 14px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .role { color: #687365; font-size: 12px; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .preview { color: #536052; font-size: 12px; margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .conversation-meta { align-items: flex-end; display: flex; flex-direction: column; gap: 6px; min-width: 52px; }
+        .name { color: #172017; display: block; font-size: 14px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .role { color: #687365; display: block; font-size: 12px; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .preview { color: #536052; display: block; font-size: 12px; margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .conversation-meta { align-items: flex-end; display: flex; flex-direction: column; gap: 6px; min-width: 52px; padding-right: 18px; }
         .time { color: #6f7a6c; font-size: 11px; white-space: nowrap; }
         .badge { background: #1A9D00; border-radius: 999px; color: #fff; font-size: 11px; font-weight: 700; min-width: 20px; padding: 3px 6px; text-align: center; }
         .chat { background: #f7faf6; display: grid; grid-template-rows: auto 1fr auto; min-width: 0; }
@@ -125,8 +146,18 @@ function preview_text($text) {
         .send-btn { background: #1A9D00; color: #fff; font-weight: 700; }
         .message-input { background: #f1f4f0; border: 1px solid #dce5da; border-radius: 22px; font: inherit; line-height: 1.4; max-height: 130px; min-height: 42px; padding: 11px 14px; resize: none; width: 100%; }
         .recipient-note { color: #6f7a6c; font-size: 12px; grid-column: 2 / 3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .recipient-select { background: #fff; border: 1px solid #dce5da; border-radius: 8px; color: #172017; font: inherit; grid-column: 2 / 3; padding: 8px 10px; width: 100%; }
+        .recipient-note.recipient-error { color: #b3261e; white-space: normal; }
         .attachment-name { color: #6f7a6c; font-size: 12px; grid-column: 2 / 3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .modal-overlay { align-items: center; background: rgba(10, 28, 14, 0.55); display: flex; inset: 0; justify-content: center; position: fixed; z-index: 100; }
+        .modal-box { background: #fff; border-radius: 12px; box-shadow: 0 18px 48px rgba(0, 0, 0, 0.25); max-width: 400px; padding: 22px 24px; width: calc(100% - 40px); }
+        .modal-box h3 { color: #123c1b; font-size: 17px; margin: 0 0 8px; }
+        .modal-box p { color: #536052; font-size: 13px; line-height: 1.5; margin: 0 0 18px; }
+        .modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+        .modal-actions button { border: 0; border-radius: 8px; cursor: pointer; font: inherit; font-size: 13px; font-weight: 700; padding: 9px 16px; }
+        .modal-cancel { background: #eef2ec; color: #172017; }
+        .modal-cancel:hover { background: #dfe8dc; }
+        .modal-confirm { background: #b3261e; color: #fff; }
+        .modal-confirm:hover { background: #99201a; }
         .hidden { display: none; }
         @media (max-width: 820px) {
             .messenger-shell { grid-template-columns: 1fr; height: auto; min-height: 100vh; }
@@ -150,11 +181,24 @@ function preview_text($text) {
     <main class="messenger-shell">
         <aside class="conversation-sidebar">
             <div class="sidebar-top">
+                <?php if ($canStartConversation): ?>
+                    <button class="new-conversation-btn" id="newConversationBtn" type="button" title="Start a new conversation" aria-label="Start a new conversation" aria-expanded="false"><i class="bi bi-plus-square"></i></button>
+                <?php endif; ?>
                 <div class="conversation-title"><div><h1>Case Conversations</h1><span><?= count($conversations) ?> conversation<?= count($conversations) === 1 ? '' : 's' ?></span></div></div>
                 <label class="conversation-search" for="conversationSearch">
                     <i class="bi bi-search" aria-hidden="true"></i>
                     <input class="search" id="conversationSearch" type="search" placeholder="Search name or case number" autocomplete="off">
                 </label>
+            </div>
+
+            <div class="new-conversation-banner hidden" id="newConversationBanner">
+                <div class="banner-header">
+                    <strong><i class="bi bi-chat-plus-dots"></i> Start a new conversation</strong>
+                    <button class="banner-close" id="newConversationClose" type="button" aria-label="Close"><i class="bi bi-x-lg"></i></button>
+                </div>
+                <p class="banner-hint">Choose a person connected to a case. The case number is shown beside their name.</p>
+                <input class="search banner-search" id="candidateSearch" type="search" placeholder="Search recipient" autocomplete="off">
+                <div class="candidate-list" id="candidateList"></div>
             </div>
 
             <div class="conversation-list" id="conversationList">
@@ -163,25 +207,31 @@ function preview_text($text) {
                 <?php endif; ?>
 
                 <?php foreach ($conversations as $conversation): ?>
-                    <?php $person = conversation_person($conversation, $user); ?>
-                    <button
-                        class="conversation-card <?= ((int) $conversation['complaint_id'] === (int) $selectedConversationId) ? 'active' : '' ?>"
-                        type="button"
-                        data-conversation-id="<?= (int) $conversation['complaint_id'] ?>"
-                        data-search="<?= h(strtolower($person['name'] . ' ' . $person['role'] . ' ' . $conversation['case_number'] . ' ' . $conversation['complainant_name'] . ' ' . ($conversation['coordinator_first_name'] ?? '') . ' ' . ($conversation['coordinator_last_name'] ?? ''))) ?>">
-                        <span class="avatar"><?= h(initials($person['name'])) ?></span>
-                        <span class="conversation-main">
-                            <span class="name"><?= h($person['name']) ?></span>
-                            <span class="role"><strong><?= h($conversation['case_number']) ?></strong> | <?= h($conversation['complainant_name']) ?></span>
-                            <span class="preview"><?= h(preview_text($conversation['latest_message'] ?? '')) ?></span>
-                        </span>
-                        <span class="conversation-meta">
-                            <span class="time" data-time="<?= h($conversation['latest_message_at'] ?? $conversation['submitted_at']) ?>"></span>
-                            <?php if ((int) $conversation['unread_total'] > 0): ?>
-                                <span class="badge"><?= (int) $conversation['unread_total'] ?></span>
-                            <?php endif; ?>
-                        </span>
-                    </button>
+                    <?php $person = conversation_person($conversation); $threadId = (int) $conversation['complaint_id'] . '-' . (int) $conversation['counterpart_account_id']; ?>
+                    <div class="conversation-item">
+                        <button
+                            class="conversation-card <?= ($selectedConversationId === $threadId) ? 'active' : '' ?>"
+                            type="button"
+                            data-conversation-id="<?= h($threadId) ?>"
+                            data-search="<?= h(strtolower($person['name'] . ' ' . $person['role'] . ' ' . $conversation['case_number'] . ' ' . $conversation['complainant_name'])) ?>">
+                            <span class="avatar"><?= h(initials($person['name'])) ?></span>
+                            <span class="conversation-main">
+                                <span class="name"><?= h($person['name']) ?></span>
+                                <span class="role"><strong><?= h($conversation['case_number']) ?></strong> | <?= h($conversation['complainant_name']) ?></span>
+                                <span class="preview"><?= h(preview_text($conversation['latest_message'] ?? '')) ?></span>
+                            </span>
+                            <span class="conversation-meta">
+                                <span class="time" data-time="<?= h($conversation['latest_message_at'] ?? $conversation['submitted_at']) ?>"></span>
+                                <?php if ((int) $conversation['unread_total'] > 0): ?>
+                                    <span class="badge"><?= (int) $conversation['unread_total'] ?></span>
+                                <?php endif; ?>
+                            </span>
+                        </button>
+                        <button class="conversation-menu-btn" type="button" aria-label="Conversation options" aria-haspopup="true" data-conversation-id="<?= h($threadId) ?>"><i class="bi bi-three-dots"></i></button>
+                        <div class="conversation-menu hidden" data-menu-for="<?= h($threadId) ?>">
+                            <button class="conversation-menu-delete" type="button" data-conversation-id="<?= h($threadId) ?>" data-counterpart-name="<?= h($person['name']) ?>"><i class="bi bi-trash3"></i> Delete conversation</button>
+                        </div>
+                    </div>
                 <?php endforeach; ?>
             </div>
             <div class="conversation-search-empty hidden" id="conversationSearchEmpty"><i class="bi bi-search"></i><span>No conversations found.</span></div>
@@ -214,18 +264,28 @@ function preview_text($text) {
             <form class="composer" id="messageForm" method="POST" action="send.php" enctype="multipart/form-data">
                 <?= Security::csrfField() ?>
                 <input type="hidden" name="ajax" value="1">
-                <input type="hidden" name="complaint_id" id="complaintId" value="<?= (int) $selectedConversationId ?>">
+                <input type="hidden" name="complaint_id" id="complaintId" value="<?= (int) ($case['complaint_id'] ?? 0) ?>">
                 <button class="attachment-btn" id="attachmentButton" type="button" title="Attach file" aria-label="Attach file"><i class="bi bi-paperclip"></i></button>
                 <input class="hidden" id="attachmentInput" name="attachment" type="file" accept=".pdf,.jpg,.jpeg,.png,.docx">
-                <input type="hidden" name="receiver_account_id" id="recipientInput">
+                <input type="hidden" name="receiver_account_id" id="recipientInput" value="<?= (int) ($recipient['account_id'] ?? 0) ?>">
                 <textarea class="message-input" id="messageInput" name="message" rows="2" placeholder="Write a message" required></textarea>
                 <button class="send-btn" id="sendButton" type="submit" title="Send message" aria-label="Send message" disabled><i class="bi bi-send-fill"></i></button>
-                <select class="recipient-select hidden" id="recipientSelect" aria-label="Message recipient"></select>
-                <div class="recipient-note" id="recipientNote">Select a conversation to choose a receiver.</div>
+                <div class="recipient-note" id="recipientNote">Select a conversation to start messaging.</div>
                 <div class="attachment-name hidden" id="attachmentName"></div>
             </form>
         </section>
     </main>
+        </div>
+    </div>
+
+    <div class="modal-overlay hidden" id="deleteModal">
+        <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="deleteModalTitle">
+            <h3 id="deleteModalTitle">Delete this conversation?</h3>
+            <p id="deleteModalText">This will permanently remove your messages in this conversation. This action cannot be undone.</p>
+            <div class="modal-actions">
+                <button class="modal-cancel" id="deleteCancel" type="button">Cancel</button>
+                <button class="modal-confirm" id="deleteConfirm" type="button">Delete</button>
+            </div>
         </div>
     </div>
 
@@ -240,10 +300,11 @@ function preview_text($text) {
         const currentUserId = <?= (int) $user['account_id'] ?>;
         const currentUserRole = <?= json_encode((string) $user['role']) ?>;
         let conversations = <?= json_encode($conversations, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>;
-        let selectedConversationId = <?= (int) $selectedConversationId ?>;
+        let candidates = <?= json_encode($candidates, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>;
+        let selectedConversationId = <?= json_encode((string) $selectedConversationId) ?>;
         let selectedCase = <?= json_encode($case, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>;
         let messages = <?= json_encode($messages, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>;
-        let recipients = <?= json_encode($recipients, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>;
+        let recipient = <?= json_encode($recipient, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>;
 
         const conversationList = document.getElementById('conversationList');
         const conversationSearch = document.getElementById('conversationSearch');
@@ -256,7 +317,6 @@ function preview_text($text) {
         const complaintId = document.getElementById('complaintId');
         const messageInput = document.getElementById('messageInput');
         const recipientInput = document.getElementById('recipientInput');
-        const recipientSelect = document.getElementById('recipientSelect');
         const recipientNote = document.getElementById('recipientNote');
         const attachmentButton = document.getElementById('attachmentButton');
         const attachmentInput = document.getElementById('attachmentInput');
@@ -267,7 +327,17 @@ function preview_text($text) {
         const summaryClassification = document.getElementById('summaryClassification');
         const summaryStatus = document.getElementById('summaryStatus');
         const summaryCoordinator = document.getElementById('summaryCoordinator');
+        const deleteModal = document.getElementById('deleteModal');
+        const deleteModalText = document.getElementById('deleteModalText');
+        const deleteCancel = document.getElementById('deleteCancel');
+        const deleteConfirm = document.getElementById('deleteConfirm');
+        const newConversationBtn = document.getElementById('newConversationBtn');
+        const newConversationBanner = document.getElementById('newConversationBanner');
+        const newConversationClose = document.getElementById('newConversationClose');
+        const candidateSearch = document.getElementById('candidateSearch');
+        const candidateList = document.getElementById('candidateList');
         let searchTimer;
+        let pendingDeleteId = null;
 
         function normalizeRole(role) {
             const key = String(role || '').toLowerCase().replaceAll('_', '-').replaceAll(' ', '-');
@@ -285,22 +355,11 @@ function preview_text($text) {
         }
 
         function personForConversation(conversation) {
-            const roleKey = String(currentUserRole || '').toLowerCase().replaceAll('_', '-').replaceAll(' ', '-');
-
-            if (roleKey === 'student') {
-                const name = `${conversation.coordinator_first_name || ''} ${conversation.coordinator_last_name || ''}`.trim();
-
-                return {
-                    name: name || 'SDRU Staff',
-                    role: normalizeRole(conversation.coordinator_role || 'Staff')
-                };
-            }
-
-            const name = `${conversation.submitter_first_name || ''} ${conversation.submitter_last_name || ''}`.trim();
+            const name = `${conversation.counterpart_first_name || ''} ${conversation.counterpart_last_name || ''}`.trim();
 
             return {
-                name: name || conversation.complainant_name || 'Student',
-                role: normalizeRole(conversation.submitter_role || 'Student')
+                name: name || 'SDRU',
+                role: normalizeRole(conversation.counterpart_role || '')
             };
         }
 
@@ -390,23 +449,30 @@ function preview_text($text) {
 
             conversationList.innerHTML = conversations.map(conversation => {
                 const person = personForConversation(conversation);
-                const isActive = Number(conversation.complaint_id) === Number(selectedConversationId);
+                const threadId = `${conversation.complaint_id}-${conversation.counterpart_account_id}`;
+                const isActive = String(threadId) === String(selectedConversationId);
                 const unread = Number(conversation.unread_total || 0);
-                const searchable = `${person.name} ${person.role} ${conversation.case_number} ${conversation.complainant_name || ''} ${conversation.coordinator_first_name || ''} ${conversation.coordinator_last_name || ''}`.toLowerCase();
+                const searchable = `${person.name} ${person.role} ${conversation.case_number} ${conversation.complainant_name || ''}`.toLowerCase();
 
                 return `
-                    <button class="conversation-card ${isActive ? 'active' : ''}" type="button" data-conversation-id="${conversation.complaint_id}" data-search="${escapeHtml(searchable)}">
-                        <span class="avatar">${escapeHtml(initials(person.name))}</span>
-                        <span class="conversation-main">
-                            <span class="name">${escapeHtml(person.name)}</span>
-                            <span class="role"><strong>${escapeHtml(conversation.case_number)}</strong> | ${escapeHtml(conversation.complainant_name || 'Student')}</span>
-                            <span class="preview">${escapeHtml(preview(conversation.latest_message))}</span>
-                        </span>
-                        <span class="conversation-meta">
-                            <span class="time">${escapeHtml(cardTime(conversation.latest_message_at || conversation.submitted_at))}</span>
-                            ${unread > 0 ? `<span class="badge">${unread}</span>` : ''}
-                        </span>
-                    </button>
+                    <div class="conversation-item">
+                        <button class="conversation-card ${isActive ? 'active' : ''}" type="button" data-conversation-id="${threadId}" data-search="${escapeHtml(searchable)}">
+                            <span class="avatar">${escapeHtml(initials(person.name))}</span>
+                            <span class="conversation-main">
+                                <span class="name">${escapeHtml(person.name)}</span>
+                                <span class="role"><strong>${escapeHtml(conversation.case_number)}</strong> | ${escapeHtml(conversation.complainant_name || 'Student')}</span>
+                                <span class="preview">${escapeHtml(preview(conversation.latest_message))}</span>
+                            </span>
+                            <span class="conversation-meta">
+                                <span class="time">${escapeHtml(cardTime(conversation.latest_message_at || conversation.submitted_at))}</span>
+                                ${unread > 0 ? `<span class="badge">${unread}</span>` : ''}
+                            </span>
+                        </button>
+                        <button class="conversation-menu-btn" type="button" aria-label="Conversation options" aria-haspopup="true" data-conversation-id="${threadId}"><i class="bi bi-three-dots"></i></button>
+                        <div class="conversation-menu hidden" data-menu-for="${threadId}">
+                            <button class="conversation-menu-delete" type="button" data-conversation-id="${threadId}" data-counterpart-name="${escapeHtml(person.name)}"><i class="bi bi-trash3"></i> Delete conversation</button>
+                        </div>
+                    </div>
                 `;
             }).join('');
 
@@ -414,12 +480,16 @@ function preview_text($text) {
         }
 
         function renderHeader() {
-            const conversation = conversations.find(item => Number(item.complaint_id) === Number(selectedConversationId));
+            const conversation = conversations.find(item => threadIdFor(item) === String(selectedConversationId));
             const person = conversation ? personForConversation(conversation) : { name: 'Select a conversation', role: 'Messages are linked to case records.' };
 
             chatAvatar.textContent = initials(person.name);
             chatName.textContent = person.name;
             chatRole.textContent = person.role;
+        }
+
+        function threadIdFor(item) {
+            return `${item.complaint_id}-${item.counterpart_account_id}`;
         }
 
         function renderCaseSummary() {
@@ -435,68 +505,25 @@ function preview_text($text) {
         }
 
         function syncComposerState() {
-            const hasConversation = Number(selectedConversationId) > 0;
-            const canSend = hasConversation && recipientInput.value !== '' && messageInput.value.trim() !== '';
+            const hasConversation = Number(String(selectedConversationId).split('-')[0]) > 0 && Number(recipientInput.value) > 0;
+            const canSend = hasConversation && messageInput.value.trim() !== '';
             messageInput.disabled = !hasConversation;
             attachmentButton.disabled = !hasConversation;
             sendButton.disabled = !canSend;
         }
 
-        function preferredRecipient() {
-            if (!selectedCase || !recipients.length) {
-                return null;
-            }
+        function renderRecipientNote() {
+            recipientNote.classList.remove('recipient-error');
 
-            const roleKey = String(currentUserRole || '').toLowerCase().replaceAll('_', '-').replaceAll(' ', '-');
-
-            if (roleKey === 'student') {
-                const coordinatorId = Number(selectedCase.assigned_coordinator_account_id || 0);
-                const assignedCoordinator = recipients.find(recipient => Number(recipient.account_id) === coordinatorId);
-
-                return assignedCoordinator || recipients[0] || null;
-            }
-
-            const studentId = Number(selectedCase.submitted_by_account_id || 0);
-            const student = recipients.find(recipient => Number(recipient.account_id) === studentId);
-
-            return student || recipients[0] || null;
-        }
-
-        function isStudentRole() {
-            return String(currentUserRole || '').toLowerCase().replaceAll('_', '-').replaceAll(' ', '-') === 'student';
-        }
-
-        function renderRecipients() {
-            const recipient = preferredRecipient();
-
-            if (!recipient) {
-                recipientInput.value = '';
-                recipientSelect.innerHTML = '';
-                recipientSelect.classList.add('hidden');
-                recipientNote.textContent = 'No receiver available for this conversation.';
-                recipientNote.classList.remove('hidden');
+            if (!recipient || Number(recipient.account_id) <= 0) {
+                recipientNote.textContent = selectedConversationId
+                    ? 'No receiver available for this conversation.'
+                    : 'Select a conversation to start messaging.';
                 return;
             }
 
-            if (isStudentRole()) {
-                recipientInput.value = recipient.account_id;
-                recipientSelect.innerHTML = '';
-                recipientSelect.classList.add('hidden');
-                recipientNote.textContent = `Sending to ${recipient.first_name} ${recipient.last_name} (${normalizeRole(recipient.role)})`;
-                recipientNote.classList.remove('hidden');
-                return;
-            }
-
-            recipientSelect.innerHTML = recipients.map(item => {
-                const name = `${item.first_name} ${item.last_name}`.trim();
-                const selected = Number(item.account_id) === Number(recipientInput.value || recipient.account_id) ? 'selected' : '';
-
-                return `<option value="${item.account_id}" ${selected}>${escapeHtml(name)} - ${escapeHtml(normalizeRole(item.role))}</option>`;
-            }).join('');
-            recipientInput.value = recipientSelect.value || recipient.account_id;
-            recipientSelect.classList.remove('hidden');
-            recipientNote.textContent = 'Choose a student, coordinator, staff member, or Head SDRU recipient.';
-            recipientNote.classList.remove('hidden');
+            const name = `${recipient.first_name || ''} ${recipient.last_name || ''}`.trim() || 'SDRU';
+            recipientNote.textContent = `Messages in this conversation go to ${name} (${normalizeRole(recipient.role)}).`;
         }
 
         function renderMessages() {
@@ -548,7 +575,7 @@ function preview_text($text) {
             renderConversationList();
             renderHeader();
             renderCaseSummary();
-            renderRecipients();
+            renderRecipientNote();
             renderMessages();
             syncComposerState();
             document.querySelectorAll('[data-time]').forEach(item => {
@@ -566,12 +593,13 @@ function preview_text($text) {
                 return;
             }
 
-            selectedConversationId = Number(id);
+            selectedConversationId = String(id);
             selectedCase = data.conversation.case;
             messages = data.conversation.messages;
-            recipients = data.conversation.recipients;
+            recipient = data.conversation.recipient;
             conversations = data.conversations;
-            complaintId.value = selectedConversationId;
+            complaintId.value = Number(String(selectedConversationId).split('-')[0]);
+            recipientInput.value = recipient ? recipient.account_id : '';
             history.replaceState(null, '', `index.php?conversation_id=${selectedConversationId}`);
             renderAll();
         }
@@ -588,22 +616,128 @@ function preview_text($text) {
             conversationSearchEmpty.classList.toggle('hidden', visible > 0 || conversations.length === 0);
         }
 
+        function closeAllMenus() {
+            document.querySelectorAll('.conversation-menu:not(.hidden)').forEach(menu => menu.classList.add('hidden'));
+            document.querySelectorAll('.conversation-menu-btn.open').forEach(btn => btn.classList.remove('open'));
+        }
+
         conversationList.addEventListener('click', event => {
+            const menuButton = event.target.closest('.conversation-menu-btn');
+
+            if (menuButton) {
+                const menu = conversationList.querySelector(`[data-menu-for="${menuButton.dataset.conversationId}"]`);
+                const wasOpen = menu && !menu.classList.contains('hidden');
+                closeAllMenus();
+
+                if (menu && !wasOpen) {
+                    menu.classList.remove('hidden');
+                    menuButton.classList.add('open');
+                }
+
+                return;
+            }
+
+            const deleteOption = event.target.closest('.conversation-menu-delete');
+
+            if (deleteOption) {
+                closeAllMenus();
+                openDeleteConfirm(deleteOption.dataset.conversationId, deleteOption.dataset.counterpartName);
+                return;
+            }
+
             const card = event.target.closest('.conversation-card');
 
             if (card) {
                 openConversation(card.dataset.conversationId);
+                return;
             }
+
+            closeAllMenus();
+        });
+
+        document.addEventListener('click', event => {
+            if (!event.target.closest('.conversation-item')) {
+                closeAllMenus();
+            }
+        });
+
+        document.addEventListener('keydown', event => {
+            if (event.key === 'Escape') {
+                closeAllMenus();
+                deleteModal.classList.add('hidden');
+                pendingDeleteId = null;
+            }
+        });
+
+        function openDeleteConfirm(threadId, counterpartName) {
+            pendingDeleteId = String(threadId);
+            deleteModalText.textContent = `This will permanently remove your messages with ${counterpartName} in this conversation. This action cannot be undone.`;
+            deleteModal.classList.remove('hidden');
+        }
+
+        function closeDeleteConfirm() {
+            deleteModal.classList.add('hidden');
+            pendingDeleteId = null;
+        }
+
+        deleteCancel.addEventListener('click', closeDeleteConfirm);
+
+        deleteModal.addEventListener('click', event => {
+            if (event.target === deleteModal) {
+                closeDeleteConfirm();
+            }
+        });
+
+        deleteConfirm.addEventListener('click', async () => {
+            if (!pendingDeleteId) {
+                return;
+            }
+
+            const [complaintIdValue, counterpartIdValue] = pendingDeleteId.split('-');
+            const csrfInput = messageForm.querySelector('input[name="csrf_token"]');
+            const formData = new FormData();
+            formData.append('complaint_id', complaintIdValue);
+            formData.append('counterpart_account_id', counterpartIdValue);
+
+            if (csrfInput) {
+                formData.append('csrf_token', csrfInput.value);
+            }
+
+            const response = await fetch('delete.php', {
+                method: 'POST',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                body: formData
+            });
+            const data = await response.json();
+
+            if (!data.success) {
+                closeDeleteConfirm();
+                return;
+            }
+
+            conversations = data.conversations;
+
+            if (conversations.some(item => threadIdFor(item) === String(selectedConversationId))) {
+                renderAll();
+            } else if (conversations.length) {
+                await openConversation(threadIdFor(conversations[0]));
+            } else {
+                selectedConversationId = '';
+                selectedCase = null;
+                messages = [];
+                recipient = null;
+                complaintId.value = '';
+                recipientInput.value = '';
+                history.replaceState(null, '', 'index.php');
+                renderAll();
+            }
+
+            closeDeleteConfirm();
         });
 
         conversationSearch.addEventListener('input', () => {
             clearTimeout(searchTimer);
             searchTimer = setTimeout(filterConversations, 250);
-        });
-
-        recipientSelect.addEventListener('change', () => {
-            recipientInput.value = recipientSelect.value;
-            syncComposerState();
         });
 
         messageInput.addEventListener('input', syncComposerState);
@@ -622,26 +756,47 @@ function preview_text($text) {
                 return;
             }
 
-            const formData = new FormData(messageForm);
+            sendButton.disabled = true;
 
-            const response = await fetch(messageForm.action, {
-                method: 'POST',
-                headers: { 'X-Requested-With': 'XMLHttpRequest' },
-                body: formData
-            });
-            const data = await response.json();
+            try {
+                const formData = new FormData(messageForm);
 
-            if (!data.success) {
-                return;
+                const response = await fetch(messageForm.action, {
+                    method: 'POST',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                    body: formData
+                });
+
+                let data = null;
+
+                try {
+                    data = await response.json();
+                } catch (parseError) {
+                    recipientNote.textContent = `Could not send message (server error ${response.status}).`;
+                    recipientNote.classList.add('recipient-error');
+                    return;
+                }
+
+                if (!data.success) {
+                    recipientNote.textContent = data.message || 'Could not send message.';
+                    recipientNote.classList.add('recipient-error');
+                    return;
+                }
+
+                recipientNote.classList.remove('recipient-error');
+                messageInput.value = '';
+                attachmentInput.value = '';
+                attachmentName.textContent = '';
+                attachmentName.classList.add('hidden');
+                messages = data.messages;
+                conversations = data.conversations;
+                renderAll();
+            } catch (error) {
+                recipientNote.textContent = 'Could not send message. Check your connection and try again.';
+                recipientNote.classList.add('recipient-error');
+            } finally {
+                syncComposerState();
             }
-
-            messageInput.value = '';
-            attachmentInput.value = '';
-            attachmentName.textContent = '';
-            attachmentName.classList.add('hidden');
-            messages = data.messages;
-            conversations = data.conversations;
-            renderAll();
         });
 
         attachmentButton.addEventListener('click', () => attachmentInput.click());
@@ -659,7 +814,185 @@ function preview_text($text) {
             attachmentName.classList.remove('hidden');
         });
 
+        function renderCandidates() {
+            if (!candidateList) {
+                return;
+            }
+
+            if (!candidates.length) {
+                candidateList.innerHTML = '<div class="candidate-empty">No available recipients. Everyone connected to your cases already has a conversation.</div>';
+                return;
+            }
+
+            const term = (candidateSearch?.value || '').trim().toLowerCase();
+
+            const visible = candidates.filter(candidate => {
+                if (!term) {
+                    return true;
+                }
+
+                const name = `${candidate.counterpart_first_name || ''} ${candidate.counterpart_last_name || ''}`.trim().toLowerCase();
+                const haystack = `${name} ${normalizeRole(candidate.counterpart_role)} ${candidate.case_number} ${candidate.complainant_name || ''}`.toLowerCase();
+
+                return haystack.includes(term);
+            });
+
+            if (!visible.length) {
+                candidateList.innerHTML = '<div class="candidate-empty">No recipients match your search.</div>';
+                return;
+            }
+
+            candidateList.innerHTML = visible.map(candidate => {
+                const name = `${candidate.counterpart_first_name || ''} ${candidate.counterpart_last_name || ''}`.trim() || 'SDRU';
+                const threadId = `${candidate.complaint_id}-${candidate.counterpart_account_id}`;
+
+                return `
+                    <button class="candidate-item" type="button" data-thread-id="${threadId}">
+                        <span class="avatar">${escapeHtml(initials(name))}</span>
+                        <span>
+                            <span class="candidate-name">${escapeHtml(name)}</span>
+                            <span class="candidate-meta">${escapeHtml(normalizeRole(candidate.counterpart_role))} | ${escapeHtml(candidate.case_number)}</span>
+                        </span>
+                    </button>
+                `;
+            }).join('');
+        }
+
+        function closeNewConversationBanner() {
+            newConversationBanner.classList.add('hidden');
+            newConversationBtn.classList.remove('open');
+            newConversationBtn.setAttribute('aria-expanded', 'false');
+        }
+
+        if (newConversationBtn) {
+            newConversationBtn.addEventListener('click', () => {
+                const willOpen = newConversationBanner.classList.contains('hidden');
+
+                if (willOpen) {
+                    renderCandidates();
+                    newConversationBanner.classList.remove('hidden');
+                    newConversationBtn.classList.add('open');
+                    newConversationBtn.setAttribute('aria-expanded', 'true');
+                    candidateSearch.value = '';
+                    candidateSearch.focus();
+                } else {
+                    closeNewConversationBanner();
+                }
+            });
+        }
+
+        if (newConversationClose) {
+            newConversationClose.addEventListener('click', closeNewConversationBanner);
+        }
+
+        if (candidateSearch) {
+            candidateSearch.addEventListener('input', renderCandidates);
+        }
+
+        if (candidateList) {
+            candidateList.addEventListener('click', async event => {
+                const item = event.target.closest('.candidate-item');
+
+                if (!item) {
+                    return;
+                }
+
+                const [complaintIdValue, counterpartIdValue] = item.dataset.threadId.split('-');
+                const csrfInput = messageForm.querySelector('input[name="csrf_token"]');
+                const formData = new FormData();
+                formData.append('complaint_id', complaintIdValue);
+                formData.append('counterpart_account_id', counterpartIdValue);
+
+                if (csrfInput) {
+                    formData.append('csrf_token', csrfInput.value);
+                }
+
+                const response = await fetch('start.php', {
+                    method: 'POST',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                    body: formData
+                });
+                const data = await response.json();
+
+                if (!data.success) {
+                    return;
+                }
+
+                conversations = data.conversations;
+                candidates = data.candidates;
+                closeNewConversationBanner();
+                await openConversation(`${complaintIdValue}-${counterpartIdValue}`);
+            });
+        }
+
         renderAll();
+
+        const POLL_INTERVAL = 5000;
+        let lastConversationsSnapshot = JSON.stringify(conversations);
+        let lastCandidatesSnapshot = JSON.stringify(candidates);
+        let lastMessagesSnapshot = JSON.stringify(messages);
+        let pollInFlight = false;
+
+        async function pollUpdates() {
+            if (pollInFlight || document.hidden) {
+                return;
+            }
+
+            pollInFlight = true;
+
+            try {
+                const params = new URLSearchParams({ ajax: 'poll' });
+
+                if (selectedConversationId) {
+                    params.set('conversation_id', selectedConversationId);
+                }
+
+                const response = await fetch(`index.php?${params.toString()}`, {
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                });
+                const data = await response.json();
+
+                if (!data.success) {
+                    return;
+                }
+
+                const conversationsChanged = JSON.stringify(data.conversations) !== lastConversationsSnapshot;
+                const candidatesChanged = JSON.stringify(data.candidates) !== lastCandidatesSnapshot;
+                let threadChanged = false;
+
+                if (selectedConversationId && data.conversation && data.conversation.case) {
+                    threadChanged = JSON.stringify(data.conversation.messages) !== lastMessagesSnapshot;
+                }
+
+                if (!conversationsChanged && !candidatesChanged && !threadChanged) {
+                    return;
+                }
+
+                conversations = data.conversations;
+                candidates = data.candidates;
+                lastConversationsSnapshot = JSON.stringify(conversations);
+                lastCandidatesSnapshot = JSON.stringify(candidates);
+
+                if (threadChanged && selectedConversationId) {
+                    await openConversation(selectedConversationId);
+                    lastMessagesSnapshot = JSON.stringify(messages);
+                } else {
+                    renderAll();
+                }
+            } catch (error) {
+                // Network hiccup - retry on the next tick.
+            } finally {
+                pollInFlight = false;
+            }
+        }
+
+        setInterval(pollUpdates, POLL_INTERVAL);
+
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) {
+                pollUpdates();
+            }
+        });
     </script>
 </body>
 

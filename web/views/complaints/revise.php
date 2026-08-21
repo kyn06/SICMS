@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../../controllers/ComplaintController.php';
 $controller = new ComplaintController();
 $viewData = $controller->handleRevisionRequest((int) ($_GET['id'] ?? 0));
+$user = $viewData['user'];
 $case = $viewData['case']; $revision = $viewData['revision']; $respondents = $viewData['respondents'];
 $witnesses = $viewData['witnesses']; $evidence = $viewData['evidence']; $errors = $viewData['errors']; $old = $viewData['old'];
 $allowed = $revision['revision_fields'];

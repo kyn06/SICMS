@@ -29,7 +29,7 @@ html {
 body {
     background: var(--sicms-page) !important;
     color: var(--sicms-text) !important;
-    font-family: "Segoe UI", Poppins, Arial, sans-serif !important;
+    font-family: 'Poppins', "Segoe UI", Arial, sans-serif !important;
     letter-spacing: 0 !important;
 }
 
@@ -61,9 +61,8 @@ body {
 .case-wrap,
 .complaint-wrap {
     margin: 0 auto !important;
-    max-width: 1800px !important;
     padding: clamp(16px, 3vw, 28px) !important;
-    width: 100% !important;
+    max-width: 100% !important;
 }
 
 .panel,

@@ -2,9 +2,11 @@
 require_once __DIR__ . '/../../controllers/ComplaintController.php';
 $controller = new ComplaintController();
 $viewData = $controller->handleStudentCaseDetails((int) ($_GET['id'] ?? 0));
+$user = $viewData['user'];
 $case = $viewData['case'];
 $evidence = $viewData['evidence'];
 $history = $viewData['history'];
+$hearings = $viewData['hearings'];
 
 function h($value) { return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8'); }
 function progress_steps($status) {
@@ -55,7 +57,7 @@ $studentRemarks = array_values(array_filter($history, fn($item) =>
         .timeline-title { color: #273526; font-size: 13px; font-weight: 800; }
         .timeline-note { color: #6a7768; font-size: 11px; margin-top: 2px; }
         .mini-item { background: #f9fbf8; border: 1px solid #e0e8de; border-radius: 8px; padding: 12px; }
-        .remarks { border-left: 4px solid #1a8c2b; }
+        .remarks, .hearing-item { border-left: 4px solid #1a8c2b; }
         .empty-state { color: #6a7768; font-size: 13px; padding: 16px; text-align: center; }
         .back-row { margin-top: 4px; }
         @media (max-width: 820px) { .detail-grid, .info-grid { grid-template-columns: 1fr; } .case-heading { align-items: flex-start; flex-direction: column; } }
@@ -67,6 +69,7 @@ $studentRemarks = array_values(array_filter($history, fn($item) =>
     <div class="app-content">
         <?php $pageTitle = 'Case Details'; require __DIR__ . '/../layout/topbar.php'; ?>
         <main class="wrap">
+            <div class="back-row" style="margin-bottom:14px"><a class="btn btn-secondary" href="my_cases.php"><i class="bi bi-arrow-left"></i> Back to My Complaints</a></div>
             <header class="case-heading"><div><h1><?= h($case['complaint_title'] ?? $case['case_classification']) ?></h1><p><?= h($case['case_number']) ?></p></div><span class="status-pill"><?= h($case['status']) ?></span></header>
             <section class="detail-grid">
                 <div>
@@ -103,6 +106,36 @@ $studentRemarks = array_values(array_filter($history, fn($item) =>
                             <?php foreach ($studentRemarks as $item): ?><div class="mini-item remarks"><strong><?= h($item['new_status'] ?? $item['action']) ?></strong><div class="value"><?= nl2br(h($item['remarks'])) ?></div><div class="timeline-note"><?= h(date('M d, Y h:i A', strtotime($item['created_at']))) ?></div></div><?php endforeach; ?>
                         </div>
                     </section>
+                    <section class="panel" id="hearing-schedule">
+                        <?php
+                        $scheduledHearings = array_values(array_filter($hearings, fn($hearing) => ($hearing['status'] ?? '') === 'Scheduled'));
+                        $pastHearings = array_values(array_filter($hearings, fn($hearing) => in_array(($hearing['status'] ?? ''), ['Completed', 'Cancelled'], true)));
+                        ?>
+                        <h2>Hearing Schedule</h2>
+                        <div class="mini-list">
+                            <?php if (empty($scheduledHearings)): ?>
+                                <div class="empty-state">No hearing is currently scheduled for this case.</div>
+                            <?php else: ?>
+                                <?php foreach ($scheduledHearings as $hearing): ?>
+                                    <div class="mini-item hearing-item">
+                                        <strong><i class="bi bi-calendar-event"></i> <?= h(date('M d, Y - h:i A', strtotime($hearing['hearing_datetime']))) ?></strong>
+                                        <div class="value"><span class="label">Venue</span><br><?= h($hearing['venue']) ?></div>
+                                        <?php if (!empty($hearing['google_meet_link'])): ?><div class="value"><a href="<?= h($hearing['google_meet_link']) ?>" target="_blank" rel="noopener"><i class="bi bi-camera-video"></i> Join Google Meet</a></div><?php endif; ?>
+                                        <?php if (!empty($hearing['remarks'])): ?><div class="timeline-note"><?= nl2br(h($hearing['remarks'])) ?></div><?php endif; ?>
+                                    </div>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                            <?php if (!empty($pastHearings)): ?>
+                                <div class="label" style="margin-top:6px">Previous Hearings</div>
+                                <?php foreach ($pastHearings as $hearing): ?>
+                                    <div class="mini-item">
+                                        <strong><?= h(date('M d, Y - h:i A', strtotime($hearing['hearing_datetime']))) ?></strong>
+                                        <div class="timeline-note"><?= h($hearing['status']) ?> · <?= h($hearing['venue']) ?></div>
+                                    </div>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </div>
+                    </section>
                 </div>
                 <aside>
                     <section class="panel">
@@ -123,7 +156,6 @@ $studentRemarks = array_values(array_filter($history, fn($item) =>
                             <?php foreach ($evidence as $file): ?><div class="mini-item"><strong><i class="bi bi-paperclip"></i> <?= h($file['original_filename']) ?></strong><div class="timeline-note"><?= h($file['mime_type']) ?> · <?= h(number_format((int) $file['file_size'] / 1024, 1)) ?> KB · <?= h(date('M d, Y', strtotime($file['uploaded_at']))) ?></div><div style="display:flex;gap:7px;margin-top:9px"><a class="btn btn-secondary" target="_blank" href="attachment.php?id=<?= (int) $file['evidence_id'] ?>&amp;mode=view">View</a><a class="btn btn-secondary" href="attachment.php?id=<?= (int) $file['evidence_id'] ?>&amp;mode=download">Download</a></div></div><?php endforeach; ?>
                         </div>
                     </section>
-                    <div class="back-row"><a class="btn btn-secondary" href="my_cases.php"><i class="bi bi-arrow-left"></i> Back to My Complaints</a></div>
                 </aside>
             </section>
         </main>

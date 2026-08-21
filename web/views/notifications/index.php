@@ -45,13 +45,13 @@ $currentGroup = null;
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <style>
         body { align-items: stretch; background: #f4f7f2; display: block; justify-content: flex-start; padding: 0; }
-        .notification-wrap { margin: 0 auto; max-width: 1040px; padding: 24px; width: 100%; }
+        .notification-wrap { margin: 0 auto; max-width: 100%; padding: 24px; width: 100%; }
         .notification-heading { align-items: center; display: flex; gap: 16px; justify-content: space-between; margin-bottom: 18px; }
         .notification-heading h1 { color: #172017; font-size: 24px; margin: 0 0 4px; }
         .notification-heading p { color: #62705f; font-size: 13px; margin: 0; }
         .notification-summary { align-items: center; background: #fff; border: 1px solid #dce7d9; border-radius: 8px; display: flex; gap: 12px; padding: 12px 14px; }
         .summary-icon { align-items: center; background: #eaf7e8; border-radius: 8px; color: #177124; display: flex; font-size: 18px; height: 40px; justify-content: center; width: 40px; }
-        .summary-count { color: #172017; font-size: 19px; font-weight: 800; line-height: 1; }
+        .summary-count { color: #172017; font-size: 19px; font-weight: 400; line-height: 1; }
         .summary-label { color: #687565; font-size: 11px; margin-top: 4px; }
         .notification-panel { background: #fff; border: 1px solid #dce7d9; border-radius: 8px; box-shadow: 0 8px 26px rgba(18,60,27,.07); overflow: hidden; }
         .notification-toolbar { align-items: center; border-bottom: 1px solid #e5ece3; display: flex; justify-content: space-between; gap: 12px; min-height: 58px; padding: 12px 16px; }
@@ -63,7 +63,7 @@ $currentGroup = null;
         .notification-pagination button { background:#fff;border:1px solid #cfdbcc;border-radius:6px;color:#294729;cursor:pointer;min-height:34px;padding:6px 10px; }
         .notification-pagination button.active { background:#177124;color:#fff; }
         .notification-pagination button:disabled { cursor:not-allowed;opacity:.45; }
-        .notification-group-title { background: #f7faf6; border-bottom: 1px solid #e7ede5; color: #657363; font-size: 11px; font-weight: 800; padding: 9px 18px; text-transform: uppercase; }
+        .notification-group-title { background: #f7faf6; border-bottom: 1px solid #e7ede5; color: #657363; font-size: 11px; font-weight: 400; padding: 9px 18px; text-transform: uppercase; }
         .notification-item-row { align-items: flex-start; border-bottom: 1px solid #e9eee7; display: grid; gap: 13px; grid-template-columns: 44px minmax(0,1fr) auto; padding: 16px 18px; position: relative; transition: background .16s ease; }
         .notification-item-row:last-child { border-bottom: 0; }
         .notification-item-row:hover { background: #fafcf9; }
@@ -74,11 +74,11 @@ $currentGroup = null;
         .unread .item-icon { background: #dff1dc; color: #167224; }
         .item-content { min-width: 0; }
         .item-title-line { align-items: center; display: flex; gap: 8px; }
-        .item-title { color: #1d2a1d; font-size: 14px; font-weight: 800; margin: 0; }
+        .item-title { color: #1d2a1d; font-size: 14px; font-weight: 400; margin: 0; }
         .unread-dot { background: #1a8f2c; border-radius: 50%; display: inline-block; height: 7px; width: 7px; }
         .item-message { color: #586655; font-size: 13px; line-height: 1.55; margin: 5px 0 7px; overflow-wrap: anywhere; }
         .item-meta { align-items: center; color: #748071; display: flex; flex-wrap: wrap; font-size: 11px; gap: 10px; }
-        .related-link { align-items: center; color: #176f22; display: inline-flex; font-weight: 700; gap: 5px; text-decoration: none; }
+        .related-link { align-items: center; color: #176f22; display: inline-flex; font-weight: 300; gap: 5px; text-decoration: none; }
         .related-link:hover { text-decoration: underline; }
         .item-actions { align-items: flex-end; display: flex; flex-direction: column; gap: 8px; }
         .mark-read { background: transparent; border: 1px solid #cad7c7; color: #365136; font-size: 12px; padding: 7px 10px; }
