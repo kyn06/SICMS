@@ -34,58 +34,120 @@ function h($value) {
 $success = null;
 $errors = [];
 $old = [];
+$pwSuccess = null;
+$pwErrors = [];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     Security::requireCsrfToken();
 
-    $firstName = trim($_POST['first_name'] ?? '');
-    $lastName  = trim($_POST['last_name'] ?? '');
-    $phone     = trim($_POST['phone_number'] ?? '');
-    $gender    = trim($_POST['gender'] ?? '');
-    $address   = trim($_POST['address'] ?? '');
+    $formAction = $_POST['action'] ?? 'profile';
 
-    if ($firstName === '' || $lastName === '') {
-        $errors[] = 'First name and last name are required.';
-    }
+    if ($formAction === 'change_password') {
+        $currentPassword = (string) ($_POST['current_password'] ?? '');
+        $newPassword     = (string) ($_POST['new_password'] ?? '');
+        $confirmPassword = (string) ($_POST['confirm_password'] ?? '');
 
-    if ($firstName !== '' && strlen($firstName) > 100) {
-        $errors[] = 'First name must be 100 characters or fewer.';
-    }
+        $hasPassword = !empty($user['password_hash']);
 
-    if ($lastName !== '' && strlen($lastName) > 100) {
-        $errors[] = 'Last name must be 100 characters or fewer.';
-    }
+        if ($hasPassword && $currentPassword === '') {
+            $pwErrors[] = 'Please enter your current password.';
+        }
 
-    if ($phone !== '' && strlen($phone) > 20) {
-        $errors[] = 'Phone number must be 20 characters or fewer.';
-    }
+        if ($newPassword === '') {
+            $pwErrors[] = 'Please enter a new password.';
+        } elseif (strlen($newPassword) < 8) {
+            $pwErrors[] = 'New password must be at least 8 characters.';
+        } else {
+            if (!preg_match('/[A-Z]/', $newPassword)) {
+                $pwErrors[] = 'New password must include at least one uppercase letter.';
+            }
 
-    if (!empty($errors)) {
-        $old = $_POST;
-    } else {
-        $currentUser = User::find($user['account_id']);
-        if ($currentUser) {
-            $result = $currentUser->update([
-                'first_name'   => $firstName,
-                'last_name'    => $lastName,
-                'phone_number' => $phone,
-                'gender'       => $gender,
-                'address'      => $address,
-                'updated_at'   => date('Y-m-d H:i:s'),
-            ]);
+            if (!preg_match('/\d/', $newPassword)) {
+                $pwErrors[] = 'New password must include at least one number.';
+            }
 
-            if ($result) {
-                $success = 'Profile updated successfully.';
+            if (!preg_match('/[^A-Za-z0-9]/', $newPassword)) {
+                $pwErrors[] = 'New password must include at least one symbol.';
+            }
+        }
+
+        if ($newPassword !== '' && $newPassword !== $confirmPassword) {
+            $pwErrors[] = 'New password and confirmation do not match.';
+        }
+
+        if (empty($pwErrors) && $hasPassword && !password_verify($currentPassword, $user['password_hash'])) {
+            $pwErrors[] = 'Your current password is incorrect.';
+        }
+
+        if (empty($pwErrors) && $hasPassword && password_verify($newPassword, $user['password_hash'])) {
+            $pwErrors[] = 'New password must be different from your current password.';
+        }
+
+        if (empty($pwErrors)) {
+            $currentUser = User::find($user['account_id']);
+
+            if ($currentUser && $currentUser->update([
+                'password_hash' => password_hash($newPassword, PASSWORD_DEFAULT),
+                'updated_at'    => date('Y-m-d H:i:s'),
+            ])) {
+                session_regenerate_id(true);
+                $pwSuccess = 'Password changed successfully.';
                 $user = User::findByEmail($_SESSION['email']);
             } else {
-                $errors[] = 'Unable to update profile. Please try again.';
-                $old = $_POST;
+                $pwErrors[] = 'Unable to change password. Please try again.';
+            }
+        }
+    } else {
+        $firstName = trim($_POST['first_name'] ?? '');
+        $lastName  = trim($_POST['last_name'] ?? '');
+        $phone     = trim($_POST['phone_number'] ?? '');
+        $gender    = trim($_POST['gender'] ?? '');
+        $address   = trim($_POST['address'] ?? '');
+
+        if ($firstName === '' || $lastName === '') {
+            $errors[] = 'First name and last name are required.';
+        }
+
+        if ($firstName !== '' && strlen($firstName) > 100) {
+            $errors[] = 'First name must be 100 characters or fewer.';
+        }
+
+        if ($lastName !== '' && strlen($lastName) > 100) {
+            $errors[] = 'Last name must be 100 characters or fewer.';
+        }
+
+        if ($phone !== '' && strlen($phone) > 20) {
+            $errors[] = 'Phone number must be 20 characters or fewer.';
+        }
+
+        if (!empty($errors)) {
+            $old = $_POST;
+        } else {
+            $currentUser = User::find($user['account_id']);
+            if ($currentUser) {
+                $result = $currentUser->update([
+                    'first_name'   => $firstName,
+                    'last_name'    => $lastName,
+                    'phone_number' => $phone,
+                    'gender'       => $gender,
+                    'address'      => $address,
+                    'updated_at'   => date('Y-m-d H:i:s'),
+                ]);
+
+                if ($result) {
+                    $success = 'Profile updated successfully.';
+                    $user = User::findByEmail($_SESSION['email']);
+                } else {
+                    $errors[] = 'Unable to update profile. Please try again.';
+                    $old = $_POST;
+                }
             }
         }
     }
 }
 
 $old = $old ?: $user;
+$hasPassword = !empty($user['password_hash']);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -183,10 +245,118 @@ $old = $old ?: $user;
                             <button type="submit" class="btn btn-primary"><i class="bi bi-check2"></i> Save Changes</button>
                         </div>
                     </form>
+
+                    <form method="POST" action="index.php" class="settings-form settings-password-form">
+                        <?= Security::csrfField() ?>
+                        <input type="hidden" name="action" value="change_password">
+
+                        <div class="settings-section-header">
+                            <h3 class="settings-section-title"><i class="bi bi-shield-lock"></i> Change Password</h3>
+                            <p class="settings-section-description">
+                                <?= $hasPassword
+                                    ? 'Use your current password to set a new one.'
+                                    : 'Your account was created with Google. Set a password to also log in with your email.' ?>
+                            </p>
+                        </div>
+
+                        <?php if ($pwSuccess): ?>
+                            <div class="alert alert-success"><?= h($pwSuccess) ?></div>
+                        <?php endif; ?>
+
+                        <?php if (!empty($pwErrors)): ?>
+                            <div class="alert alert-error">
+                                <?php foreach ($pwErrors as $error): ?>
+                                    <div><?= h($error) ?></div>
+                                <?php endforeach; ?>
+                            </div>
+                        <?php endif; ?>
+
+                        <div class="settings-fields">
+                            <div class="settings-field">
+                                <label for="current_password">Current Password <?= $hasPassword ? '<span class="required">*</span>' : '' ?></label>
+                                <div class="password-wrapper">
+                                    <input
+                                        type="password"
+                                        id="current_password"
+                                        name="current_password"
+                                        autocomplete="current-password"
+                                        placeholder="Enter your current password"
+                                        <?= $hasPassword ? 'required' : '' ?>
+                                    >
+                                    <button type="button" class="password-toggle" aria-label="Show password">
+                                        <i class="bi bi-eye"></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="settings-field-row">
+                                <div class="settings-field">
+                                    <label for="new_password">New Password <span class="required">*</span></label>
+                                    <div class="password-wrapper">
+                                        <input
+                                            type="password"
+                                            id="new_password"
+                                            name="new_password"
+                                            autocomplete="new-password"
+                                            placeholder="Min. 8 chars, uppercase, number & symbol"
+                                            required
+                                            minlength="8"
+                                            pattern="(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}"
+                                            title="At least 8 characters including an uppercase letter, a number, and a symbol."
+                                        >
+                                        <button type="button" class="password-toggle" aria-label="Show password">
+                                            <i class="bi bi-eye"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="settings-field">
+                                    <label for="confirm_password">Confirm New Password <span class="required">*</span></label>
+                                    <div class="password-wrapper">
+                                        <input
+                                            type="password"
+                                            id="confirm_password"
+                                            name="confirm_password"
+                                            autocomplete="new-password"
+                                            placeholder="Re-enter your new password"
+                                            required
+                                            minlength="8"
+                                        >
+                                        <button type="button" class="password-toggle" aria-label="Show password">
+                                            <i class="bi bi-eye"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="settings-actions">
+                            <button type="submit" class="btn btn-primary"><i class="bi bi-check2"></i> Confirm</button>
+                        </div>
+                    </form>
                 </div> 
             </section>
         </div>
     </div>
+
+    <script>
+        document.querySelectorAll('.password-toggle').forEach(function (button) {
+            button.addEventListener('click', function () {
+                var input = button.parentElement.querySelector('input');
+                var isPassword = input.type === 'password';
+
+                input.type = isPassword ? 'text' : 'password';
+
+                button.innerHTML = isPassword
+                    ? '<i class="bi bi-eye-slash"></i>'
+                    : '<i class="bi bi-eye"></i>';
+
+                button.setAttribute(
+                    'aria-label',
+                    isPassword ? 'Hide password' : 'Show password'
+                );
+            });
+        });
+    </script>
 </body>
 
 </html>
