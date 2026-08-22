@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 require_once __DIR__ . '/../../helpers/Security.php';
 Security::startSession();
 
@@ -224,11 +224,311 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard | SICMS</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="web/views/layout/style.css">
     <link rel="stylesheet" href="web/views/layout/sidebar.css">
     <link rel="stylesheet" href="web/views/layout/accounts.css">
     <link rel="stylesheet" href="web/views/layout/system.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        #dashboardFilters {
+            background: none;
+            border: none;
+            box-shadow: none;
+            display: flex;
+            justify-content: flex-end;
+            margin-bottom: 14px;
+            padding: 0;
+            position: relative;
+            width: 100%;
+        }
+
+        .filters-toggle-btn {
+            align-items: center;
+            background: #fff;
+            border: 1px solid #bfd0bc;
+            border-radius: 6px;
+            color: var(--text);
+            cursor: pointer;
+            display: inline-flex;
+            font: inherit;
+            font-size: 13.5px;
+            font-weight: 700;
+            gap: 8px;
+            padding: 9px 16px;
+            transition: background-color .15s ease, border-color .15s ease, color .15s ease;
+        }
+
+        .filters-toggle-btn:hover {
+            border-color: var(--sicms-green-600);
+            color: var(--sicms-green-700);
+        }
+
+        .filters-count {
+            align-items: center;
+            background: #e6f3ea;
+            border-radius: 999px;
+            color: #1a8c2b;
+            display: inline-flex;
+            font-size: 11px;
+            justify-content: center;
+            min-width: 20px;
+            padding: 0 6px;
+            height: 20px;
+        }
+
+        #dashboardFilters.is-active .filters-toggle-btn,
+        #dashboardFilters.is-active .filters-toggle-btn:hover {
+            background: var(--sicms-green-600);
+            border-color: var(--sicms-green-600);
+            color: #fff;
+        }
+
+        #dashboardFilters.is-active .filters-count {
+            background: #fff;
+        }
+
+        .filters-popover {
+            background: #fff;
+            border: 1px solid rgba(191, 208, 188, .75);
+            border-radius: 14px;
+            box-shadow: 0 18px 45px rgba(15, 40, 21, .22);
+            display: none;
+            left: auto;
+            padding: 16px 18px;
+            position: absolute;
+            right: 0;
+            top: calc(100% + 10px);
+            width: min(680px, calc(100vw - 56px));
+            z-index: 500;
+        }
+
+        .filters-popover.open {
+            animation: sicmsFilterPop .18s ease-out;
+            display: block;
+        }
+
+        @keyframes sicmsFilterPop {
+            from {
+                opacity: 0;
+                transform: translateY(-6px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        #dashboardFilters .filter-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        #dashboardFilters .filter-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            justify-content: flex-end;
+            margin-top: 14px;
+        }
+
+        @media (max-width: 640px) {
+            .filters-popover {
+                width: calc(100vw - 32px);
+            }
+
+            #dashboardFilters .filter-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* ===== Modernized analytics (Bootstrap-based) ===== */
+        .main-panel .panel {
+            background: #fff;
+            border: 1px solid rgba(219, 231, 216, .9);
+            border-radius: 14px !important;
+            box-shadow: 0 4px 16px rgba(18, 60, 27, .06);
+            overflow: hidden;
+            transition: transform .18s ease, box-shadow .18s ease;
+        }
+
+        .main-panel .panel:hover {
+            box-shadow: 0 12px 28px rgba(18, 60, 27, .13) !important;
+            transform: translateY(-2px);
+        }
+
+        .main-panel .section-title {
+            align-items: center;
+            display: flex;
+            font-size: 15.5px;
+            gap: 9px;
+        }
+
+        .main-panel .section-title i {
+            color: #167a22;
+        }
+
+        .main-panel .dashboard-grid {
+            margin-top: 18px;
+        }
+
+        .main-panel .empty-state {
+            color: #7c8b78;
+            font-size: 13px;
+        }
+
+        .main-panel .activity-item {
+            align-items: flex-start;
+            background: none;
+            border-bottom: 1px solid rgba(219, 231, 216, .65);
+            border-radius: 0;
+            box-shadow: none;
+            display: flex;
+            gap: 11px;
+            padding: 11px 0;
+        }
+
+        .main-panel .activity-item:last-child {
+            border-bottom: none;
+            padding-bottom: 0;
+        }
+
+        .main-panel .activity-check {
+            align-items: center;
+            background: #eaf7e8;
+            border: none;
+            border-radius: 10px;
+            color: #167a22;
+            display: inline-flex;
+            flex: none;
+            font-size: 15px;
+            height: 34px;
+            justify-content: center;
+            width: 34px;
+        }
+
+        .main-panel .activity-title {
+            font-size: 13.5px;
+        }
+
+        .main-panel .activity-description,
+        .main-panel .activity-time {
+            color: #6b7a67;
+            font-size: 12.5px;
+        }
+
+        .main-panel .activity-time {
+            color: #8a9a86;
+        }
+
+        .main-panel table th {
+            color: #40513d;
+            font-size: 11.5px;
+            letter-spacing: .04em;
+            text-transform: uppercase;
+        }
+
+        .main-panel .hearing-table th,
+        .main-panel table[data-page-size] th {
+            background: #f4f8f3;
+        }
+
+        .main-panel .sicms-card {
+            background: #fff;
+            border: 1px solid rgba(219, 231, 216, .9);
+            border-radius: 14px;
+            box-shadow: 0 4px 16px rgba(18, 60, 27, .06);
+            overflow: hidden;
+            transition: transform .18s ease, box-shadow .18s ease;
+        }
+
+        .main-panel .sicms-card:hover {
+            box-shadow: 0 12px 28px rgba(18, 60, 27, .13);
+            transform: translateY(-2px);
+        }
+
+        .main-panel .sicms-card.stat-hero,
+        .main-panel .sicms-card.stat-hero:hover {
+            background: linear-gradient(135deg, #1a9d00 0%, #123c1b 78%) !important;
+            border-color: transparent;
+        }
+
+        .sicms-stat {
+            color: var(--text);
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            padding: 16px 18px;
+        }
+
+        .sicms-stat-top {
+            align-items: flex-start;
+            display: flex;
+            gap: 12px;
+            justify-content: space-between;
+        }
+
+        .sicms-stat-label {
+            color: #5f6f5c;
+            font-size: 12.5px;
+            font-weight: 700;
+            letter-spacing: .03em;
+            text-transform: uppercase;
+        }
+
+        .sicms-stat-value {
+            font-size: 30px;
+            font-weight: 800;
+            line-height: 1.15;
+        }
+
+        .sicms-stat-chip {
+            align-items: center;
+            background: var(--chip-bg, #eaf7e8);
+            border-radius: 12px;
+            color: var(--chip-fg, #167a22);
+            display: inline-flex;
+            flex: none;
+            font-size: 20px;
+            height: 44px;
+            justify-content: center;
+            width: 44px;
+        }
+
+        .sicms-stat-trend {
+            align-items: center;
+            color: #5f6f5c;
+            display: flex;
+            font-size: 12px;
+            gap: 6px;
+        }
+
+        .accent-green { --chip-bg: #eaf7e8; --chip-fg: #167a22; }
+        .accent-blue { --chip-bg: #e7f0fb; --chip-fg: #175cd3; }
+        .accent-amber { --chip-bg: #fdf3e0; --chip-fg: #9a6700; }
+        .accent-teal { --chip-bg: #e3f5f3; --chip-fg: #0f766e; }
+        .accent-indigo { --chip-bg: #ecebfc; --chip-fg: #4338ca; }
+        .accent-violet { --chip-bg: #f5ebfd; --chip-fg: #7e22ce; }
+        .accent-rose { --chip-bg: #fdecef; --chip-fg: #be123c; }
+
+        .main-panel .sicms-card.stat-hero:hover {
+            box-shadow: 0 16px 34px rgba(18, 60, 27, .38);
+        }
+
+        .stat-hero .sicms-stat-label,
+        .stat-hero .sicms-stat-trend {
+            color: rgba(255, 255, 255, .88);
+        }
+
+        .stat-hero .sicms-stat-value {
+            color: #fff;
+        }
+
+        .stat-hero .sicms-stat-chip {
+            background: rgba(255, 255, 255, .2);
+            color: #fff;
+        }
+    </style>
 </head>
 
 <body>
@@ -330,7 +630,7 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
                                 <article class="student-case-card">
                                     <div>
                                         <a class="student-case-number" href="web/views/complaints/case_details.php?id=<?= (int) $studentCase['complaint_id'] ?>"><?= h($studentCase['case_classification']) ?></a>
-                                        <div class="student-case-meta"><?= h($studentCase['case_number']) ?> · Submitted <?= h(date('M d, Y', strtotime($studentCase['submitted_at']))) ?></div>
+                                        <div class="student-case-meta"><?= h($studentCase['case_number']) ?> Â· Submitted <?= h(date('M d, Y', strtotime($studentCase['submitted_at']))) ?></div>
                                     </div>
                                     <span class="status-pill"><?= h($studentCase['status']) ?></span>
                                     <div class="student-case-action"><a class="btn btn-secondary" href="web/views/complaints/case_details.php?id=<?= (int) $studentCase['complaint_id'] ?>"><i class="bi bi-eye"></i> View Details</a></div>
@@ -355,24 +655,15 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
             <?php endif; ?>
 
             <?php if ($canViewAnalytics): ?>
-                <section class="stats-grid" aria-label="Dashboard statistics">
-                    <?php foreach ($statCards as $card): ?>
-                        <article class="stat-card accent-<?= h($card['accent']) ?>" data-stat-card="<?= h($card['key']) ?>">
-                            <div class="stat-top">
-                                <div>
-                                    <div class="stat-label"><?= h($card['label']) ?></div>
-                                    <div class="stat-value" data-stat-value="<?= h($card['key']) ?>"><?= (int) $card['value'] ?></div>
-                                </div>
-                                <div class="stat-icon"><i class="bi <?= h($card['icon']) ?>" aria-hidden="true"></i></div>
-                            </div>
-                            <div class="stat-trend"><i class="bi bi-arrow-up-right"></i> <?= h($card['trend']) ?></div>
-                        </article>
-                    <?php endforeach; ?>
-                </section>
 
                 <form class="filters-card" id="dashboardFilters" method="GET" action="<?= h(app_route('dashboard')) ?>">
-                    <div class="section-title"><i class="bi bi-funnel"></i> Dashboard Filters</div>
-                    <div class="filter-grid">
+                    <button type="button" class="filters-toggle-btn" id="dashboardFiltersToggle" aria-expanded="false" aria-controls="dashboardFiltersPanel">
+                        <i class="bi bi-funnel"></i> Filters
+                        <span class="filters-count" id="dashboardFiltersCount" hidden></span>
+                    </button>
+                    <div class="filters-popover" id="dashboardFiltersPanel">
+                        <div class="section-title"><i class="bi bi-sliders"></i> Dashboard Filters</div>
+                        <div class="filter-grid">
                         <?php if ($isCoordinator): ?>
                         <div class="field">
                             <label for="status">Status</label>
@@ -460,7 +751,27 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
                         <a class="btn btn-secondary" id="resetDashboardFilters" href="<?= h(app_route('dashboard')) ?>"><i class="bi bi-arrow-counterclockwise"></i> Reset Filters</a>
                         <button class="btn btn-primary" type="submit"><i class="bi bi-check2"></i> Apply Filters</button>
                     </div>
+                    </div>
                 </form>
+
+                <section class="row g-3" aria-label="Dashboard statistics">
+                    <?php foreach ($statCards as $card): ?>
+                        <?php $isHero = $card['key'] === 'total_cases'; ?>
+                        <div class="col-12 col-sm-6 <?= $isCoordinator ? 'col-xl-4' : 'col-xl-4 col-xxl-3' ?>">
+                            <article class="sicms-card sicms-stat h-100 accent-<?= h($card['accent']) ?><?= $isHero ? ' stat-hero' : '' ?>" data-stat-card="<?= h($card['key']) ?>">
+                                <div class="sicms-stat-top">
+                                    <div>
+                                        <div class="sicms-stat-label"><?= h($card['label']) ?></div>
+                                        <div class="sicms-stat-value" data-stat-value="<?= h($card['key']) ?>"><?= (int) $card['value'] ?></div>
+                                    </div>
+                                    <span class="sicms-stat-chip"><i class="bi <?= h($card['icon']) ?>" aria-hidden="true"></i></span>
+                                </div>
+                                <div class="sicms-stat-trend"><i class="bi bi-arrow-up-right"></i> <?= h($card['trend']) ?></div>
+                            </article>
+                        </div>
+                    <?php endforeach; ?>
+                </section>
+
             <?php endif; ?>
 
             <?php if ($canViewAnalytics): ?>
@@ -625,8 +936,53 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
         setInterval(updateDateTime, 30000);
 
         let dashboardChartData = <?= json_encode($chartData, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>;
-        const chartPalette = ['#1A9D00', '#123c1b', '#e0a800', '#557a95', '#9c4668', '#59656f', '#0d7b66'];
+        const chartPalette = ['#1A9D00', '#0d7b66', '#4338ca', '#e0a800', '#be123c', '#557a95', '#7e22ce'];
         const dashboardCharts = {};
+
+        Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
+        Chart.defaults.font.size = 12;
+        Chart.defaults.color = '#6b7a67';
+
+        const chartTooltipStyle = {
+            backgroundColor: '#123c1b',
+            titleColor: '#ffffff',
+            bodyColor: 'rgba(255, 255, 255, .86)',
+            cornerRadius: 10,
+            padding: 10,
+            displayColors: false
+        };
+
+        const doughnutCenterLabel = {
+            id: 'doughnutCenterLabel',
+            afterDraw(chart) {
+                if (chart.config.type !== 'doughnut') return;
+                const area = chart.chartArea;
+                if (!area) return;
+                const total = (chart.data.datasets[0]?.data || []).reduce((sum, value) => sum + (+value || 0), 0);
+                const centerX = (area.left + area.right) / 2;
+                const centerY = (area.top + area.bottom) / 2;
+                const ctx = chart.ctx;
+                ctx.save();
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillStyle = '#123c1b';
+                ctx.font = '800 26px ' + Chart.defaults.font.family;
+                ctx.fillText(String(total), centerX, centerY - 8);
+                ctx.fillStyle = '#6b7a67';
+                ctx.font = '600 11px ' + Chart.defaults.font.family;
+                ctx.fillText('TOTAL CASES', centerX, centerY + 14);
+                ctx.restore();
+            }
+        };
+
+        function lineGradient(context) {
+            const { ctx, chartArea } = context.chart;
+            if (!chartArea) return 'rgba(26, 157, 0, .16)';
+            const gradient = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
+            gradient.addColorStop(0, 'rgba(26, 157, 0, .30)');
+            gradient.addColorStop(1, 'rgba(26, 157, 0, .01)');
+            return gradient;
+        }
 
         function makeChart(id, type, options = {}) {
             let canvas = document.getElementById(id);
@@ -648,32 +1004,72 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
             }
             canvas.hidden = false;
 
-            dashboardCharts[id] = new Chart(canvas, {
+            const dataset = {
+                label: 'Total',
+                data: data.values,
+                borderWidth: type === 'line' ? 3 : 0
+            };
+
+            if (type === 'line') {
+                Object.assign(dataset, {
+                    borderColor: '#1A9D00',
+                    backgroundColor: lineGradient,
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 0,
+                    pointHoverRadius: 5,
+                    pointBackgroundColor: '#1A9D00',
+                    pointBorderColor: '#fff',
+                    pointBorderWidth: 2
+                });
+            } else if (type === 'bar') {
+                Object.assign(dataset, {
+                    backgroundColor: chartPalette,
+                    borderRadius: 8,
+                    maxBarThickness: 36
+                });
+            } else if (type === 'doughnut') {
+                Object.assign(dataset, {
+                    backgroundColor: chartPalette,
+                    borderWidth: 0,
+                    hoverOffset: 8,
+                    spacing: 3
+                });
+            }
+
+            const valueAxisKey = options.indexAxis === 'y' ? 'x' : 'y';
+            const categoryAxisKey = options.indexAxis === 'y' ? 'y' : 'x';
+            const config = {
                 type,
-                data: {
-                    labels: data.labels,
-                    datasets: [{
-                        label: 'Total',
-                        data: data.values,
-                        backgroundColor: type === 'line' ? 'rgba(26, 157, 0, 0.16)' : chartPalette,
-                        borderColor: '#1A9D00',
-                        borderWidth: 2,
-                        fill: type === 'line',
-                        tension: 0.34
-                    }]
-                },
+                data: { labels: data.labels, datasets: [dataset] },
                 options: {
                     indexAxis: options.indexAxis || 'x',
                     maintainAspectRatio: false,
                     plugins: {
-                        legend: { display: type === 'doughnut', position: 'bottom' }
+                        legend: {
+                            display: type === 'doughnut',
+                            position: 'bottom',
+                            labels: { usePointStyle: true, pointStyle: 'circle', boxWidth: 8, boxHeight: 8, padding: 16 }
+                        },
+                        tooltip: chartTooltipStyle
                     },
                     scales: type === 'doughnut' ? {} : {
-                        y: { beginAtZero: true, ticks: { precision: 0 } },
-                        x: { grid: { display: false } }
+                        [categoryAxisKey]: { grid: { display: false }, border: { display: false } },
+                        [valueAxisKey]: {
+                            beginAtZero: true,
+                            border: { display: false },
+                            grid: { color: 'rgba(219, 231, 216, .55)', drawTicks: false },
+                            ticks: { precision: 0, padding: 8 }
+                        }
                     }
-                }
-            });
+                },
+                plugins: type === 'doughnut' ? [doughnutCenterLabel] : []
+            };
+
+            if (type === 'doughnut') config.options.cutout = '68%';
+            else if (type === 'line') config.options.interaction = { mode: 'index', intersect: false };
+
+            dashboardCharts[id] = new Chart(canvas, config);
         }
 
         makeChart('casesByMonth', 'line');
@@ -686,7 +1082,41 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
         const dashboardFilterStatus = document.getElementById('dashboardFilterStatus');
         const resetDashboardFilters = document.getElementById('resetDashboardFilters');
         const coordinatorCaseRows = document.getElementById('coordinatorCaseRows');
+        const dashboardFiltersToggle = document.getElementById('dashboardFiltersToggle');
+        const dashboardFiltersPanel = document.getElementById('dashboardFiltersPanel');
+        const dashboardFiltersCount = document.getElementById('dashboardFiltersCount');
         let dashboardRequest;
+
+        function closeDashboardFilters() {
+            if (!dashboardFiltersPanel || !dashboardFiltersToggle) return;
+            dashboardFiltersPanel.classList.remove('open');
+            dashboardFiltersToggle.setAttribute('aria-expanded', 'false');
+        }
+
+        function updateDashboardFilterButton() {
+            if (!dashboardFilters || !dashboardFiltersToggle) return;
+            const activeCount = [...new FormData(dashboardFilters).entries()].filter(([, value]) => String(value).trim() !== '').length;
+            dashboardFilters.classList.toggle('is-active', activeCount > 0);
+            if (dashboardFiltersCount) {
+                dashboardFiltersCount.hidden = activeCount === 0;
+                dashboardFiltersCount.textContent = activeCount;
+            }
+        }
+
+        dashboardFiltersToggle?.addEventListener('click', event => {
+            event.stopPropagation();
+            const isOpen = dashboardFiltersPanel.classList.toggle('open');
+            dashboardFiltersToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+        });
+        document.addEventListener('click', event => {
+            if (!dashboardFiltersPanel?.classList.contains('open')) return;
+            if (!dashboardFiltersPanel.contains(event.target)) closeDashboardFilters();
+        });
+        document.addEventListener('keydown', event => {
+            if (event.key === 'Escape') closeDashboardFilters();
+        });
+        window.addEventListener('pageshow', () => updateDashboardFilterButton());
+        updateDashboardFilterButton();
 
         const escapeDashboardHtml = value => String(value ?? '').replace(/[&<>"']/g, character => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[character]));
         function renderCoordinatorCases(rows) {
@@ -732,6 +1162,7 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
                 if (error.name !== 'AbortError') dashboardFilterStatus.textContent = error.message;
             } finally {
                 dashboardFilters.classList.remove('sicms-ajax-loading');
+                updateDashboardFilterButton();
             }
         }
 

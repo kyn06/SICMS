@@ -16,7 +16,7 @@ define('SICMS_PROTECTION_LOADED', true);
 // loss protection. PrintScreen logging, clipboard wipe and print block
 // stay active either way.
 // =====================================================================
-$sicmsBlurShieldEnabled = false;
+$sicmsBlurShieldEnabled = true;
 
 require_once __DIR__ . '/../../helpers/Security.php';
 require_once __DIR__ . '/../../../routes.php';
