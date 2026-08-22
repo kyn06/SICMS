@@ -24,6 +24,9 @@ class AccountController {
     public function index() {
         if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
             Security::requireCsrfToken();
+            if (($_POST['action'] ?? '') === 'toggle_status') {
+                $this->toggleStatus();
+            }
             $this->store();
         }
 
@@ -31,7 +34,8 @@ class AccountController {
 
         return [
             'user' => $this->user,
-            'accounts' => User::listAccounts($filters),
+            'accounts' => User::listAccounts(array_merge($filters, ['group' => 'staff'])),
+            'complainants' => User::listAccounts(array_merge($filters, ['group' => 'complainants'])),
             'filters' => $filters,
             'roles' => $this->creatableRoles,
             'message' => $_SESSION['account_message'] ?? null,
@@ -43,14 +47,90 @@ class AccountController {
     public function search() {
         header('Content-Type: application/json; charset=utf-8');
         try {
-            $accounts = User::listAccounts($this->filters($_GET));
-            $active = count(array_filter($accounts, fn($account) => strtolower((string) $account['status']) === 'active'));
-            echo json_encode(['success' => true, 'accounts' => $accounts, 'summary' => ['total' => count($accounts), 'active' => $active, 'inactive' => count($accounts) - $active]]);
+            $filters = $this->filters($_GET);
+            $accounts = User::listAccounts(array_merge($filters, ['group' => 'staff']));
+            $complainants = User::listAccounts(array_merge($filters, ['group' => 'complainants']));
+            echo json_encode([
+                'success' => true,
+                'accounts' => $accounts,
+                'complainants' => $complainants,
+                'summary' => $this->summaryFor(array_merge($accounts, $complainants)),
+            ]);
         } catch (Throwable $exception) {
             http_response_code(500);
             echo json_encode(['success' => false, 'message' => 'Unable to load accounts.']);
         }
         exit;
+    }
+
+    private function toggleStatus() {
+        $isAjax = ($_POST['ajax'] ?? '') === '1';
+
+        $fail = function (string $message) use ($isAjax): void {
+            if ($isAjax) {
+                header('Content-Type: application/json; charset=utf-8');
+                http_response_code(422);
+                echo json_encode(['success' => false, 'message' => $message]);
+                exit;
+            }
+
+            $_SESSION['account_errors'] = [$message];
+            header('Location: index.php');
+            exit;
+        };
+
+        $target = User::findRow((int) ($_POST['account_id'] ?? 0));
+
+        if (!$target || strtolower((string) $target['role']) === 'student') {
+            $fail('Only staff accounts can be enabled or disabled here.');
+        }
+
+        if ((int) $target['account_id'] === (int) $this->user['account_id']) {
+            $fail('You cannot change the status of your own account.');
+        }
+
+        $status = ($_POST['status'] ?? '') === 'active' ? 'active' : 'inactive';
+
+        if (!User::updateById((int) $target['account_id'], [
+            'status' => $status,
+            'updated_at' => date('Y-m-d H:i:s'),
+        ])) {
+            $fail('Unable to update the account status.');
+        }
+
+        AuditLog::record(
+            $this->user,
+            'Account Status Update',
+            ucwords(str_replace(['-', '_'], ' ', (string) $target['role'])) . ' account ' . $target['email'] . ' set to ' . $status . '.'
+        );
+
+        $message = $status === 'active' ? 'Account enabled successfully.' : 'Account disabled successfully.';
+
+        if ($isAjax) {
+            $all = array_merge(
+                User::listAccounts(['group' => 'staff']),
+                User::listAccounts(['group' => 'complainants'])
+            );
+
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode([
+                'success' => true,
+                'message' => $message,
+                'status' => $status,
+                'summary' => $this->summaryFor($all),
+            ]);
+            exit;
+        }
+
+        $_SESSION['account_message'] = $message;
+        header('Location: index.php');
+        exit;
+    }
+
+    private function summaryFor(array $all) {
+        $active = count(array_filter($all, fn($account) => strtolower((string) $account['status']) === 'active'));
+
+        return ['total' => count($all), 'active' => $active, 'inactive' => count($all) - $active];
     }
 
     private function filters(array $input) {

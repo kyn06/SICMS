@@ -43,6 +43,10 @@ class User extends Model {
             : null;
     }
 
+    public static function findRow($id) {
+        return parent::find((int) $id);
+    }
+
     public static function findByEmail($email) {
         $query = "SELECT * FROM accounts WHERE email = ?";
         $stmt = self::$conn->prepare($query);
@@ -233,9 +237,10 @@ class User extends Model {
     }
 
     public static function listAccounts(array $filters = []) {
+        $group = ($filters['group'] ?? '') === 'complainants' ? 'complainants' : 'staff';
         $sql = "SELECT account_id, first_name, last_name, email, role, status, created_at, updated_at
                 FROM accounts
-                WHERE role != 'student'";
+                WHERE role " . ($group === 'complainants' ? "= 'student'" : "!= 'student'");
         $params = [];
         $types = '';
 

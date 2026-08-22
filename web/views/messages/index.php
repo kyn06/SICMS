@@ -159,7 +159,7 @@ function preview_text($text) {
         .modal-confirm { background: #b3261e; color: #fff; }
         .modal-confirm:hover { background: #99201a; }
         .hidden { display: none; }
-        @media (max-width: 1100px) {
+        @media (max-width: 1400px) {
             .messenger-shell { grid-template-columns: 1fr; height: auto; min-height: 100vh; max-width: 100%; }
             .conversation-sidebar { border-bottom: 1px solid #dce5da; border-right: 0; max-height: 42vh; }
             .chat { min-height: 58vh; }

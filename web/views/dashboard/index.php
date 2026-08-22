@@ -232,6 +232,7 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
 </head>
 
 <body>
+    <?php require __DIR__ . '/../layout/protection.php'; ?>
     <div class="dashboard-shell">
         <?php require __DIR__ . '/../layout/sidebar.php'; ?>
 

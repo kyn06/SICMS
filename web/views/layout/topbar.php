@@ -1,4 +1,5 @@
 <?php
+require __DIR__ . '/protection.php';
 require __DIR__ . '/navigation.php';
 require_once __DIR__ . '/../../helpers/Security.php';
 require_once __DIR__ . '/../../models/Notification.php';
