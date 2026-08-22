@@ -32,7 +32,9 @@ public static function record($user, $action, $description) {
                 'sdru-head',
             ];
 
-            if (!in_array($roleKey, $allowedRoles, true)) {
+            $isStudentScreenshot = $roleKey === 'student' && $action === 'Screenshot Attempt';
+
+            if (!in_array($roleKey, $allowedRoles, true) && !$isStudentScreenshot) {
                 return null;
             }
         }
