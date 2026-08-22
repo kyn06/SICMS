@@ -430,6 +430,7 @@ body {
 }
 
 .dashboard-grid {
+    margin-top: 18px;
     display: grid;
     gap: 18px;
     grid-template-columns: minmax(0, 1fr) 260px;
@@ -648,7 +649,7 @@ body {
 
 .student-action {
     align-items: center;
-    background: linear-gradient(to bottom,#3D7A4A 10%,#103719 90%);
+    background: linear-gradient(to bottom, #3D7A4A 10%, #103719 90%);
     border: 1px solid var(--line);
     border-radius: 8px;
     box-shadow: var(--shadow);

@@ -57,6 +57,7 @@ function applied_filter_labels(array $filters, array $options) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Reports | SICMS</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="../layout/style.css">
     <link rel="stylesheet" href="../layout/sidebar.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
@@ -105,7 +106,7 @@ function applied_filter_labels(array $filters, array $options) {
             .charts { grid-template-columns: 1fr; }
         }
         @media print {
-            .sidebar, .app-topbar, .filters, .actions, .sicms-pagination, script { display: none !important; }
+            .sidebar, .app-topbar, .filters, .actions, .reports-toolbar, .sicms-pagination, script { display: none !important; }
             .dashboard-shell { display: block; }
             body { background: #fff; }
             .wrap { max-width: none; padding: 0; }
@@ -129,6 +130,212 @@ function applied_filter_labels(array $filters, array $options) {
             .cards, .filter-grid, .filter-grid.two, .hearing-stats { grid-template-columns: 1fr; }
             .actions { align-items: stretch; flex-direction: column; }
             .btn { justify-content: center; width: 100%; }
+            .reports-toolbar { align-items: stretch; flex-direction: column; }
+        }
+
+        /* ===== Modernized reports (matches dashboard) ===== */
+        .wrap .panel,
+        .wrap .card {
+            background: #fff !important;
+            border: 1px solid rgba(219, 231, 216, .9) !important;
+            border-radius: 14px !important;
+            box-shadow: 0 4px 16px rgba(18, 60, 27, .06) !important;
+            transition: transform .18s ease, box-shadow .18s ease;
+        }
+
+        .wrap .panel:hover,
+        .wrap .card:hover {
+            box-shadow: 0 12px 28px rgba(18, 60, 27, .13) !important;
+            transform: translateY(-2px);
+        }
+
+        .section-heading h2 {
+            align-items: center;
+            display: flex;
+            font-size: 15.5px;
+            gap: 9px;
+            margin: 0;
+        }
+
+        /* .section-heading h2::before {
+            background: #1A9D00;
+            border-radius: 999px;
+            content: "";
+            display: inline-block;
+            height: 8px;
+            width: 8px;
+        } */
+
+        .cards .card span {
+            color: #5f6f5c;
+            font-size: 12.5px;
+            font-weight: 700;
+            letter-spacing: .03em;
+            margin-bottom: 10px;
+            min-height: 0;
+            text-transform: uppercase;
+        }
+
+        .cards .card strong {
+            color: #123c1b;
+            font-size: 30px;
+        }
+
+        .cards .card[data-summary="total_cases"] {
+            background: linear-gradient(135deg, #1a9d00 0%, #123c1b 78%) !important;
+            border-color: transparent !important;
+        }
+
+        .cards .card[data-summary="total_cases"]:hover {
+            box-shadow: 0 16px 34px rgba(18, 60, 27, .38) !important;
+        }
+
+        .cards .card[data-summary="total_cases"] strong {
+            color: #fff;
+        }
+
+        .cards .card[data-summary="total_cases"] span {
+            color: rgba(255, 255, 255, .88);
+        }
+
+        .hearing-section {
+            background: transparent;
+            border: none;
+            margin-bottom: 28px;
+            padding: 0;
+        }
+
+        .hearing-stat span {
+            color: #5f6f5c;
+            font-size: 12px;
+            letter-spacing: .03em;
+            text-transform: uppercase;
+        }
+
+        .wrap input,
+        .wrap select {
+            border-radius: 10px;
+        }
+
+        .wrap input:focus,
+        .wrap select:focus {
+            border-color: #1A9D00;
+            outline: 2px solid rgba(26, 157, 0, .18);
+        }
+
+        .wrap table th {
+            background: #f4f8f3;
+        }
+
+        .wrap table td {
+            vertical-align: middle;
+        }
+
+        .wrap table tbody tr:hover td {
+            background: #f7faf6;
+        }
+
+        .reports-toolbar {
+            align-items: center;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            justify-content: space-between;
+            margin-bottom: 28px;
+        }
+
+        .filters-host {
+            position: relative;
+        }
+
+        .filters-toggle-btn {
+            align-items: center;
+            background: #fff;
+            border: 1px solid #bfd0bc;
+            border-radius: 6px;
+            color: #172017;
+            cursor: pointer;
+            display: inline-flex;
+            font: inherit;
+            font-size: 13.5px;
+            font-weight: 700;
+            gap: 8px;
+            padding: 9px 16px;
+            transition: background-color .15s ease, border-color .15s ease, color .15s ease;
+        }
+
+        .filters-toggle-btn:hover {
+            border-color: #1A9D00;
+            color: #167a22;
+        }
+
+        .filters-count {
+            align-items: center;
+            background: #e6f3ea;
+            border-radius: 999px;
+            color: #1a8c2b;
+            display: inline-flex;
+            font-size: 11px;
+            height: 20px;
+            justify-content: center;
+            min-width: 20px;
+            padding: 0 6px;
+        }
+
+        #reportFilters.is-active .filters-toggle-btn,
+        #reportFilters.is-active .filters-toggle-btn:hover {
+            background: #1A9D00;
+            border-color: #1A9D00;
+            color: #fff;
+        }
+
+        #reportFilters.is-active .filters-count {
+            background: #fff;
+        }
+
+        .filters-popover {
+            background: #fff;
+            border: 1px solid rgba(191, 208, 188, .75);
+            border-radius: 14px;
+            box-shadow: 0 18px 45px rgba(15, 40, 21, .22);
+            display: none;
+            left: 0;
+            padding: 16px 18px;
+            position: absolute;
+            top: calc(100% + 10px);
+            width: min(720px, calc(100vw - 56px));
+            z-index: 500;
+        }
+
+        .filters-popover.open {
+            animation: sicmsReportPop .18s ease-out;
+            display: block;
+        }
+
+        @keyframes sicmsReportPop {
+            from { opacity: 0; transform: translateY(-6px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .filters-popover .actions {
+            border-top: 1px solid #e4ece2;
+            margin-top: 16px;
+        }
+
+        .export-group {
+            align-items: center;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .export-label {
+            color: #536052;
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: .04em;
+            margin-right: 2px;
+            text-transform: uppercase;
         }
     </style>
     <link rel="stylesheet" href="../layout/system.css">
@@ -149,49 +356,18 @@ function applied_filter_labels(array $filters, array $options) {
             <p>Generated <?= h(date('F d, Y h:i A')) ?> by <?= h(trim($user['first_name'] . ' ' . $user['last_name'])) ?></p>
             <p class="print-filters">Applied filters: <?= h(implode('; ', applied_filter_labels($filters, $options)) ?: 'All records') ?></p>
         </section>
-        <section class="report-section" aria-labelledby="case-summary-title">
-            <div class="section-heading">
-                <h2 id="case-summary-title">Case Summary</h2>
-            </div>
-            <div class="cards">
-            <?php foreach ([
-                'Total Cases' => 'total_cases',
-                'Submitted' => 'submitted_cases',
-                'Verified' => 'verified_cases',
-                'Returned for Revision' => 'returned_for_revision_cases',
-                'Rejected' => 'rejected_cases',
-                'Resolved' => 'resolved_cases',
-                'Archived' => 'archived_cases',
-            ] as $label => $key): ?>
-                <article class="card">
-                    <span><?= h($label) ?></span>
-                    <strong data-summary="<?= h($key) ?>"><?= (int) $summary[$key] ?></strong>
-                </article>
-            <?php endforeach; ?>
-            </div>
-        </section>
 
-        <section class="report-section hearing-section" aria-labelledby="hearing-summary-title">
-            <div class="section-heading">
-                <h2 id="hearing-summary-title">Hearing Summary</h2>
-            </div>
-            <div class="hearing-stats">
-                <?php foreach (['Scheduled Hearings' => 'scheduled_hearings', 'Hearings Today' => 'hearings_today', 'Completed Hearings' => 'completed_hearings'] as $label => $key): ?>
-                    <article class="panel hearing-stat">
-                        <span><?= h($label) ?></span>
-                        <strong data-summary="<?= h($key) ?>"><?= (int) $summary[$key] ?></strong>
-                    </article>
-                <?php endforeach; ?>
-            </div>
-        </section>
-
-        <div class="filter-error" id="reportFilterError" <?= empty($errors) ? 'hidden' : '' ?>><?= h(implode(' ', $errors)) ?></div>
-
-        <form class="filters" id="reportFilters" method="GET" action="index.php">
-            <div class="section-heading">
-                <h2>Report Filters</h2>
-            </div>
-            <div class="filter-groups">
+        <div class="reports-toolbar">
+            <form id="reportFilters" class="filters-host" method="GET" action="index.php">
+                <button type="button" class="filters-toggle-btn" id="reportFiltersToggle" aria-expanded="false" aria-controls="reportFiltersPanel">
+                    <i class="bi bi-funnel"></i> Filters
+                    <span class="filters-count" id="reportFiltersCount" hidden></span>
+                </button>
+                <div class="filters-popover" id="reportFiltersPanel">
+                    <div class="section-heading">
+                        <h2>Report Filters</h2>
+                    </div>
+                    <div class="filter-groups">
             <fieldset class="filter-group">
                 <legend>Date Filters</legend>
                 <div class="filter-grid">
@@ -267,14 +443,57 @@ function applied_filter_labels(array $filters, array $options) {
                 </div>
             </fieldset>
             </div>
-            <div class="actions">
-                <button class="btn btn-primary" type="submit"><i class="bi bi-funnel"></i> Apply Filters</button>
-                <button class="btn btn-secondary" id="resetFilters" type="button"><i class="bi bi-arrow-counterclockwise"></i> Reset</button>
-                <a class="btn btn-secondary" data-export="pdf" href="<?= h(query_with(['export' => 'pdf', 'csrf_token' => Security::csrfToken()])) ?>"><i class="bi bi-file-earmark-pdf"></i> Generate PDF</a>
-                <a class="btn btn-secondary" data-export="excel" href="<?= h(query_with(['export' => 'excel', 'csrf_token' => Security::csrfToken()])) ?>"><i class="bi bi-file-earmark-spreadsheet"></i> Generate Excel</a>
-                <a class="btn btn-secondary" data-export="print" href="<?= h(query_with(['export' => 'print', 'csrf_token' => Security::csrfToken()])) ?>" target="_blank"><i class="bi bi-printer"></i> Print Report</a>
+                    <div class="actions">
+                        <button class="btn btn-primary" type="submit"><i class="bi bi-check2"></i> Apply Filters</button>
+                        <button class="btn btn-secondary" id="resetFilters" type="button"><i class="bi bi-arrow-counterclockwise"></i> Reset</button>
+                    </div>
+                </div>
+            </form>
+            <div class="export-group">
+                <span class="export-label"><i class="bi bi-download"></i> Export</span>
+                <a class="btn btn-primary" data-export="pdf" href="<?= h(query_with(['export' => 'pdf', 'csrf_token' => Security::csrfToken()])) ?>"><i class="bi bi-file-earmark-pdf"></i> Generate PDF</a>
+                <a class="btn btn-primary" data-export="excel" href="<?= h(query_with(['export' => 'excel', 'csrf_token' => Security::csrfToken()])) ?>"><i class="bi bi-file-earmark-spreadsheet"></i> Generate Excel</a>
+                <a class="btn btn-primary" data-export="print" href="<?= h(query_with(['export' => 'print', 'csrf_token' => Security::csrfToken()])) ?>" target="_blank"><i class="bi bi-printer"></i> Print Report</a>
             </div>
-        </form>
+        </div>
+
+        <section class="report-section" aria-labelledby="case-summary-title">
+            <div class="section-heading">
+                <h2 id="case-summary-title">Case Summary</h2>
+            </div>
+            <div class="cards">
+            <?php foreach ([
+                'Total Cases' => 'total_cases',
+                'Submitted' => 'submitted_cases',
+                'Verified' => 'verified_cases',
+                'Returned for Revision' => 'returned_for_revision_cases',
+                'Rejected' => 'rejected_cases',
+                'Resolved' => 'resolved_cases',
+                'Archived' => 'archived_cases',
+            ] as $label => $key): ?>
+                <article class="card">
+                    <span><?= h($label) ?></span>
+                    <strong data-summary="<?= h($key) ?>"><?= (int) $summary[$key] ?></strong>
+                </article>
+            <?php endforeach; ?>
+            </div>
+        </section>
+
+        <section class="report-section hearing-section" aria-labelledby="hearing-summary-title">
+            <div class="section-heading">
+                <h2 id="hearing-summary-title">Hearing Summary</h2>
+            </div>
+            <div class="hearing-stats">
+                <?php foreach (['Scheduled Hearings' => 'scheduled_hearings', 'Hearings Today' => 'hearings_today', 'Completed Hearings' => 'completed_hearings'] as $label => $key): ?>
+                    <article class="panel hearing-stat">
+                        <span><?= h($label) ?></span>
+                        <strong data-summary="<?= h($key) ?>"><?= (int) $summary[$key] ?></strong>
+                    </article>
+                <?php endforeach; ?>
+            </div>
+        </section>
+
+        <div class="filter-error" id="reportFilterError" <?= empty($errors) ? 'hidden' : '' ?>><?= h(implode(' ', $errors)) ?></div>
 
         <div class="section-heading"><h2>Case Analytics</h2></div>
         <section class="charts" aria-label="Report charts">
@@ -347,8 +566,32 @@ function applied_filter_labels(array $filters, array $options) {
             'casesByCoordinator' => chart_payload($charts['casesByCoordinator']),
             'hearingsByMonth' => chart_payload($charts['hearingsByMonth']),
         ], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>;
-        const palette = ['#1A9D00', '#123c1b', '#e0a800', '#557a95', '#9c4668', '#59656f', '#7f8c3a'];
+        const palette = ['#1A9D00', '#0d7b66', '#4338ca', '#e0a800', '#be123c', '#557a95', '#7e22ce'];
         const chartInstances = {};
+
+        if (typeof Chart !== 'undefined') {
+            Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
+            Chart.defaults.font.size = 12;
+            Chart.defaults.color = '#6b7a67';
+        }
+
+        const reportTooltipStyle = {
+            backgroundColor: '#123c1b',
+            titleColor: '#ffffff',
+            bodyColor: 'rgba(255, 255, 255, .86)',
+            cornerRadius: 10,
+            padding: 10,
+            displayColors: false
+        };
+
+        const lineGradientFill = (context) => {
+            const { ctx, chartArea } = context.chart;
+            if (!chartArea) return 'rgba(26, 157, 0, .16)';
+            const gradient = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
+            gradient.addColorStop(0, 'rgba(26, 157, 0, .30)');
+            gradient.addColorStop(1, 'rgba(26, 157, 0, .01)');
+            return gradient;
+        };
 
         const renderCharts = (dataSet) => Object.entries(dataSet).forEach(([id, data]) => {
             const canvas = document.getElementById(id);
@@ -366,25 +609,53 @@ function applied_filter_labels(array $filters, array $options) {
                 chartInstances[id]?.destroy();
                 Chart.getChart(canvas)?.destroy();
                 if (!hasData) return;
-                chartInstances[id] = new Chart(canvas, {
-                type: id.includes('Month') ? 'line' : 'bar',
-                data: {
-                    labels: data.labels,
-                    datasets: [{
-                        label: 'Total',
-                        data: data.values,
-                        backgroundColor: palette,
-                        borderColor: '#1A9D00',
-                        borderWidth: 2,
-                        tension: 0.3
-                    }]
-                },
-                options: {
-                    maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
-                    scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
-                }
-                });
+
+                const isLine = id.includes('Month');
+                const dataset = isLine ? {
+                    label: 'Total',
+                    data: data.values,
+                    borderColor: '#1A9D00',
+                    backgroundColor: lineGradientFill,
+                    borderWidth: 3,
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 0,
+                    pointHoverRadius: 5,
+                    pointBackgroundColor: '#1A9D00',
+                    pointBorderColor: '#fff',
+                    pointBorderWidth: 2
+                } : {
+                    label: 'Total',
+                    data: data.values,
+                    backgroundColor: palette,
+                    borderWidth: 0,
+                    borderRadius: 8,
+                    maxBarThickness: 36
+                };
+
+                const config = {
+                    type: isLine ? 'line' : 'bar',
+                    data: { labels: data.labels, datasets: [dataset] },
+                    options: {
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: reportTooltipStyle
+                        },
+                        scales: {
+                            x: { grid: { display: false }, border: { display: false } },
+                            y: {
+                                beginAtZero: true,
+                                border: { display: false },
+                                grid: { color: 'rgba(219, 231, 216, .55)', drawTicks: false },
+                                ticks: { precision: 0, padding: 8 }
+                            }
+                        }
+                    }
+                };
+                if (isLine) config.options.interaction = { mode: 'index', intersect: false };
+
+                chartInstances[id] = new Chart(canvas, config);
             } catch (error) {
                 console.error(`Unable to render chart ${id}:`, error);
             }
@@ -477,6 +748,7 @@ function applied_filter_labels(array $filters, array $options) {
                 reportFilterError.hidden = false;
             } finally {
                 reportForm.removeAttribute('aria-busy');
+                updateReportFilterButton();
             }
         };
 
@@ -491,6 +763,41 @@ function applied_filter_labels(array $filters, array $options) {
             });
             updateReport();
         });
+
+        const reportFiltersToggle = document.getElementById('reportFiltersToggle');
+        const reportFiltersPanel = document.getElementById('reportFiltersPanel');
+        const reportFiltersCount = document.getElementById('reportFiltersCount');
+
+        const closeReportFilters = () => {
+            if (!reportFiltersPanel || !reportFiltersToggle) return;
+            reportFiltersPanel.classList.remove('open');
+            reportFiltersToggle.setAttribute('aria-expanded', 'false');
+        };
+
+        const updateReportFilterButton = () => {
+            if (!reportForm || !reportFiltersToggle) return;
+            const activeCount = [...new FormData(reportForm).entries()].filter(([, value]) => String(value).trim() !== '').length;
+            reportForm.classList.toggle('is-active', activeCount > 0);
+            if (reportFiltersCount) {
+                reportFiltersCount.hidden = activeCount === 0;
+                reportFiltersCount.textContent = activeCount;
+            }
+        };
+
+        reportFiltersToggle?.addEventListener('click', (event) => {
+            event.stopPropagation();
+            const isOpen = reportFiltersPanel.classList.toggle('open');
+            reportFiltersToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+        });
+        document.addEventListener('click', (event) => {
+            if (!reportFiltersPanel?.classList.contains('open')) return;
+            if (!reportFiltersPanel.contains(event.target)) closeReportFilters();
+        });
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') closeReportFilters();
+        });
+        window.addEventListener('pageshow', () => updateReportFilterButton());
+        updateReportFilterButton();
 
         renderCharts(chartData);
 

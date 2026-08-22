@@ -46,6 +46,7 @@ function user_initials($name) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Audit Logs | SICMS</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="../layout/style.css">
     <link rel="stylesheet" href="../layout/sidebar.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
@@ -77,6 +78,117 @@ function user_initials($name) {
             .filter-grid { grid-template-columns: 1fr; }
             .header { align-items: flex-start; flex-direction: column; }
         }
+
+        .audit-toolbar {
+            align-items: center;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            justify-content: space-between;
+            margin-bottom: 18px;
+        }
+
+        .filters-host {
+            position: relative;
+        }
+
+        .filters-toggle-btn {
+            align-items: center;
+            background: #fff;
+            border: 1px solid #bfd0bc;
+            border-radius: 6px;
+            color: #172017;
+            cursor: pointer;
+            display: inline-flex;
+            font: inherit;
+            font-size: 13.5px;
+            font-weight: 700;
+            gap: 8px;
+            padding: 9px 16px;
+            transition: background-color .15s ease, border-color .15s ease, color .15s ease;
+        }
+
+        .filters-toggle-btn:hover {
+            border-color: #1A9D00;
+            color: #167a22;
+        }
+
+        .filters-count {
+            align-items: center;
+            background: #e6f3ea;
+            border-radius: 999px;
+            color: #1a8c2b;
+            display: inline-flex;
+            font-size: 11px;
+            height: 20px;
+            justify-content: center;
+            min-width: 20px;
+            padding: 0 6px;
+        }
+
+        #auditFilters.is-active .filters-toggle-btn,
+        #auditFilters.is-active .filters-toggle-btn:hover {
+            background: #1A9D00;
+            border-color: #1A9D00;
+            color: #fff;
+        }
+
+        #auditFilters.is-active .filters-count {
+            background: #fff;
+        }
+
+        .filters-popover {
+            background: #fff;
+            border: 1px solid rgba(191, 208, 188, .75);
+            border-radius: 14px;
+            box-shadow: 0 18px 45px rgba(15, 40, 21, .22);
+            display: none;
+            left: 0;
+            padding: 16px 18px;
+            position: absolute;
+            top: calc(100% + 10px);
+            width: min(760px, calc(100vw - 56px));
+            z-index: 500;
+        }
+
+        .filters-popover.open {
+            animation: sicmsAuditPop .18s ease-out;
+            display: block;
+        }
+
+        @keyframes sicmsAuditPop {
+            from { opacity: 0; transform: translateY(-6px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .filters-popover .actions {
+            border-top: 1px solid #e4ece2;
+            margin-top: 16px;
+        }
+
+        .export-group {
+            align-items: center;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        @media (max-width: 900px) {
+            .audit-toolbar {
+                align-items: stretch;
+                flex-direction: column;
+            }
+
+            .filters-host,
+            .export-group {
+                width: 100%;
+            }
+
+            .export-group .btn {
+                flex: 1;
+                justify-content: center;
+            }
+        }
     </style>
     <link rel="stylesheet" href="../layout/system.css">
     <link rel="stylesheet" href="../layout/audit-logs.css">
@@ -104,11 +216,17 @@ function user_initials($name) {
             </article>
         </section>
 
-        <form class="panel audit-filter-panel" method="GET" action="index.php">
-            <div class="audit-panel-heading">
-                <span class="audit-heading-icon"><i class="bi bi-funnel" aria-hidden="true"></i></span>
-                <div><h2>Audit Filters</h2><p>Security and activity records</p></div>
-            </div>
+        <div class="audit-toolbar">
+            <form id="auditFilters" class="filters-host" method="GET" action="index.php" data-no-ajax="true">
+                <button type="button" class="filters-toggle-btn" id="auditFiltersToggle" aria-expanded="false" aria-controls="auditFiltersPanel">
+                    <i class="bi bi-funnel"></i> Filters
+                    <span class="filters-count" id="auditFiltersCount" hidden></span>
+                </button>
+                <div class="filters-popover" id="auditFiltersPanel">
+                    <div class="audit-panel-heading">
+                        <span class="audit-heading-icon"><i class="bi bi-funnel" aria-hidden="true"></i></span>
+                        <div><h2>Audit Filters</h2><p>Security and activity records</p></div>
+                    </div>
             <div class="filter-grid">
                 <div class="field search-field">
                     <label for="search">Search</label>
@@ -152,12 +270,16 @@ function user_initials($name) {
                     <input id="date_to" name="date_to" type="date" value="<?= h($filters['date_to']) ?>">
                 </div>
             </div>
-            <div class="actions">
-                <button class="btn btn-primary" type="submit"><i class="bi bi-funnel"></i> Apply Filters</button>
-                <a class="btn btn-secondary" href="index.php"><i class="bi bi-arrow-counterclockwise"></i> Reset</a>
-                <a class="btn btn-secondary" href="<?= h(with_query(['export' => 'pdf'])) ?>"><i class="bi bi-file-earmark-pdf"></i> Export PDF</a>
+                    <div class="actions">
+                        <button class="btn btn-primary" type="submit"><i class="bi bi-check2"></i> Apply Filters</button>
+                        <a class="btn btn-secondary" href="index.php"><i class="bi bi-arrow-counterclockwise"></i> Reset</a>
+                    </div>
+                </div>
+            </form>
+            <div class="export-group">
+                <a class="btn btn-primary" href="<?= h(with_query(['export' => 'pdf'])) ?>"><i class="bi bi-file-earmark-pdf"></i> Export PDF</a>
             </div>
-        </form>
+        </div>
 
         <section class="panel audit-table-panel">
             <div class="audit-table-heading">
@@ -226,6 +348,44 @@ function user_initials($name) {
     </main>
         </div>
     </div>
+
+    <script>
+        const auditFiltersToggle = document.getElementById('auditFiltersToggle');
+        const auditFiltersPanel = document.getElementById('auditFiltersPanel');
+        const auditFiltersCount = document.getElementById('auditFiltersCount');
+        const auditFiltersForm = document.getElementById('auditFilters');
+
+        const closeAuditFilters = () => {
+            if (!auditFiltersPanel || !auditFiltersToggle) return;
+            auditFiltersPanel.classList.remove('open');
+            auditFiltersToggle.setAttribute('aria-expanded', 'false');
+        };
+
+        const updateAuditFilterButton = () => {
+            if (!auditFiltersForm || !auditFiltersToggle) return;
+            const activeCount = [...new FormData(auditFiltersForm).entries()].filter(([, value]) => String(value).trim() !== '').length;
+            auditFiltersForm.classList.toggle('is-active', activeCount > 0);
+            if (auditFiltersCount) {
+                auditFiltersCount.hidden = activeCount === 0;
+                auditFiltersCount.textContent = activeCount;
+            }
+        };
+
+        auditFiltersToggle?.addEventListener('click', (event) => {
+            event.stopPropagation();
+            const isOpen = auditFiltersPanel.classList.toggle('open');
+            auditFiltersToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+        });
+        document.addEventListener('click', (event) => {
+            if (!auditFiltersPanel?.classList.contains('open')) return;
+            if (!auditFiltersPanel.contains(event.target)) closeAuditFilters();
+        });
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') closeAuditFilters();
+        });
+        window.addEventListener('pageshow', () => updateAuditFilterButton());
+        updateAuditFilterButton();
+    </script>
 </body>
 
 </html>
