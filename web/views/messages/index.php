@@ -167,7 +167,7 @@ function preview_text($text) {
             .dashboard-link { display: none; }
         }
     </style>
-    <link rel="stylesheet" href="../layout/system.css">
+    <link rel="stylesheet" href="../layout/system.css?v=2">
     <link rel="stylesheet" href="../layout/messages.css">
 </head>
 

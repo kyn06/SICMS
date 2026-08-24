@@ -317,6 +317,21 @@ CREATE TABLE IF NOT EXISTS audit_logs (
         ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- -------------------------------------------------------------
+-- legacy_incharges
+-- -------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS legacy_incharges (
+    legacy_id   INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    full_name   VARCHAR(150) NOT NULL,
+    position    VARCHAR(100) NOT NULL,
+    tenure      VARCHAR(50)  DEFAULT NULL,
+    description TEXT,
+    photo_path  VARCHAR(255) DEFAULT NULL,
+    created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (legacy_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- =============================================================
 -- Seed data
 -- =============================================================

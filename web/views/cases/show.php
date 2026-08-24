@@ -489,7 +489,7 @@ function person_name($first, $last) {
             }
         }
     </style>
-    <link rel="stylesheet" href="../layout/system.css">
+    <link rel="stylesheet" href="../layout/system.css?v=2">
 </head>
 
 <body>

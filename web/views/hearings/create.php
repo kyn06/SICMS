@@ -43,7 +43,7 @@ function h($value) {
         .btn-primary { background: #1A9D00; color: #fff; }
         @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } .header { flex-direction: column; gap: 14px; } }
     </style>
-    <link rel="stylesheet" href="../layout/system.css">
+    <link rel="stylesheet" href="../layout/system.css?v=2">
     <link rel="stylesheet" href="../layout/hearings.css">
 </head>
 

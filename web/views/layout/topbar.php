@@ -39,10 +39,10 @@ if (!function_exists('format_time_ago')) {
             </div>
         <?php endif; ?>
         <div class="app-topbar-actions">
-            <span class="topbar-date"><?= h(date('F d, Y h:i A')) ?></span>
+            <span class="topbar-date" style="font-weight: 200;"><?= h(date('F d, Y h:i A')) ?></span>
             <details class="profile-dropdown">
                 <summary class="topbar-icon" title="Notifications" aria-label="Notifications">
-                    <i class="bi bi-bell" aria-hidden="true"></i>
+                    <i class="bi bi-bell" aria-hidden="true" style="font-size:15ipx;"></i>
                     <?php if ($unreadNotificationCount > 0): ?>
                         <span class="notification-badge"><?= (int) $unreadNotificationCount ?></span>
                     <?php endif; ?>
@@ -70,7 +70,7 @@ if (!function_exists('format_time_ago')) {
                     <?php endforeach; ?>
 
                     <div class="dropdown-footer">
-                        <form method="POST" action="<?= h(app_route('notifications.index')) ?>">
+                        <form method="POST" action="<?= h(app_route('notifications.index')) ?>" data-mark-all-url="<?= h(app_url('web/api/notifications.php')) ?>">
                             <?= Security::csrfField() ?>
                             <button class="text-button" type="submit" name="notification_action" value="mark_all">Mark all as read</button>
                         </form>

@@ -41,7 +41,7 @@ $currentGroup = null;
     <title>Notifications | SICMS</title>
     <link rel="stylesheet" href="../layout/style.css">
     <link rel="stylesheet" href="../layout/sidebar.css">
-    <link rel="stylesheet" href="../layout/system.css">
+    <link rel="stylesheet" href="../layout/system.css?v=2">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <style>
         body { align-items: stretch; background: #f4f7f2; display: block; justify-content: flex-start; padding: 0; }

@@ -338,7 +338,7 @@ function applied_filter_labels(array $filters, array $options) {
             text-transform: uppercase;
         }
     </style>
-    <link rel="stylesheet" href="../layout/system.css">
+    <link rel="stylesheet" href="../layout/system.css?v=2">
 </head>
 
 <body>

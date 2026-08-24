@@ -30,7 +30,7 @@ $navGroups = [
         ['route' => 'hearings.index', 'label' => 'Hearings', 'icon' => 'bi-calendar-event', 'roles' => ['super-admin', 'admin', 'sdr-staff', 'sdru-staff', 'coordinator', 'head-of-sdru', 'sdru-head']],
     ],
     'SYSTEM' => [
-        ['route' => null, 'href' => '#legacy', 'label' => 'Legacy of SDRU In-Charge', 'icon' => 'bi-award', 'roles' => ['super-admin', 'admin', 'sdr-staff', 'sdru-staff', 'coordinator', 'head-of-sdru', 'sdru-head']],
+        ['route' => 'legacy.index', 'label' => 'Legacy of SDRU In-Charge', 'icon' => 'bi-award', 'roles' => ['super-admin', 'admin', 'sdr-staff', 'sdru-staff', 'coordinator', 'head-of-sdru', 'sdru-head']],
         ['route' => 'settings.index', 'label' => 'Settings', 'icon' => 'bi-gear', 'roles' => ['*']],
     ],
 ];
