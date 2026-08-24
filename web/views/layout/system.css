@@ -269,14 +269,17 @@ tbody tr:hover {
 
 .status,
 .status-pill {
+    align-items: center;
     background: var(--sicms-green-100) !important;
     color: var(--sicms-green-900) !important;
     font-weight: 800 !important;
     border-radius: 999px !important;
     display: inline-flex !important;
     font-size: 11px !important;
+    justify-content: center;
     line-height: 1.2 !important;
     padding: 5px 9px !important;
+    text-align: center;
     white-space: nowrap;
 }
 

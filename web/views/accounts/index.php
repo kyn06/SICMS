@@ -35,10 +35,10 @@ function selected($left, $right) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>User Management | SICMS</title>
     <link rel="stylesheet" href="../layout/style.css">
-    <link rel="stylesheet" href="../layout/accounts.css">
+    <link rel="stylesheet" href="../layout/accounts.css?v=2">
     <link rel="stylesheet" href="../layout/sidebar.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-    <link rel="stylesheet" href="../layout/system.css">
+    <link rel="stylesheet" href="../layout/system.css?v=2">
     <link rel="stylesheet" href="../layout/users.css?v=3">
 </head>
 

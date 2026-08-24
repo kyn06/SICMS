@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 require_once __DIR__ . '/../../helpers/Security.php';
 Security::startSession();
 
@@ -227,8 +227,8 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="web/views/layout/style.css">
     <link rel="stylesheet" href="web/views/layout/sidebar.css">
-    <link rel="stylesheet" href="web/views/layout/accounts.css">
-    <link rel="stylesheet" href="web/views/layout/system.css">
+    <link rel="stylesheet" href="web/views/layout/accounts.css?v=2">
+    <link rel="stylesheet" href="web/views/layout/system.css?v=2">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <style>
         #dashboardFilters {
@@ -576,7 +576,7 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
                             <?php endforeach; ?>
 
                             <div class="dropdown-footer">
-                                <form method="POST" action="<?= h(app_route('notifications.index')) ?>">
+                                <form method="POST" action="<?= h(app_route('notifications.index')) ?>" data-mark-all-url="<?= h(app_url('web/api/notifications.php')) ?>">
                                     <?= Security::csrfField() ?>
                                     <button class="text-button" type="submit" name="notification_action" value="mark_all">Mark all as read</button>
                                 </form>
@@ -603,8 +603,8 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
                 <section class="student-panel student-hero">
                     <div>
                         <div class="welcome-label">Complainant Portal</div>
-                        <!-- <div class="section-title"><i class="bi bi-person-circle"></i> Welcome, <?= h($displayName) ?></div> -->
-                        <p class="activity-description">Submit a complaint or check the latest updates from SDRU.</p>
+                        <div class="section-title"> Submit a complaint or check the latest updates from SDRU.</div>
+                        <!-- <p class="activity-description" style="margin-bottom: 0px">Submit a complaint or check the latest updates from SDRU.</p> -->
                     </div>
                 </section>
 
@@ -630,7 +630,7 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
                                 <article class="student-case-card">
                                     <div>
                                         <a class="student-case-number" href="web/views/complaints/case_details.php?id=<?= (int) $studentCase['complaint_id'] ?>"><?= h($studentCase['case_classification']) ?></a>
-                                        <div class="student-case-meta"><?= h($studentCase['case_number']) ?> Â· Submitted <?= h(date('M d, Y', strtotime($studentCase['submitted_at']))) ?></div>
+                                        <div class="student-case-meta"><?= h($studentCase['case_number']) ?> · Submitted <?= h(date('M d, Y', strtotime($studentCase['submitted_at']))) ?></div>
                                     </div>
                                     <span class="status-pill"><?= h($studentCase['status']) ?></span>
                                     <div class="student-case-action"><a class="btn btn-secondary" href="web/views/complaints/case_details.php?id=<?= (int) $studentCase['complaint_id'] ?>"><i class="bi bi-eye"></i> View Details</a></div>
@@ -776,7 +776,7 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
 
             <?php if ($canViewAnalytics): ?>
             <?php if ($isCoordinator): ?>
-            <section class="panel" style="margin-bottom:18px">
+            <section class="panel" style="margin-top:18px;margin-bottom:18px">
                 <div class="section-title"><i class="bi bi-folder-check"></i> My Assigned Cases</div>
                 <div class="hearing-table-wrap">
                     <table data-page-size="10">

@@ -230,7 +230,6 @@
     border-radius: 8px;
     color: #536052;
     font-size: 13px;
-    font-weight: 600;
     padding: 9px 14px;
 }
 
@@ -254,9 +253,17 @@
 }
 
 @keyframes notification-pulse {
-    0% { box-shadow: 0 0 0 2px #fff, 0 0 0 0 rgba(220, 53, 69, 0.55); }
-    70% { box-shadow: 0 0 0 2px #fff, 0 0 0 9px rgba(220, 53, 69, 0); }
-    100% { box-shadow: 0 0 0 2px #fff, 0 0 0 0 rgba(220, 53, 69, 0); }
+    0% {
+        box-shadow: 0 0 0 2px #fff, 0 0 0 0 rgba(220, 53, 69, 0.55);
+    }
+
+    70% {
+        box-shadow: 0 0 0 2px #fff, 0 0 0 9px rgba(220, 53, 69, 0);
+    }
+
+    100% {
+        box-shadow: 0 0 0 2px #fff, 0 0 0 0 rgba(220, 53, 69, 0);
+    }
 }
 
 @media (prefers-reduced-motion: reduce) {

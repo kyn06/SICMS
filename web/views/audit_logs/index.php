@@ -190,7 +190,7 @@ function user_initials($name) {
             }
         }
     </style>
-    <link rel="stylesheet" href="../layout/system.css">
+    <link rel="stylesheet" href="../layout/system.css?v=2">
     <link rel="stylesheet" href="../layout/audit-logs.css">
 </head>
 

@@ -52,6 +52,7 @@ body {
     color: var(--muted);
     font-size: 13px;
     margin-bottom: 4px;
+    font-weight: 700;
 }
 
 .page-title {
@@ -101,7 +102,7 @@ body {
 .icon-button {
     align-items: center;
     display: flex;
-    font-size: 18px;
+    font-size: 14px;
     gap: 8px;
     position: relative;
 }
@@ -447,7 +448,7 @@ body {
 }
 
 .chart-box {
-    height: 280px;
+    height: 180px;
     position: relative;
 }
 
@@ -552,6 +553,7 @@ body {
 }
 
 .status-pill {
+    align-items: center;
     background: #eef6ec;
     border-radius: 999px;
     color: var(--green-700);
@@ -560,6 +562,8 @@ body {
     font-weight: 800;
     padding: 5px 8px;
     white-space: nowrap;
+    justify-content: center;
+    text-align: center;
 }
 
 .student-panel {

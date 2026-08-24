@@ -55,7 +55,7 @@ function h($value) {
         .empty { color: #536052; padding: 18px 0; text-align: center; }
         @media (max-width: 900px) { .header { align-items: flex-start; flex-direction: column; } table { display: block; overflow-x: auto; white-space: nowrap; } }
     </style>
-    <link rel="stylesheet" href="../layout/system.css">
+    <link rel="stylesheet" href="../layout/system.css?v=2">
     <link rel="stylesheet" href="../layout/hearings.css">
 </head>
 

@@ -125,6 +125,42 @@
         renderAjaxDocument(await response.text(), response.url);
     };
 
+    const applyNotificationsRead = (unread) => {
+        document.querySelectorAll('details.dropdown, details.profile-dropdown').forEach((dropdown) => {
+            if (!dropdown.querySelector('button[name="notification_action"][value="mark_all"]')) return;
+            dropdown.querySelectorAll('.notification-badge, .badge').forEach((badge) => badge.remove());
+            dropdown.querySelectorAll('.notification-item.unread').forEach((item) => item.classList.remove('unread'));
+            const button = dropdown.querySelector('button[name="notification_action"][value="mark_all"]');
+            if (button) button.disabled = true;
+        });
+    };
+
+    document.addEventListener('submit', async (event) => {
+        const submitter = event.submitter;
+        if (!(event.target instanceof HTMLFormElement)) return;
+        if (submitter?.name !== 'notification_action' || submitter?.value !== 'mark_all') return;
+
+        event.preventDefault();
+        const form = event.target;
+        const data = new FormData(form);
+        if (submitter.name && !data.has(submitter.name)) data.append(submitter.name, submitter.value);
+        submitter.disabled = true;
+        try {
+            const response = await fetch(form.dataset.markAllUrl || form.action, {
+                method: 'POST',
+                body: data,
+                headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
+            });
+            const payload = await response.json().catch(() => null);
+            if (!response.ok || !payload?.success) throw new Error(payload?.message || 'Unable to mark notifications as read.');
+            applyNotificationsRead(payload.unread ?? 0);
+            showAjaxNotice('All notifications marked as read.');
+        } catch (error) {
+            showAjaxNotice(error.message || 'Unable to mark notifications as read.', 'error');
+            submitter.disabled = false;
+        }
+    });
+
     document.addEventListener('submit', async (event) => {
         const form = event.target;
         if (!(form instanceof HTMLFormElement) || event.defaultPrevented) return;

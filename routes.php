@@ -14,6 +14,7 @@ $routes = [
     'reports.index' => 'web/views/reports/index.php',
     'audit_logs.index' => 'web/views/audit_logs/index.php',
     'notifications.index' => 'web/views/notifications/index.php',
+    'legacy.index' => 'web/views/legacy/index.php',
     'messages.index' => 'web/views/messages/index.php',
     'messages.send' => 'web/views/messages/send.php',
     'settings.index' => 'web/views/settings/index.php',
