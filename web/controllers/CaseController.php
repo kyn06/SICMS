@@ -6,6 +6,7 @@ require_once __DIR__ . '/../models/Case.php';
 require_once __DIR__ . '/../models/Notification.php';
 require_once __DIR__ . '/../models/Message.php';
 require_once __DIR__ . '/../models/AuditLog.php';
+require_once __DIR__ . '/../models/Hearing.php';
 require_once __DIR__ . '/../helpers/Security.php';
 
 class CaseController {
@@ -94,6 +95,7 @@ class CaseController {
             'evidence' => CaseRecord::getEvidence($complaintId),
             'history' => CaseRecord::getHistory($complaintId),
             'coordinators' => CaseRecord::getCoordinators(),
+            'hearings' => Hearing::forComplaint($complaintId),
             'messages' => $messageReceiver
                 ? Message::forPair($complaintId, (int) $this->user['account_id'], (int) $messageReceiver['account_id'])
                 : [],
@@ -118,6 +120,7 @@ class CaseController {
 
         User::setConnection($this->db);
         CaseRecord::setConnection($this->db);
+        Hearing::setConnection($this->db);
         Notification::setConnection($this->db);
         Message::setConnection($this->db);
         AuditLog::setConnection($this->db);

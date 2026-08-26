@@ -30,6 +30,8 @@ function h($value) {
     <link rel="stylesheet" href="../layout/style.css">
     <link rel="stylesheet" href="../layout/sidebar.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link rel="stylesheet" href="../layout/system.css?v=2">
+    <link rel="stylesheet" href="../layout/hearings.css">
     <style>
         body { align-items: stretch; justify-content: flex-start; background: #f5f7f4; padding: 0; }
         .page { min-height: 100vh; width: 100%; }
@@ -38,7 +40,8 @@ function h($value) {
         .header p { color: #dbe9d9; font-size: 13px; }
         .actions { display: flex; gap: 10px; }
         .actions a, .btn { border: 0; border-radius: 8px; cursor: pointer; font-family: inherit; font-size: 14px; text-decoration: none; }
-        .actions a { background: #fff; color: #123c1b; padding: 10px 14px; }
+        .hearing-toolbar .actions a { background: linear-gradient(135deg, #1A9D00 0%, #128000 100%) !important; color: #fff !important; padding: 10px 18px; font-weight: 600; box-shadow: 0 2px 8px rgba(26,157,0,0.18); transition: transform .12s, box-shadow .12s; }
+        .hearing-toolbar .actions a:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(26,157,0,0.28); }
         .wrap { max-width: 1180px; margin: 0 auto; padding: 24px; }
         .panel { background: #fff; border: 1px solid #dce5da; border-radius: 8px; padding: 18px; }
         .alert { border-radius: 8px; font-size: 14px; margin-bottom: 18px; padding: 12px 14px; }
@@ -48,15 +51,13 @@ function h($value) {
         th, td { border-bottom: 1px solid #e4ece2; font-size: 14px; padding: 12px 10px; text-align: left; vertical-align: top; }
         th { color: #536052; font-weight: 600; }
         .status { background: #edf4eb; border-radius: 999px; color: #123c1b; display: inline-block; font-size: 12px; padding: 5px 10px; }
-        .btn-edit { background: #e9f5e7; color: #123c1b; display: inline-block; padding: 9px 12px; }
+        .btn-edit { background: linear-gradient(135deg, #1A9D00 0%, #128000 100%) !important; color: #fff !important; display: inline-block; padding: 9px 12px; }
         .btn-cancel { background: #b42318; color: #fff; padding: 9px 12px; }
         .btn-complete { background: #1A9D00; color: #fff; padding: 9px 12px; }
         .row-actions { display: flex; flex-wrap: wrap; gap: 8px; }
         .empty { color: #536052; padding: 18px 0; text-align: center; }
         @media (max-width: 900px) { .header { align-items: flex-start; flex-direction: column; } table { display: block; overflow-x: auto; white-space: nowrap; } }
     </style>
-    <link rel="stylesheet" href="../layout/system.css?v=2">
-    <link rel="stylesheet" href="../layout/hearings.css">
 </head>
 
 <body>
@@ -70,7 +71,7 @@ function h($value) {
                 <div><h2>Hearing Schedule</h2><p><?= count($hearings) ?> hearing record<?= count($hearings) === 1 ? '' : 's' ?></p></div>
                 <div class="actions">
                     <a class="btn btn-primary" href="create.php"><i class="bi bi-calendar-plus"></i> Schedule Hearing</a>
-                    <a class="btn btn-secondary" href="../cases/index.php"><i class="bi bi-folder2-open"></i> View Cases</a>
+                    <a class="btn btn-primary" href="../cases/index.php"><i class="bi bi-folder2-open"></i> View Cases</a>
                 </div>
             </div>
             <?php if ($message): ?><div class="alert alert-success"><?= h($message) ?></div><?php endif; ?>
