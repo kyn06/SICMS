@@ -118,6 +118,21 @@ class Hearing extends Model {
         return $result ? $result->fetch_assoc() : null;
     }
 
+    public static function forComplaint($complaintId) {
+        $sql = "SELECT h.*, c.case_number, c.complainant_name, c.case_classification
+                FROM hearings h
+                INNER JOIN complaints c ON h.complaint_id = c.complaint_id
+                WHERE h.complaint_id = ?
+                ORDER BY h.hearing_datetime DESC";
+        $stmt = self::$conn->prepare($sql);
+        $id = (int) $complaintId;
+        $stmt->bind_param("i", $id);
+        $stmt->execute();
+        $result = $stmt->get_result();
+
+        return $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
+    }
+
     public static function schedule(array $data) {
         return parent::create($data);
     }

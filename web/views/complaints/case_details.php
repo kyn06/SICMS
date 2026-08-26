@@ -12,14 +12,14 @@ function h($value) { return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8
 function progress_steps($status) {
     if ($status === 'Returned for Revision') return ['Submitted', 'Returned for Revision'];
     if ($status === 'Rejected') return ['Submitted', 'Rejected'];
-    return ['Submitted', 'Verified', 'Resolved'];
+    return ['Submitted', 'Under Investigation', 'Resolved'];
 }
 function stage_done($status, $stage) {
-    $order = ['Submitted' => 0, 'Verified' => 1, 'Resolved' => 2, 'Archived' => 3];
+    $order = ['Submitted' => 0, 'Under Investigation' => 1, 'Resolved' => 2, 'Archived' => 3];
     if (in_array($status, ['Returned for Revision', 'Rejected'], true)) return $stage === 'Submitted' || $stage === $status;
     return isset($order[$stage], $order[$status]) && $order[$stage] <= $order[$status];
 }
-$officialStatuses = ['Submitted', 'Verified', 'Returned for Revision', 'Rejected', 'Resolved', 'Archived'];
+$officialStatuses = ['Submitted', 'Under Investigation', 'Returned for Revision', 'Rejected', 'Resolved', 'Archived'];
 $studentRemarks = array_values(array_filter($history, fn($item) =>
     trim((string) ($item['remarks'] ?? '')) !== ''
     && in_array(($item['new_status'] ?? ''), $officialStatuses, true)
