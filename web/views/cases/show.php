@@ -650,7 +650,7 @@ function person_name($first, $last) {
                                 <button class="btn btn-assign" type="submit">Send</button>
                             </div>
                         </form>
-                    </section>when
+                    </section>
                 </div>
 
                 <aside>

@@ -299,6 +299,7 @@ function selected($left, $right) {
                 if (!modalForm.checkValidity()) { modalForm.reportValidity(); return; }
                 const name = `${modalForm.first_name.value} ${modalForm.last_name.value}`.trim();
                 const role = modalForm.role.options[modalForm.role.selectedIndex]?.textContent || '';
+                overlay.style.zIndex = '1';
                 Swal.fire({
                     icon: 'question',
                     title: 'Create this account?',
@@ -308,7 +309,7 @@ function selected($left, $right) {
                     cancelButtonText: 'Go back',
                     confirmButtonColor: '#1a8c2b',
                     reverseButtons: true
-                }).then(result => { if (result.isConfirmed) modalForm.submit(); });
+                }).then(result => { overlay.style.zIndex = ''; if (result.isConfirmed) modalForm.submit(); });
             });
         }
     })();

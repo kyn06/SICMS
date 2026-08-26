@@ -93,6 +93,7 @@ function role_key($role) {
                                 <th>Classification</th>
                                 <th>Status</th>
                                 <th>Date Submitted</th>
+                                <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody id="caseTableBody">
@@ -107,6 +108,11 @@ function role_key($role) {
                                     <td><?= h($case['case_classification']) ?></td>
                                     <td><span class="status"><?= h($case['status']) ?></span></td>
                                     <td><?= h(date('M d, Y h:i A', strtotime($case['submitted_at']))) ?></td>
+                                    <td>
+                                        <div class="row-actions">
+                                            <a class="btn btn-primary" href="show.php?id=<?= (int) $case['complaint_id'] ?>"><i class="bi bi-eye"></i> View Details</a>
+                                        </div>
+                                    </td>
                                 </tr>
                             <?php endforeach; ?>
                         </tbody>
@@ -164,6 +170,16 @@ function role_key($role) {
                     statusCell.appendChild(status);
                     row.appendChild(statusCell);
                     appendCell(row, formatDate(item.submitted_at));
+                    const actionsCell = document.createElement('td');
+                    const actionsDiv = document.createElement('div');
+                    actionsDiv.className = 'row-actions';
+                    const viewLink = document.createElement('a');
+                    viewLink.className = 'btn btn-primary';
+                    viewLink.href = `show.php?id=${encodeURIComponent(item.complaint_id)}`;
+                    viewLink.innerHTML = '<i class="bi bi-eye"></i> View Details';
+                    actionsDiv.appendChild(viewLink);
+                    actionsCell.appendChild(actionsDiv);
+                    row.appendChild(actionsCell);
                     tableBody.appendChild(row);
                 });
 
