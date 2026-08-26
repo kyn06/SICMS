@@ -85,6 +85,13 @@ class User extends Model {
             return false;
         }
 
+        $allowedDomains = ['clsu2.edu.ph', 'sicms.local'];
+        $emailDomain = substr($email, strpos($email, '@') + 1);
+        if (!in_array($emailDomain, $allowedDomains, true)) {
+            $_SESSION['error'] = 'Only @clsu2.edu.ph and @sicms.local email addresses are allowed.';
+            return false;
+        }
+
         $userData = self::findByEmail($email);
 
         if ($userData) {

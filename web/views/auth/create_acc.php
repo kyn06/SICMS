@@ -27,7 +27,7 @@ if ($requestMethod == 'POST') {
 
     $first_name = trim($_POST['first_name']);
     $last_name  = trim($_POST['last_name']);
-    $email      = trim($_POST['email']);
+    $email      = strtolower(trim($_POST['email']));
     $password   = $_POST['password'];
     $confirm    = $_POST['confirm_password'];
     $phone      = trim($_POST['phone_number'] ?? '');
@@ -50,6 +50,14 @@ if ($requestMethod == 'POST') {
 
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         $_SESSION['error'] = 'Please enter a valid email address.';
+        header('Location: create_acc.php');
+        exit;
+    }
+
+    $allowedDomains = ['clsu2.edu.ph', 'sicms.local'];
+    $emailDomain = substr($email, strpos($email, '@') + 1);
+    if (!in_array($emailDomain, $allowedDomains, true)) {
+        $_SESSION['error'] = 'Only @clsu2.edu.ph and @sicms.local email addresses are allowed.';
         header('Location: create_acc.php');
         exit;
     }

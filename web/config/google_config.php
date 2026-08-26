@@ -17,11 +17,11 @@ return [
     'client_secret' => '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',
 
     // Leave empty to auto-detect from the current request URL.
+    // Leave empty to auto-detect from the current request URL.
     'redirect_uri'  => '',
 
-    // Optionally restrict sign-in to an email domain, e.g. 'clsu.edu.ph'.
-    // Leave empty to allow any Google account.
-    'hosted_domain' => '',
+    // Restrict sign-in to CLSU2 email domain.
+    'hosted_domain' => 'clsu2.edu.ph',
 
     // Keep enabled in production. Set to false ONLY for local development
     // if cURL reports certificate errors (then also download cacert.pem and
