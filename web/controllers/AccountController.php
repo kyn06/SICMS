@@ -186,7 +186,7 @@ class AccountController {
         $errors = [];
         $firstName = trim($post['first_name'] ?? '');
         $lastName = trim($post['last_name'] ?? '');
-        $email = trim($post['email'] ?? '');
+        $email = strtolower(trim($post['email'] ?? ''));
         $password = $post['password'] ?? '';
         $confirm = $post['confirm_password'] ?? '';
         $role = trim($post['role'] ?? '');
@@ -197,6 +197,14 @@ class AccountController {
 
         if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
             $errors[] = 'Please enter a valid email address.';
+        }
+
+        if ($email !== '') {
+            $allowedDomains = ['clsu2.edu.ph', 'sicms.local'];
+            $emailDomain = substr($email, strpos($email, '@') + 1);
+            if (!in_array($emailDomain, $allowedDomains, true)) {
+                $errors[] = 'Only @clsu2.edu.ph and @sicms.local email addresses are allowed.';
+            }
         }
 
         if ($password !== $confirm) {

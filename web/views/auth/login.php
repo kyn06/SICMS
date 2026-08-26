@@ -31,7 +31,7 @@ if ($requestMethod == 'POST') {
 
     User::setConnection($db);
 
-    $email = $_POST['email'];
+    $email = strtolower(trim($_POST['email']));
     $password = $_POST['password'];
 
     if (Security::isLoginLocked($email)) {
