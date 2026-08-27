@@ -47,7 +47,7 @@ if (!function_exists('format_time_ago')) {
                         <span class="notification-badge"><?= (int) $unreadNotificationCount ?></span>
                     <?php endif; ?>
                 </summary>
-                <div class="dropdown-menu">
+                <div class="dropdown-menu" data-notification-open>
                     <?php if (empty($recentNotifications)): ?>
                         <div class="notification-item">
                             <span class="notification-icon"><i class="bi bi-bell-slash"></i></span>
@@ -59,7 +59,12 @@ if (!function_exists('format_time_ago')) {
                     <?php endif; ?>
 
                     <?php foreach ($recentNotifications as $notification): ?>
-                        <a class="notification-item<?= (int) $notification['is_read'] === 0 ? ' unread' : '' ?>" href="<?= h(app_route('notifications.index')) ?>">
+                        <?php $notificationDestination = !empty($notification['link']) ? app_url($notification['link']) : app_route('notifications.index'); ?>
+                        <a class="notification-item<?= (int) $notification['is_read'] === 0 ? ' unread' : '' ?>"
+                            href="<?= h($notificationDestination) ?>"
+                            data-notification-id="<?= (int) $notification['notification_id'] ?>"
+                            data-unread="<?= (int) $notification['is_read'] === 0 ? '1' : '0' ?>"
+                            data-destination="<?= h($notificationDestination) ?>">
                             <span class="notification-icon"><i class="bi bi-info-circle"></i></span>
                             <span>
                                 <span class="notification-title"><?= h($notification['title']) ?></span>
@@ -86,5 +91,11 @@ document.querySelector('.sidebar-toggle')?.addEventListener('click', function ()
     const open = document.body.classList.toggle('sidebar-open');
     this.setAttribute('aria-expanded', open ? 'true' : 'false');
 });
+</script>
+<script>
+window.SICMS_NOTIFY = {
+    csrf: <?= json_encode(Security::csrfToken(), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>,
+    api: <?= json_encode(app_url('web/api/notifications.php'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>
+};
 </script>
 <script src="<?= h(app_url('web/views/layout/system.js')) ?>" defer></script>

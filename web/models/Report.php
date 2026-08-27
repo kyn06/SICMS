@@ -77,7 +77,8 @@ class Report extends Model {
             $row['complainant_college'] = Colleges::canonical($row['complainant_college']);
             if (isset($statusKeys[$row['status']])) $summary[$statusKeys[$row['status']]]++;
             if (in_array($row['status'], ['Submitted', 'Returned for Revision'], true)) $summary['pending_cases']++;
-            if ($row['status'] === 'Verified' || !empty($row['assigned_coordinator_account_id'])) $summary['ongoing_cases']++;
+            if ($row['status'] === 'Verified' || (!empty($row['assigned_coordinator_account_id']) && !in_array($row['status'], ['Resolved', 'Archived'], true))) $summary['ongoing_cases']++;
+            if ($row['status'] === 'Archived') $summary['resolved_cases']++;
             if (($row['complainant_type'] ?? 'Student') === 'Student' && !empty($row['submitted_by_account_id'])) $students[(int) $row['submitted_by_account_id']] = true;
             $summary['scheduled_hearings'] += (int) $row['scheduled_hearing_count'];
             $summary['completed_hearings'] += (int) $row['completed_hearing_count'];

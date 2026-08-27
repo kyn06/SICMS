@@ -209,4 +209,50 @@
             form.classList.remove('sicms-ajax-loading');
         }
     });
+
+    const enableNotificationOpen = (config) => {
+        if (!config || !config.api || !config.csrf) return;
+        document.querySelectorAll('[data-notification-open]').forEach((container) => {
+            if (container.dataset.notificationWired === 'true') return;
+            container.dataset.notificationWired = 'true';
+            container.addEventListener('click', (event) => {
+                if (event.target.closest('button, form, .item-actions')) return;
+                const item = event.target.closest('[data-notification-id]');
+                if (!item) return;
+                event.preventDefault();
+                const destination = item.dataset.destination || '';
+                const markReadUi = () => {
+                    item.classList.remove('unread');
+                    item.dataset.unread = '0';
+                };
+                const go = () => {
+                    if (destination) window.location.href = destination;
+                    else markReadUi();
+                };
+                if (item.dataset.unread !== '1') {
+                    go();
+                    return;
+                }
+                const body = new URLSearchParams();
+                body.set('notification_action', 'mark_one');
+                body.set('notification_id', item.dataset.notificationId);
+                body.set('csrf_token', config.csrf);
+                fetch(config.api, { method: 'POST', body, credentials: 'same-origin' })
+                    .then((response) => response.json().catch(() => null))
+                    .then((payload) => {
+                        if (payload && typeof payload.unread === 'number') {
+                            document.querySelectorAll('.notification-badge').forEach((badge) => {
+                                if (payload.unread > 0) { badge.textContent = String(payload.unread); badge.hidden = false; }
+                                else badge.hidden = true;
+                            });
+                        }
+                        markReadUi();
+                        go();
+                    })
+                    .catch(() => go());
+            });
+        });
+    };
+
+    enableNotificationOpen(window.SICMS_NOTIFY || null);
 })();
