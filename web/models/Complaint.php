@@ -258,6 +258,67 @@ class Complaint extends Model {
                 throw new RuntimeException('This complaint is not available for revision.');
             }
 
+            $revisedFields = [];
+            try {
+                $revisionRequest = CaseRecord::getLatestRevisionRequest($complaintId);
+                $requestedFields = (array) ($revisionRequest['revision_fields'] ?? []);
+            } catch (Throwable $revisionLookupException) {
+                $requestedFields = [];
+            }
+
+            if ($requestedFields) {
+                foreach (['complaint_title', 'complaint_details', 'incident_location'] as $field) {
+                    if (in_array($field, $requestedFields, true)
+                        && array_key_exists($field, $updates)
+                        && trim((string) $updates[$field]) !== trim((string) ($case[$field] ?? ''))) {
+                        $revisedFields[] = $field;
+                    }
+                }
+
+                $oldTimestamp = strtotime((string) ($case['incident_datetime'] ?? ''));
+                $newTimestamp = strtotime((string) ($updates['incident_datetime'] ?? $case['incident_datetime'] ?? ''));
+                if (in_array('incident_date', $requestedFields, true)
+                    && date('Y-m-d', (int) $newTimestamp) !== date('Y-m-d', (int) $oldTimestamp)) {
+                    $revisedFields[] = 'incident_date';
+                }
+                if (in_array('incident_time', $requestedFields, true)
+                    && date('H:i', (int) $newTimestamp) !== date('H:i', (int) $oldTimestamp)) {
+                    $revisedFields[] = 'incident_time';
+                }
+
+                if ($respondents !== null && in_array('respondents', $requestedFields, true)) {
+                    $storedRespondents = array_map(static function (array $row): array {
+                        return [
+                            'full_name' => trim((string) ($row['full_name'] ?? '')),
+                            'student_no' => trim((string) ($row['student_no'] ?? '')),
+                            'college' => trim((string) ($row['college'] ?? '')),
+                            'course_year' => trim((string) ($row['course_year'] ?? '')),
+                            'contact_info' => trim((string) ($row['contact_info'] ?? '')),
+                            'details' => trim((string) ($row['details'] ?? '')),
+                        ];
+                    }, CaseRecord::getRespondents($complaintId));
+                    if (self::peopleChanged($respondents, $storedRespondents)) $revisedFields[] = 'respondents';
+                }
+
+                if ($witnesses !== null && in_array('witnesses', $requestedFields, true)) {
+                    $storedWitnesses = array_map(static function (array $row): array {
+                        return [
+                            'full_name' => trim((string) ($row['full_name'] ?? '')),
+                            'student_no' => trim((string) ($row['student_no'] ?? '')),
+                            'contact_info' => trim((string) ($row['contact_info'] ?? '')),
+                            'statement' => trim((string) ($row['statement'] ?? '')),
+                        ];
+                    }, CaseRecord::getWitnesses($complaintId));
+                    if (self::peopleChanged($witnesses, $storedWitnesses)) $revisedFields[] = 'witnesses';
+                }
+
+                if (in_array('evidence', $requestedFields, true) && ($removeEvidenceIds || $evidenceFiles)) {
+                    $revisedFields[] = 'evidence';
+                }
+            }
+
+            $revisedFieldList = array_values(array_unique($revisedFields));
+
             $updates['status'] = 'Submitted';
             $updates['updated_at'] = date('Y-m-d H:i:s');
             $set = implode(', ', array_map(fn($column) => "$column = ?", array_keys($updates)));
@@ -313,7 +374,7 @@ class Complaint extends Model {
                 'previous_status' => 'Returned for Revision',
                 'new_status' => 'Submitted',
                 'remarks' => 'Student submitted the requested revisions.',
-                'revision_fields' => null,
+                'revision_fields' => $revisedFieldList ? json_encode($revisedFieldList) : null,
                 'assigned_coordinator_account_id' => null,
                 'created_by_account_id' => $accountId,
                 'created_at' => date('Y-m-d H:i:s'),
@@ -338,6 +399,19 @@ class Complaint extends Model {
             $data['created_at'] = date('Y-m-d H:i:s');
             self::createRelatedRecord($table, $data);
         }
+    }
+
+    private static function peopleChanged(array $newRows, array $oldRows): bool {
+        $normalize = static function (array $rows): array {
+            $normalized = [];
+            foreach ($rows as $row) {
+                ksort($row);
+                $normalized[] = $row;
+            }
+            usort($normalized, static fn($a, $b) => strcmp((string) json_encode($a), (string) json_encode($b)));
+            return $normalized;
+        };
+        return $normalize($newRows) !== $normalize($oldRows);
     }
 
     private static function createRelatedRecord($table, array $data) {

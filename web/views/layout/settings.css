@@ -201,6 +201,59 @@
     color: #1A9D00;
 }
 
+.settings-cal-connect {
+    align-items: center;
+    background: #fbfdfb;
+    border: 1px solid #bfd0bc;
+    border-radius: 8px;
+    display: flex;
+    gap: 16px;
+    justify-content: space-between;
+    padding: 16px;
+    flex-wrap: wrap;
+}
+
+.settings-cal-info {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 240px;
+}
+
+.settings-cal-state {
+    align-items: center;
+    color: var(--sicms-text);
+    display: flex;
+    font-size: 14px;
+    gap: 8px;
+}
+
+.settings-cal-state strong {
+    color: var(--sicms-green-800, #0f5a1a);
+}
+
+.cal-status-dot {
+    background: #b7c3b4;
+    border-radius: 50%;
+    flex: 0 0 10px;
+    height: 10px;
+    width: 10px;
+}
+
+.cal-status-dot.connected {
+    background: #1A9D00;
+    box-shadow: 0 0 0 3px rgba(26, 157, 0, 0.18);
+}
+
+.btn-danger {
+    background: #dc3545;
+    color: #fff;
+}
+
+.btn-danger:hover {
+    background: #c02737;
+}
+
 @media (max-width: 1500px) {
     .settings-field-row {
         grid-template-columns: 1fr;

@@ -184,6 +184,7 @@ CREATE TABLE IF NOT EXISTS hearings (
     hearing_datetime  DATETIME     DEFAULT NULL,
     venue             VARCHAR(255) DEFAULT NULL,
     google_meet_link  VARCHAR(500) DEFAULT NULL,
+    google_event_id   VARCHAR(1024) DEFAULT NULL,
     remarks           TEXT,
     status            VARCHAR(50)  NOT NULL DEFAULT 'Scheduled',
     created_at        DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -332,11 +333,21 @@ CREATE TABLE IF NOT EXISTS legacy_incharges (
     PRIMARY KEY (legacy_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- -------------------------------------------------------------
+-- system_settings
+-- Key/value store used for Google Calendar integration
+-- (google_calendar_refresh_token, google_calendar_email, ...)
+-- -------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS system_settings (
+    setting_key   VARCHAR(100) NOT NULL,
+    setting_value TEXT,
+    updated_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (setting_key)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- =============================================================
 -- Seed data
 -- =============================================================
-
--- Default super-admin. Password: Admin@1234
 INSERT INTO accounts (first_name, last_name, email, password_hash, role, status, created_at, updated_at)
 VALUES ('System', 'Administrator', 'admin@sicms.local',
         '$2y$10$ChGPw1PJZIQ6FDv/OnXdHOgemvVdJHgJq82JGoca508dR7RTrc6WO',

@@ -6,6 +6,7 @@ require_once __DIR__ . '/../../config/Database.php';
 require_once __DIR__ . '/../../models/User.php';
 require_once __DIR__ . '/../../models/AuditLog.php';
 require_once __DIR__ . '/../../../routes.php';
+require_once __DIR__ . '/../../services/GoogleCalendarService.php';
 
 if (!isset($_SESSION['email'])) {
     header('Location: web/views/auth/login.php');
@@ -42,7 +43,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $formAction = $_POST['action'] ?? 'profile';
 
-    if ($formAction === 'change_password') {
+    if ($formAction === 'disconnect_calendar') {
+        $service = GoogleCalendarService::instance($db);
+        $service->disconnect();
+        $calSuccess = 'Google Calendar disconnected. Hearing events will no longer be synced.';
+    } else if ($formAction === 'change_password') {
         $currentPassword = (string) ($_POST['current_password'] ?? '');
         $newPassword     = (string) ($_POST['new_password'] ?? '');
         $confirmPassword = (string) ($_POST['confirm_password'] ?? '');
@@ -148,6 +153,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $old = $old ?: $user;
 $hasPassword = !empty($user['password_hash']);
+
+$calSuccess = $calSuccess ?? null;
+$calendarService = GoogleCalendarService::instance($db);
+$calConnected = $calendarService->isConnected();
+$calEmail = $calendarService->connectedEmail();
+$calMessage = $_SESSION['cal_message'] ?? null;
+$calError = $_SESSION['cal_error'] ?? null;
+unset($_SESSION['cal_message'], $_SESSION['cal_error']);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -331,6 +344,61 @@ $hasPassword = !empty($user['password_hash']);
 
                         <div class="settings-actions">
                             <button type="submit" class="btn btn-primary"><i class="bi bi-check2"></i> Confirm</button>
+                        </div>
+                    </form>
+
+                    <form method="POST" action="index.php" class="settings-form settings-password-form" data-confirm="<?= $calConnected ? 'Disconnect Google Calendar? Existing calendar events will not be removed.' : '' ?>">
+                        <?= Security::csrfField() ?>
+                        <input type="hidden" name="action" value="disconnect_calendar">
+
+                        <div class="settings-section-header">
+                            <h3 class="settings-section-title"><i class="bi bi-google"></i> Google Calendar</h3>
+                            <p class="settings-section-description">
+                                Connect the office Google Calendar so scheduled hearings are created automatically.
+                            </p>
+                        </div>
+
+                        <?php if ($calMessage): ?>
+                            <div class="alert alert-success"><?= h($calMessage) ?></div>
+                        <?php endif; ?>
+
+                        <?php if ($calError): ?>
+                            <div class="alert alert-error">
+                                <?php foreach ((array) $calError as $calErrLine): ?>
+                                    <div><?= h($calErrLine) ?></div>
+                                <?php endforeach; ?>
+                            </div>
+                        <?php endif; ?>
+
+                        <?php if ($calSuccess): ?>
+                            <div class="alert alert-success"><?= h($calSuccess) ?></div>
+                        <?php endif; ?>
+
+                        <div class="settings-fields">
+                            <div class="settings-cal-connect">
+                                <div class="settings-cal-info">
+                                    <div class="settings-cal-state">
+                                        <?php if ($calConnected): ?>
+                                            <span class="cal-status-dot connected"></span> Connected as <strong><?= h($calEmail ?: 'Google account') ?></strong>
+                                        <?php else: ?>
+                                            <span class="cal-status-dot"></span> Not connected
+                                        <?php endif; ?>
+                                    </div>
+                                    <span class="settings-field-note">
+                                        <?php if ($calConnected): ?>
+                                            New scheduled hearings are added to this calendar; cancelling a hearing removes its event.
+                                        <?php else: ?>
+                                            New hearings will keep working as before. Once connected, scheduled hearings are added to your calendar automatically.
+                                            Need the exact redirect URI? <a href="../auth/google_connect_calendar.php?diag=1" target="_blank" rel="noopener">Open diagnostics</a>.
+                                        <?php endif; ?>
+                                    </span>
+                                </div>
+                                <?php if ($calConnected): ?>
+                                    <button type="submit" class="btn btn-danger"><i class="bi bi-x-circle"></i> Disconnect</button>
+                                <?php else: ?>
+                                    <a class="btn btn-primary" href="../auth/google_connect_calendar.php"><i class="bi bi-google"></i> Connect Google Calendar</a>
+                                <?php endif; ?>
+                            </div>
                         </div>
                     </form>
                 </div> 

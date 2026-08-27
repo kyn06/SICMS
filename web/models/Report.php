@@ -21,6 +21,7 @@ class Report extends Model {
         $sql = "SELECT c.complaint_id, c.case_number, c.submitted_by_account_id,
                        c.complainant_name, c.complainant_type, c.complainant_college, c.case_classification,
                        c.status, c.assigned_coordinator_account_id, c.submitted_at, c.updated_at,
+                       submitter.gender AS submitter_gender,
                        (SELECT GROUP_CONCAT(r.full_name ORDER BY r.respondent_id SEPARATOR ', ') FROM complaint_respondents r WHERE r.complaint_id = c.complaint_id) AS respondent_names,
                        COALESCE((SELECT MAX(ch.created_at) FROM case_history ch WHERE ch.complaint_id = c.complaint_id AND ch.action = 'Assigned Coordinator' AND ch.assigned_coordinator_account_id = c.assigned_coordinator_account_id), c.updated_at) AS assigned_at,
                        TRIM(CONCAT(COALESCE(coordinator.first_name, ''), ' ', COALESCE(coordinator.last_name, ''))) AS coordinator_name,
@@ -30,12 +31,13 @@ class Report extends Model {
                        GROUP_CONCAT(CASE WHEN h.status = 'Scheduled' THEN DATE_FORMAT(h.hearing_datetime, '%Y-%m-%d %H:%i:%s') END ORDER BY h.hearing_datetime SEPARATOR '|') AS scheduled_hearing_datetimes
                 FROM complaints c
                 LEFT JOIN accounts coordinator ON c.assigned_coordinator_account_id = coordinator.account_id
+                LEFT JOIN accounts submitter ON c.submitted_by_account_id = submitter.account_id
                 LEFT JOIN hearings h ON c.complaint_id = h.complaint_id
                 $where
                 GROUP BY c.complaint_id, c.case_number, c.submitted_by_account_id,
                          c.complainant_name, c.complainant_type, c.complainant_college, c.case_classification,
                          c.status, c.assigned_coordinator_account_id, c.submitted_at, c.updated_at,
-                         coordinator.first_name, coordinator.last_name
+                         submitter.gender, coordinator.first_name, coordinator.last_name
                 ORDER BY c.submitted_at DESC";
         return self::fetchAll($sql, $params, $types);
     }
@@ -58,7 +60,7 @@ class Report extends Model {
             'total_students' => 0,
         ];
         $students = [];
-        $groups = ['casesByMonth' => [], 'casesByClassification' => [], 'casesByStatus' => [], 'casesByCollege' => [], 'casesByCoordinator' => [], 'hearingsByMonth' => []];
+        $groups = ['casesByMonth' => [], 'casesByClassification' => [], 'casesByStatus' => [], 'casesByCollege' => [], 'casesByCoordinator' => [], 'casesBySex' => [], 'hearingsByMonth' => []];
         $reportRows = [];
         $statusKeys = [
             'Submitted' => 'submitted_cases',
@@ -84,6 +86,7 @@ class Report extends Model {
             self::increment($groups['casesByClassification'], $row['case_classification'] ?: 'Unspecified');
             self::increment($groups['casesByCollege'], $row['complainant_college'] ?: 'Unspecified');
             self::increment($groups['casesByCoordinator'], $row['coordinator_name'] ?: 'Unassigned');
+            self::increment($groups['casesBySex'], self::sexLabel($row['submitter_gender'] ?? ''));
 
             foreach (array_filter(explode('|', (string) $row['scheduled_hearing_datetimes'])) as $hearingDate) {
                 self::increment($groups['hearingsByMonth'], substr($hearingDate, 0, 7));
@@ -96,12 +99,66 @@ class Report extends Model {
 
         foreach (self::$caseStatuses as $status) $groups['casesByStatus'][$status] = $summary[$statusKeys[$status]];
         $summary['total_students'] = count($students);
+        $groups['casesByMonth'] = self::fillMonthWindow($groups['casesByMonth']);
+        $groups['hearingsByMonth'] = self::fillMonthWindow($groups['hearingsByMonth']);
         $data = ['summary' => $summary, 'rows' => $reportRows];
         foreach ($groups as $key => $values) {
             $preserveOrder = $key === 'casesByStatus';
             $data[$key] = self::groupRows($values, in_array($key, ['casesByMonth', 'hearingsByMonth'], true), $preserveOrder);
         }
+
+        foreach (['casesByMonth', 'hearingsByMonth'] as $monthKey) {
+            $data[$monthKey] = array_map(function ($row) {
+                $row['label'] = date('M \'y', strtotime($row['label'] . '-01'));
+                return $row;
+            }, $data[$monthKey]);
+        }
+
         return $data;
+    }
+
+    private static function sexLabel($raw) {
+        $value = strtolower(trim((string) $raw));
+
+        if ($value === '') {
+            return 'Unspecified';
+        }
+
+        $friendly = [
+            'female' => 'Female',
+            'male' => 'Male',
+            'prefer not to say' => 'Prefer not to say',
+            'lgbt' => 'Prefer not to say',
+            'lgbt+' => 'Prefer not to say',
+            'lgbtq+' => 'Prefer not to say',
+        ];
+
+        return $friendly[$value] ?? ucfirst($value);
+    }
+
+    private static function fillMonthWindow(array $group) {
+        if ($group === []) {
+            return [];
+        }
+
+        $endKey = (new DateTimeImmutable())->format('Y-m');
+        $maxKey = max(array_keys($group));
+
+        if ($maxKey <= $endKey) {
+            $end = new DateTimeImmutable($endKey . '-01 00:00:00');
+        } else {
+            $end = new DateTimeImmutable($maxKey . '-01 00:00:00');
+        }
+
+        $start = $end->modify('-11 months');
+        $filled = [];
+
+        for ($i = 0; $i < 12; $i++) {
+            $key = $start->modify("+{$i} months")->format('Y-m');
+            $filled[$key] = $group[$key] ?? 0;
+        }
+
+        return $filled;
     }
 
     private static function increment(array &$group, $label) {

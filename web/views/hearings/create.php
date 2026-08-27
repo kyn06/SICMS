@@ -91,7 +91,12 @@ function h($value) {
                 </div>
                 <div class="field full">
                     <label for="google_meet_link">Google Meet Link</label>
-                    <input id="google_meet_link" type="url" name="google_meet_link" value="<?= h($old['google_meet_link'] ?? '') ?>">
+                    <div class="meet-field-row">
+                        <input id="google_meet_link" type="url" name="google_meet_link" value="<?= h($old['google_meet_link'] ?? '') ?>" placeholder="Paste a link or generate one below">
+                        <input type="hidden" name="google_event_id" id="google_event_id" value="<?= h($old['google_event_id'] ?? '') ?>">
+                        <button type="button" class="btn btn-secondary" id="generateMeetBtn"><i class="bi bi-camera-video"></i> Generate Meet Link</button>
+                    </div>
+                    <span class="meet-field-hint" id="meetFieldHint"></span>
                 </div>
                 <div class="field full">
                     <label for="remarks">Remarks</label>
@@ -106,6 +111,9 @@ function h($value) {
     </main>
         </div>
     </div>
+    <script>
+    (()=>{const btn=document.getElementById('generateMeetBtn');if(!btn)return;const form=btn.closest('form'),hint=document.getElementById('meetFieldHint'),link=document.getElementById('google_meet_link'),eventId=document.getElementById('google_event_id');btn.addEventListener('click',async()=>{if(!form)return;hint.textContent='';btn.disabled=true;btn.innerHTML='<i class="bi bi-hourglass-split"></i> Creating...';try{const res=await fetch('create_meet.php',{method:'POST',headers:{'X-Requested-With':'XMLHttpRequest'},body:new URLSearchParams(new FormData(form))});const data=await res.json();if(!data.success)throw new Error(data.message||'Could not create Meet link.');link.value=data.meet_link||'';eventId.value=data.google_event_id||'';hint.textContent='Meet link generated and will be attached to the calendar event when you schedule.';hint.className='meet-field-hint ok';}catch(err){hint.textContent=err.message;hint.className='meet-field-hint err';}finally{btn.disabled=false;btn.innerHTML='<i class="bi bi-camera-video"></i> Generate Meet Link';}});})();
+    </script>
 </body>
 
 </html>

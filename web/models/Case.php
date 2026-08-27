@@ -212,6 +212,24 @@ class CaseRecord extends Model {
         return $request;
     }
 
+    public static function getLatestRevisionSubmission($complaintId) {
+        $sql = "SELECT h.*, actor.first_name AS actor_first_name, actor.last_name AS actor_last_name
+                FROM case_history h
+                LEFT JOIN accounts actor ON h.created_by_account_id = actor.account_id
+                WHERE h.complaint_id = ? AND h.action = 'Submitted Revised Complaint'
+                ORDER BY h.created_at DESC, h.history_id DESC
+                LIMIT 1";
+        $rows = self::fetchRelated($sql, $complaintId);
+        $submission = $rows[0] ?? null;
+
+        if ($submission) {
+            $decoded = json_decode((string) ($submission['revision_fields'] ?? ''), true);
+            $submission['revision_fields'] = is_array($decoded) ? $decoded : [];
+        }
+
+        return $submission;
+    }
+
     public static function assignCoordinator($complaintId, $coordinatorAccountId, $remarks, $actorAccountId) {
         $case = self::findCase($complaintId);
 

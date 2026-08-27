@@ -7,12 +7,31 @@ $viewData = $controller->index();
 
 $user = $viewData['user'];
 $hearings = $viewData['hearings'];
+$calendar = $viewData['calendar'];
 $message = $viewData['message'];
 $errors = $viewData['errors'];
 $scheduledCount = count(array_filter($hearings, fn($hearing) => $hearing['status'] === 'Scheduled'));
 $todayCount = count(array_filter($hearings, fn($hearing) => substr($hearing['hearing_datetime'], 0, 10) === date('Y-m-d')));
 $completedCount = count(array_filter($hearings, fn($hearing) => $hearing['status'] === 'Completed'));
 $cancelledCount = count(array_filter($hearings, fn($hearing) => $hearing['status'] === 'Cancelled'));
+
+$calMonth = (isset($_GET['month']) && preg_match('/^\d{4}-\d{2}$/', $_GET['month'])) ? $_GET['month'] : date('Y-m');
+$calYear = (int) substr($calMonth, 0, 4);
+$calMonthNum = (int) substr($calMonth, 5, 2);
+$calFirstDay = new DateTime(sprintf('%04d-%02d-01', $calYear, $calMonthNum));
+$calDaysInMonth = (int) $calFirstDay->format('t');
+$calStartWeekday = (int) $calFirstDay->format('N');
+$calFilterParams = function ($month) {
+    $query = $_GET;
+    $query['month'] = $month;
+    return '?' . http_build_query($query);
+};
+$hearingsByDay = [];
+foreach ($hearings as $hearing) {
+    if (substr($hearing['hearing_datetime'], 0, 7) === $calMonth) {
+        $hearingsByDay[(int) substr($hearing['hearing_datetime'], 8, 2)][] = $hearing;
+    }
+}
 
 $controller->clearFlash();
 
@@ -93,6 +112,64 @@ function h($value) {
                         <i class="bi <?= h($item['icon']) ?>" aria-hidden="true"></i>
                     </article>
                 <?php endforeach; ?>
+            </section>
+
+            <section class="hearing-calendar-layout">
+                <section class="panel hearing-calendar-panel">
+                    <div class="hearing-panel-heading hearing-calendar-heading">
+                        <div><h2>Calendar</h2><p><?= h($calFirstDay->format('F Y')) ?></p></div>
+                        <div class="cal-nav">
+                            <a class="btn btn-secondary" href="index.php<?= h($calFilterParams(date('Y-m', strtotime($calMonth . '-01 -1 month')))) ?>" title="Previous month"><i class="bi bi-chevron-left"></i></a>
+                            <a class="btn btn-secondary" href="index.php<?= h($calFilterParams(date('Y-m'))) ?>">Today</a>
+                            <a class="btn btn-secondary" href="index.php<?= h($calFilterParams(date('Y-m', strtotime($calMonth . '-01 +1 month')))) ?>" title="Next month"><i class="bi bi-chevron-right"></i></a>
+                        </div>
+                    </div>
+                    <div class="cal-grid">
+                        <?php foreach (['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as $calDow): ?>
+                            <div class="cal-dow"><?= $calDow ?></div>
+                        <?php endforeach; ?>
+                        <?php for ($calBlank = 1; $calBlank < $calStartWeekday; $calBlank++): ?>
+                            <div class="cal-cell is-empty"></div>
+                        <?php endfor; ?>
+                        <?php for ($calDay = 1; $calDay <= $calDaysInMonth; $calDay++):
+                            $calIsToday = $calMonth === date('Y-m') && $calDay === (int) date('j');
+                            $calItems = $hearingsByDay[$calDay] ?? []; ?>
+                            <div class="cal-cell<?= $calIsToday ? ' is-today' : '' ?>">
+                                <div class="cal-daynum"><?= $calDay ?></div>
+                                <?php foreach (array_slice($calItems, 0, 2) as $calHearing): ?>
+                                    <a class="cal-chip<?= $calHearing['status'] === 'Cancelled' ? ' is-cancelled' : '' ?>" href="edit.php?id=<?= (int) $calHearing['hearing_id'] ?>" title="<?= h(date('M d, h:i A', strtotime($calHearing['hearing_datetime'])) . ' - ' . $calHearing['case_number']) ?>">
+                                        <?php if (!empty($calHearing['google_meet_link'])): ?><i class="bi bi-camera-video"></i><?php endif; ?>
+                                        <?= h(date('g:i', strtotime($calHearing['hearing_datetime']))) ?> <?= h($calHearing['case_number']) ?>
+                                    </a>
+                                <?php endforeach; ?>
+                                <?php if (count($calItems) > 2): ?>
+                                    <span class="cal-more">+<?= count($calItems) - 2 ?> more</span>
+                                <?php endif; ?>
+                            </div>
+                        <?php endfor; ?>
+                    </div>
+                </section>
+                <aside class="panel hearing-sync-panel">
+                    <div class="hearing-panel-heading">
+                        <div><h2>Google Calendar</h2><p><?= $calendar['connected'] ? h($calendar['email'] ?? 'Connected') : 'Not connected' ?></p></div>
+                    </div>
+                    <?php if (!$calendar['connected']): ?>
+                        <div class="cal-sync-empty"><i class="bi bi-google"></i><span>Connect the office calendar in <a href="../settings/index.php">Settings</a> to sync hearings automatically.</span></div>
+                    <?php elseif (empty($calendar['upcoming'])): ?>
+                        <div class="cal-sync-empty"><i class="bi bi-calendar2-check"></i><span>No upcoming synced events.</span></div>
+                    <?php else: ?>
+                        <ul class="cal-sync-list">
+                            <?php foreach ($calendar['upcoming'] as $calSynced): ?>
+                                <li>
+                                    <a href="<?= h($calSynced['link']) ?>" target="_blank" rel="noopener">
+                                        <strong><?= h($calSynced['summary']) ?></strong>
+                                        <span><?= $calSynced['start'] ? h(date('M d, h:i A', strtotime($calSynced['start']))) : 'All day' ?></span>
+                                    </a>
+                                </li>
+                            <?php endforeach; ?>
+                        </ul>
+                    <?php endif; ?>
+                </aside>
             </section>
 
             <section class="panel hearing-table-panel">

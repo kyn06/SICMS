@@ -95,6 +95,7 @@ class CaseController {
             'evidence' => CaseRecord::getEvidence($complaintId),
             'history' => CaseRecord::getHistory($complaintId),
             'coordinators' => CaseRecord::getCoordinators(),
+            'resubmission' => CaseRecord::getLatestRevisionSubmission($complaintId),
             'hearings' => Hearing::forComplaint($complaintId),
             'messages' => $messageReceiver
                 ? Message::forPair($complaintId, (int) $this->user['account_id'], (int) $messageReceiver['account_id'])

@@ -131,7 +131,7 @@ $chartData = [
     'casesByClassification' => chart_payload($reportData['casesByClassification']),
     'casesByCollege' => chart_payload($reportData['casesByCollege']),
     'hearingsByMonth' => chart_payload($reportData['hearingsByMonth']),
-    'sexDistribution' => ['labels' => [], 'values' => []],
+    'sexDistribution' => chart_payload($reportData['casesBySex'] ?? []),
 ];
 
 $rows = $reportData['rows'];
@@ -459,6 +459,31 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
         flex-direction: column;
         gap: 10px;
         padding: 16px 18px;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .sicms-stat::before {
+        background: radial-gradient(circle, var(--chip-bg, #eaf7e8), transparent 68%);
+        content: '';
+        height: 170px;
+        opacity: .6;
+        pointer-events: none;
+        position: absolute;
+        right: -46px;
+        top: -66px;
+        width: 170px;
+    }
+
+    .sicms-stat::after {
+        background: linear-gradient(90deg, var(--chip-fg, #167a22), transparent);
+        content: '';
+        height: 4px;
+        left: 0;
+        opacity: .85;
+        position: absolute;
+        right: 0;
+        top: 0;
     }
 
     .sicms-stat-top {
@@ -479,6 +504,8 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
     .sicms-stat-value {
         font-size: 30px;
         font-weight: 800;
+        font-variant-numeric: tabular-nums;
+        letter-spacing: -.5px;
         line-height: 1.15;
     }
 
@@ -486,6 +513,7 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
         align-items: center;
         background: var(--chip-bg, #eaf7e8);
         border-radius: 12px;
+        box-shadow: inset 0 -6px 12px rgba(0, 0, 0, .03);
         color: var(--chip-fg, #167a22);
         display: inline-flex;
         flex: none;
@@ -500,7 +528,33 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
         color: #5f6f5c;
         display: flex;
         font-size: 12px;
+        font-weight: 600;
         gap: 6px;
+    }
+
+    .sicms-stat-trend i {
+        color: var(--chip-fg, #167a22);
+        font-size: 11px;
+    }
+
+    .sicms-card.stat-hero .sicms-stat::before {
+        display: none;
+    }
+
+    .sicms-card.stat-hero .sicms-stat::after {
+        background: rgba(255, 255, 255, .5);
+    }
+
+    .main-panel .section-subtitle {
+        color: #7c8b78;
+        font-size: 11.5px;
+        font-weight: 600;
+        margin-top: 2px;
+        margin-bottom: 10px;
+    }
+
+    .main-panel .panel .chart-box {
+        margin-top: 8px;
     }
 
     .accent-green {
@@ -1047,7 +1101,8 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
                 <div class="charts-grid">
                     <?php if ($canViewAnalytics): ?>
                     <article class="panel chart-wide">
-                        <div class="section-title"><i class="bi bi-graph-up"></i> Cases per Month</div>
+                        <div class="section-title"><i class="bi bi-bar-chart"></i> Cases Filed per Month</div>
+                        <div class="section-subtitle">Filings for the last 12 months</div>
                         <div class="chart-box"><canvas id="casesByMonth"></canvas></div>
                     </article>
                     <article class="panel">
@@ -1065,12 +1120,12 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
                     </article>
                     <article class="panel">
                         <div class="section-title"><i class="bi bi-gender-ambiguous"></i> Sex Distribution</div>
-                        <div class="chart-box">
-                            <div class="empty-state">Sex data is not available in the current complaint records.</div>
-                        </div>
+                        <div class="chart-box"><canvas id="casesBySex"></canvas></div>
+                        <div class="section-subtitle">Based on the linked student account records.</div>
                     </article>
                     <article class="panel chart-wide">
-                        <div class="section-title"><i class="bi bi-calendar-range"></i> Hearing Schedule</div>
+                        <div class="section-title"><i class="bi bi-calendar-range"></i> Hearings per Month</div>
+                        <div class="section-subtitle">Scheduled hearings, last 12 months</div>
                         <div class="chart-box"><canvas id="hearingsByMonth"></canvas></div>
                     </article>
                     <?php endif; ?>
@@ -1176,6 +1231,27 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
     updateDateTime();
     setInterval(updateDateTime, 30000);
 
+    const animatedStatTargets = new Set();
+
+    function animateStatValue(el) {
+        if (animatedStatTargets.has(el)) return;
+        animatedStatTargets.add(el);
+        const target = parseInt(el.textContent, 10) || 0;
+        const duration = 700;
+        const start = performance.now();
+
+        function tick(now) {
+            const progress = Math.min((now - start) / duration, 1);
+            const eased = 1 - Math.pow(1 - progress, 3);
+            el.textContent = Math.round(target * eased);
+            if (progress < 1) requestAnimationFrame(tick);
+        }
+
+        requestAnimationFrame(tick);
+    }
+
+    document.querySelectorAll('[data-stat-value]').forEach(animateStatValue);
+
     let dashboardChartData =
         <?= json_encode($chartData, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>;
     const chartPalette = ['#1A9D00', '#0d7b66', '#4338ca', '#e0a800', '#be123c', '#557a95', '#7e22ce'];
@@ -1201,6 +1277,7 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
             const area = chart.chartArea;
             if (!area) return;
             const total = (chart.data.datasets[0]?.data || []).reduce((sum, value) => sum + (+value || 0), 0);
+            const centerLabel = chart.config.options.centerLabel || 'TOTAL CASES';
             const centerX = (area.left + area.right) / 2;
             const centerY = (area.top + area.bottom) / 2;
             const ctx = chart.ctx;
@@ -1212,7 +1289,32 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
             ctx.fillText(String(total), centerX, centerY - 8);
             ctx.fillStyle = '#6b7a67';
             ctx.font = '600 11px ' + Chart.defaults.font.family;
-            ctx.fillText('TOTAL CASES', centerX, centerY + 14);
+            ctx.fillText(centerLabel, centerX, centerY + 14);
+            ctx.restore();
+        }
+    };
+
+    const barValueLabels = {
+        id: 'barValueLabels',
+        afterDatasetsDraw(chart) {
+            if (chart.config.type !== 'bar' || !chart.options.showValues) return;
+            const meta = chart.getDatasetMeta(0);
+            if (!meta || !meta.data.length) return;
+            const ctx = chart.ctx;
+            const horizontal = chart.config.options.indexAxis === 'y';
+            ctx.save();
+            ctx.font = '700 11px ' + Chart.defaults.font.family;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'bottom';
+            meta.data.forEach((bar, index) => {
+                const value = +chart.data.datasets[0].data[index];
+                if (!value) return;
+                ctx.fillStyle = '#40513d';
+                const x = horizontal ? (bar.x + 10) : bar.x;
+                const y = horizontal ? bar.y : (bar.y - 7);
+                if (horizontal) ctx.textAlign = 'left';
+                ctx.fillText(String(value), x, y);
+            });
             ctx.restore();
         }
     };
@@ -1335,7 +1437,7 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
                     }
                 }
             },
-            plugins: type === 'doughnut' ? [doughnutCenterLabel] : []
+            plugins: type === 'doughnut' ? [doughnutCenterLabel] : (type === 'bar' && options.showValues ? [barValueLabels] : [])
         };
 
         if (type === 'doughnut') config.options.cutout = '68%';
@@ -1344,16 +1446,25 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
             intersect: false
         };
 
+        config.options.centerLabel = options.centerLabel || 'TOTAL CASES';
+        if (options.showValues) config.options.showValues = true;
+
         dashboardCharts[id] = new Chart(canvas, config);
     }
 
-    makeChart('casesByMonth', 'line');
+    makeChart('casesByMonth', 'bar', {
+        showValues: true
+    });
     makeChart('casesByStatus', 'doughnut');
     makeChart('casesByClassification', 'bar');
     makeChart('casesByCollege', 'bar', {
-        indexAxis: 'y'
+        indexAxis: 'y',
+        showValues: true
     });
     makeChart('hearingsByMonth', 'line');
+    makeChart('casesBySex', 'doughnut', {
+        centerLabel: 'COMPLAINANTS'
+    });
 
     const dashboardFilters = document.getElementById('dashboardFilters');
     const dashboardFilterStatus = document.getElementById('dashboardFilterStatus');
@@ -1519,13 +1630,19 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
             });
             renderCoordinatorCases(payload.rows || []);
             dashboardChartData = payload.charts;
-            makeChart('casesByMonth', 'line');
+            makeChart('casesByMonth', 'bar', {
+                showValues: true
+            });
             makeChart('casesByStatus', 'doughnut');
             makeChart('casesByClassification', 'bar');
             makeChart('casesByCollege', 'bar', {
-                indexAxis: 'y'
+                indexAxis: 'y',
+                showValues: true
             });
             makeChart('hearingsByMonth', 'line');
+            makeChart('casesBySex', 'doughnut', {
+                centerLabel: 'COMPLAINANTS'
+            });
             params.delete('ajax');
             const query = params.toString();
             history.replaceState({}, '', query ? `${dashboardFilters.action}?${query}` : dashboardFilters.action);

@@ -17,7 +17,6 @@ return [
     'client_secret' => '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',
 
     // Leave empty to auto-detect from the current request URL.
-    // Leave empty to auto-detect from the current request URL.
     'redirect_uri'  => '',
 
     // Restrict sign-in to CLSU2 email domain.
@@ -27,4 +26,21 @@ return [
     // if cURL reports certificate errors (then also download cacert.pem and
     // set curl.cainfo in php.ini instead, preferably).
     'verify_ssl'    => true,
+
+    // -------------------------------------------------------------
+    // Google Calendar (hearings) integration
+    // -------------------------------------------------------------
+    // Scope used to create/manage hearing events on the connected
+    // account's calendar. Add it to the OAuth consent screen and enable
+    // the Google Calendar API in the Cloud Console:
+    //   https://console.cloud.google.com/apis/library/calendar.googleapis.com
+    'calendar_scopes' => 'https://www.googleapis.com/auth/calendar.events',
+
+    // Leave empty to auto-detect. If set, it MUST exactly match the
+    // "Authorized redirect URI" configured in Cloud Console, e.g.:
+    //   https://your-domain/SICMS/web/views/auth/google_connect_calendar.php
+    'calendar_redirect_uri' => '',
+
+    // Default length in minutes of a generated calendar event.
+    'event_duration_minutes' => 60,
 ];

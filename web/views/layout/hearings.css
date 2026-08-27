@@ -216,8 +216,207 @@
     padding-top: 18px;
 }
 
+.meet-field-row {
+    display: flex;
+    gap: 8px;
+}
+
+.meet-field-row input {
+    flex: 1 1 auto;
+}
+
+.meet-field-row .btn {
+    flex: 0 0 auto;
+    white-space: nowrap;
+}
+
+.meet-field-hint {
+    font-size: 11px;
+    font-style: normal;
+}
+
+.meet-field-hint.ok {
+    color: var(--sicms-green-700);
+}
+
+.meet-field-hint.err {
+    color: #b42318;
+}
+
+@media (max-width: 700px) {
+    .meet-field-row { flex-direction: column; align-items: stretch; }
+    .meet-field-row .btn { justify-content: center; }
+}
+
+/* ----- Google Calendar view (hearings) ----- */
+.hearing-calendar-layout {
+    display: grid;
+    gap: 16px;
+    grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr);
+}
+
+.hearing-calendar-heading {
+    align-items: center;
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.cal-nav {
+    align-items: center;
+    display: flex;
+    gap: 6px;
+}
+
+.cal-nav .btn {
+    min-height: 32px;
+    padding: 6px 10px !important;
+}
+
+.cal-grid {
+    display: grid;
+    gap: 6px;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.cal-dow {
+    color: var(--sicms-muted);
+    font-size: 11px;
+    font-weight: 700;
+    padding: 4px 2px;
+    text-align: center;
+    text-transform: uppercase;
+}
+
+.cal-cell {
+    background: #fbfdfb;
+    border: 1px solid var(--sicms-line);
+    border-radius: 8px;
+    min-height: 82px;
+    padding: 6px;
+}
+
+.cal-cell.is-empty {
+    background: transparent;
+    border-color: transparent;
+}
+
+.cal-cell.is-today {
+    border-color: var(--sicms-green-600, #1A9D00);
+    box-shadow: 0 0 0 2px rgba(26, 157, 0, 0.14);
+}
+
+.cal-daynum {
+    color: var(--sicms-text);
+    font-size: 12px;
+    font-weight: 700;
+    margin-bottom: 5px;
+}
+
+.cal-cell.is-today .cal-daynum {
+    color: var(--sicms-green-700);
+}
+
+.cal-chip {
+    align-items: center;
+    background: var(--sicms-green-100);
+    border-radius: 5px;
+    color: var(--sicms-green-800, #0f5a1a);
+    display: flex;
+    font-size: 10.5px;
+    font-weight: 600;
+    gap: 4px;
+    line-height: 1.15;
+    margin-bottom: 4px;
+    padding: 4px 6px;
+    text-decoration: none;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.cal-chip i {
+    color: var(--sicms-green-700);
+    flex: 0 0 auto;
+}
+
+.cal-chip:hover {
+    background: var(--sicms-green-200, #d9ecd4);
+}
+
+.cal-chip.is-cancelled {
+    background: #f2ecec;
+    color: #b42318;
+    text-decoration: line-through;
+}
+
+.cal-more {
+    color: var(--sicms-muted);
+    display: block;
+    font-size: 10px;
+    margin-top: 2px;
+}
+
+.hearing-sync-panel {
+    align-self: start;
+}
+
+.cal-sync-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.cal-sync-list li {
+    border-bottom: 1px solid var(--sicms-line);
+    padding: 8px 0;
+}
+
+.cal-sync-list li:last-child {
+    border-bottom: 0;
+}
+
+.cal-sync-list a {
+    color: var(--sicms-text);
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    text-decoration: none;
+}
+
+.cal-sync-list strong {
+    color: var(--sicms-green-800, #0f5a1a);
+    font-size: 12.5px;
+}
+
+.cal-sync-list span {
+    color: var(--sicms-muted);
+    font-size: 11px;
+}
+
+.cal-sync-empty {
+    align-items: center;
+    color: var(--sicms-muted);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 26px 10px;
+    text-align: center;
+}
+
+.cal-sync-empty i {
+    color: var(--sicms-green-700);
+    font-size: 24px;
+}
+
+.cal-sync-empty span {
+    font-size: 12px;
+    line-height: 1.5;
+}
+
 @media (max-width: 1050px) {
     .hearing-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .hearing-calendar-layout { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 700px) {
