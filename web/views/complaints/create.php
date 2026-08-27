@@ -42,6 +42,114 @@ function old_array_value($old, $key, $index) {
 function h($value) {
     return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
 }
+
+function selected_if($value, $option) {
+    return $value === $option ? 'selected' : '';
+}
+
+$respondentItem = function ($index = null, $old = []) {
+    $program = Courses::split(is_int($index) ? ($old['respondent_course_year'][$index] ?? '') : '');
+    $course = is_int($index) ? ($old['respondent_course'][$index] ?? $program['course']) : '';
+    $section = is_int($index) ? ($old['respondent_section'][$index] ?? $program['section']) : '';
+    $courseYear = Courses::combine($course, $section);
+    $value = function ($key) use ($index, $old) {
+        return is_int($index) ? ($old['respondent_' . $key][$index] ?? '') : '';
+    };
+
+    ob_start();
+    ?>
+    <div class="dynamic-item respondent-item">
+        <div class="form-grid">
+            <div class="field">
+                <label>Full Name</label>
+                <input name="respondent_name[]" aria-label="Respondent full name" value="<?= h($value('name')) ?>">
+            </div>
+            <div class="field">
+                <label>Student Number</label>
+                <input name="respondent_student_no[]" aria-label="Respondent student number" value="<?= h($value('student_no')) ?>">
+            </div>
+            <div class="field">
+                <label>College</label>
+                <select name="respondent_college[]" aria-label="Respondent college">
+                    <option value="">Select College</option>
+                    <?php foreach (Colleges::all() as $collegeOption): ?>
+                        <option value="<?= h($collegeOption) ?>" <?= selected_if($value('college'), $collegeOption) ?>><?= h($collegeOption) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="field">
+                <label>Course</label>
+                <select name="respondent_course[]" aria-label="Respondent course">
+                    <option value="">Select Course</option>
+                    <?php foreach (Courses::all() as $courseOption): ?>
+                        <option value="<?= h($courseOption) ?>" <?= selected_if($course, $courseOption) ?>><?= h($courseOption) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="field">
+                <label>Section</label>
+                <select name="respondent_section[]" aria-label="Respondent section">
+                    <option value="">Select Section</option>
+                    <?php foreach (Courses::sections() as $year => $sections): ?>
+                        <optgroup label="<?= h($year) ?>">
+                            <?php foreach ($sections as $sectionOption): ?>
+                                <option value="<?= h($sectionOption) ?>" <?= selected_if($section, $sectionOption) ?>><?= h($sectionOption) ?></option>
+                            <?php endforeach; ?>
+                        </optgroup>
+                    <?php endforeach; ?>
+                </select>
+                <input type="hidden" name="respondent_course_year[]" value="<?= h($courseYear) ?>">
+            </div>
+            <div class="field">
+                <label>Contact Information</label>
+                <input name="respondent_contact[]" aria-label="Respondent contact information" value="<?= h($value('contact')) ?>">
+            </div>
+            <div class="field">
+                <label>Details</label>
+                <input name="respondent_details[]" aria-label="Respondent details" value="<?= h($value('details')) ?>">
+            </div>
+        </div>
+        <div class="dynamic-actions">
+            <button type="button" class="btn-remove" data-remove-item><i class="bi bi-trash"></i> Remove</button>
+        </div>
+    </div>
+    <?php
+    return ob_get_clean();
+};
+
+$witnessItem = function ($index = null, $old = []) {
+    $value = function ($key) use ($index, $old) {
+        return is_int($index) ? ($old['witness_' . $key][$index] ?? '') : '';
+    };
+
+    ob_start();
+    ?>
+    <div class="dynamic-item witness-item">
+        <div class="form-grid">
+            <div class="field">
+                <label>Full Name</label>
+                <input name="witness_name[]" aria-label="Witness full name" value="<?= h($value('name')) ?>">
+            </div>
+            <div class="field">
+                <label>Student Number</label>
+                <input name="witness_student_no[]" aria-label="Witness student number" value="<?= h($value('student_no')) ?>">
+            </div>
+            <div class="field">
+                <label>Contact Information</label>
+                <input name="witness_contact[]" aria-label="Witness contact information" value="<?= h($value('contact')) ?>">
+            </div>
+            <div class="field">
+                <label>Statement</label>
+                <input name="witness_statement[]" aria-label="Witness statement" value="<?= h($value('statement')) ?>">
+            </div>
+        </div>
+        <div class="dynamic-actions">
+            <button type="button" class="btn-remove" data-remove-item><i class="bi bi-trash"></i> Remove</button>
+        </div>
+    </div>
+    <?php
+    return ob_get_clean();
+};
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -199,6 +307,26 @@ function h($value) {
             display: flex;
             flex-direction: column;
             gap: 12px;
+        }
+
+        .unknown-toggle {
+            align-items: center;
+            color: #4a5544;
+            cursor: pointer;
+            display: flex;
+            font-size: 13px;
+            gap: 8px;
+            margin: 6px 0 2px;
+        }
+
+        .unknown-toggle input {
+            accent-color: #1f6f43;
+            height: 16px;
+            width: 16px;
+        }
+
+        .unknown-toggle span {
+            user-select: none;
         }
 
         .dynamic-item {
@@ -429,9 +557,13 @@ function h($value) {
                 </section>
 
                 <section class="form-section">
-                    <div class="complaint-section-heading"><span><i class="bi bi-people"></i></span><div><h2>Respondent Information</h2><p>At least one respondent</p></div></div>
+                    <div class="complaint-section-heading"><span><i class="bi bi-people"></i></span><div><h2>Respondent Information</h2><p>Optional</p></div></div>
+                    <label class="unknown-toggle">
+                        <input type="checkbox" name="respondent_unknown" value="1" onchange="toggleUnknown('respondent', this)" <?= !empty($old['respondent_unknown']) ? 'checked' : '' ?>>
+                        <span>I don't know the respondent</span>
+                    </label>
                     <div id="respondent-list" class="dynamic-list">
-                        <?php $respondentCount = max(1, count($old['respondent_name'] ?? [''])); ?>
+                        <?php $respondentCount = count($old['respondent_name'] ?? []); ?>
                         <?php for ($index = 0; $index < $respondentCount; $index++): ?>
                             <?php
                                 $respondentProgram = Courses::split($old['respondent_course_year'][$index] ?? '');
@@ -442,7 +574,7 @@ function h($value) {
                                 <div class="form-grid">
                                     <div class="field">
                                         <label>Full Name</label>
-                                        <input name="respondent_name[]" aria-label="Respondent full name" value="<?= old_array_value($old, 'respondent_name', $index) ?>" required>
+                                        <input name="respondent_name[]" aria-label="Respondent full name" value="<?= old_array_value($old, 'respondent_name', $index) ?>">
                                     </div>
                                     <div class="field">
                                         <label>Student Number</label>
@@ -490,26 +622,31 @@ function h($value) {
                                     </div>
                                 </div>
                                 <div class="dynamic-actions">
-                                    <button type="button" class="btn-remove" onclick="removeItem(this)"><i class="bi bi-trash"></i> Remove</button>
+                                    <button type="button" class="btn-remove" data-remove-item><i class="bi bi-trash"></i> Remove</button>
                                 </div>
                             </div>
                         <?php endfor; ?>
                     </div>
+                    <template id="respondent-item-template"><?= $respondentItem() ?></template>
                     <div class="dynamic-actions">
                         <button type="button" class="btn-add" onclick="addRespondent()"><i class="bi bi-person-plus"></i> Add Respondent</button>
                     </div>
                 </section>
 
                 <section class="form-section">
-                    <div class="complaint-section-heading"><span><i class="bi bi-person-lines-fill"></i></span><div><h2>Witness Information</h2><p>At least one witness</p></div></div>
+                    <div class="complaint-section-heading"><span><i class="bi bi-person-lines-fill"></i></span><div><h2>Witness Information</h2><p>Optional</p></div></div>
+                    <label class="unknown-toggle">
+                        <input type="checkbox" name="witness_none" value="1" onchange="toggleUnknown('witness', this)" <?= !empty($old['witness_none']) ? 'checked' : '' ?>>
+                        <span>I do not have a witness</span>
+                    </label>
                     <div id="witness-list" class="dynamic-list">
-                        <?php $witnessCount = max(1, count($old['witness_name'] ?? [''])); ?>
+                        <?php $witnessCount = count($old['witness_name'] ?? []); ?>
                         <?php for ($index = 0; $index < $witnessCount; $index++): ?>
                             <div class="dynamic-item witness-item">
                                 <div class="form-grid">
                                     <div class="field">
                                         <label>Full Name</label>
-                                        <input name="witness_name[]" aria-label="Witness full name" value="<?= old_array_value($old, 'witness_name', $index) ?>" required>
+                                        <input name="witness_name[]" aria-label="Witness full name" value="<?= old_array_value($old, 'witness_name', $index) ?>">
                                     </div>
                                     <div class="field">
                                         <label>Student Number</label>
@@ -525,11 +662,12 @@ function h($value) {
                                     </div>
                                 </div>
                                 <div class="dynamic-actions">
-                                    <button type="button" class="btn-remove" onclick="removeItem(this)"><i class="bi bi-trash"></i> Remove</button>
+                                    <button type="button" class="btn-remove" data-remove-item><i class="bi bi-trash"></i> Remove</button>
                                 </div>
                             </div>
                         <?php endfor; ?>
                     </div>
+                    <template id="witness-item-template"><?= $witnessItem() ?></template>
                     <div class="dynamic-actions">
                         <button type="button" class="btn-add" onclick="addWitness()"><i class="bi bi-person-plus"></i> Add Witness</button>
                     </div>
@@ -591,26 +729,40 @@ function h($value) {
         let confirmed = false;
 
         function removeItem(button) {
-            const list = button.closest('.dynamic-list');
             const item = button.closest('.dynamic-item');
+            item.remove();
+        }
 
-            if (list && list.children.length > 1) {
-                item.remove();
-            }
+        document.addEventListener('click', event => {
+            const button = event.target.closest('.btn-remove');
+            if (!button) return;
+            removeItem(button);
+        });
+
+        function toggleUnknown(kind, checkbox) {
+            const section = checkbox.closest('.form-section');
+            const list = section.querySelector('.dynamic-list');
+            const actions = Array.from(section.querySelectorAll('.dynamic-actions'));
+            const controls = section.querySelectorAll('.dynamic-item input, .dynamic-item select, .dynamic-item textarea, .dynamic-item button');
+
+            list.hidden = checkbox.checked;
+            actions.forEach(action => action.hidden = checkbox.checked);
+            controls.forEach(control => control.disabled = checkbox.checked);
+        }
+
+        function addPerson(listId, templateId) {
+            const list = document.getElementById(listId);
+            const template = document.getElementById(templateId);
+            if (!list || !template) return;
+            list.appendChild(template.content.cloneNode(true));
         }
 
         function addRespondent() {
-            const list = document.getElementById('respondent-list');
-            const clone = list.querySelector('.respondent-item').cloneNode(true);
-            clone.querySelectorAll('input, select').forEach(control => control.value = '');
-            list.appendChild(clone);
+            addPerson('respondent-list', 'respondent-item-template');
         }
 
         function addWitness() {
-            const list = document.getElementById('witness-list');
-            const clone = list.querySelector('.witness-item').cloneNode(true);
-            clone.querySelectorAll('input').forEach(input => input.value = '');
-            list.appendChild(clone);
+            addPerson('witness-list', 'witness-item-template');
         }
 
         function composeIncidentDatetime() {

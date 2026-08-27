@@ -328,14 +328,6 @@ class ComplaintController {
             $errors[] = 'Please select a valid case classification.';
         }
 
-        if (empty($this->normalizeRespondents($post))) {
-            $errors[] = 'At least one respondent is required.';
-        }
-
-        if (empty($this->normalizeWitnesses($post))) {
-            $errors[] = 'At least one witness is required.';
-        }
-
         if (empty($files['evidence']['name'][0])) {
             $errors[] = 'At least one supporting evidence file is required.';
         }
@@ -357,10 +349,24 @@ class ComplaintController {
             }
         }
 
-        $respondents = in_array('respondents', $allowed, true) ? $this->normalizeRespondents($_POST) : null;
-        $witnesses = in_array('witnesses', $allowed, true) ? $this->normalizeWitnesses($_POST) : null;
-        if ($respondents !== null && !$respondents) $errors[] = 'At least one respondent is required.';
-        if ($witnesses !== null && !$witnesses) $errors[] = 'At least one witness is required.';
+        $respondents = null;
+        $witnesses = null;
+        if (in_array('respondents', $allowed, true)) {
+            if (!empty($_POST['respondent_unknown'])) {
+                $respondents = [];
+            } else {
+                $respondents = $this->normalizeRespondents($_POST);
+                if (!$respondents) $errors[] = 'At least one respondent is required.';
+            }
+        }
+        if (in_array('witnesses', $allowed, true)) {
+            if (!empty($_POST['witness_none'])) {
+                $witnesses = [];
+            } else {
+                $witnesses = $this->normalizeWitnesses($_POST);
+                if (!$witnesses) $errors[] = 'At least one witness is required.';
+            }
+        }
 
         $newFiles = $_FILES['evidence'] ?? [];
         if (in_array('evidence', $allowed, true) && !empty($newFiles['name'][0])) {

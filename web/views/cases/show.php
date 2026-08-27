@@ -16,8 +16,16 @@ $messages = $viewData['messages'];
 $messageReceiver = $viewData['messageReceiver'];
 $message = $viewData['message'];
 $errors = $viewData['errors'];
+$resubmission = $viewData['resubmission'];
 
 $controller->clearFlash();
+
+$revisionFieldLabels = [
+    'complaint_title' => 'Complaint Title', 'complaint_details' => 'Complaint Description',
+    'incident_date' => 'Incident Date', 'incident_time' => 'Incident Time',
+    'incident_location' => 'Incident Location', 'respondents' => 'Respondent Information',
+    'witnesses' => 'Witness Information', 'evidence' => 'Supporting Evidence',
+];
 
 function h($value) {
     return htmlspecialchars((string) $value);
@@ -78,6 +86,38 @@ function person_name($first, $last) {
         font-size: 14px;
         padding: 10px 14px;
         text-decoration: none;
+    }
+
+    .revision-banner {
+        align-items: center;
+        background: #fffbeb;
+        border: 1px solid #f5d78e;
+        border-left: 4px solid #d9a406;
+        border-radius: 8px;
+        color: #7a5c00;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px 12px;
+        margin-bottom: 18px;
+        padding: 12px 16px;
+    }
+
+    .revision-banner strong {
+        font-size: 14px;
+    }
+
+    .revision-banner .revised-parts {
+        font-size: 13px;
+    }
+
+    .revision-banner .revised-parts .chip {
+        background: #fff3cd;
+        border: 1px solid #eed08a;
+        border-radius: 20px;
+        display: inline-block;
+        font-size: 12px;
+        margin: 0 4px 2px 0;
+        padding: 2px 10px;
     }
 
     .case-wrap {
@@ -560,6 +600,19 @@ function person_name($first, $last) {
                 </div>
                 <?php endif; ?>
 
+                <?php if (!empty($resubmission) && !empty($resubmission['revision_fields'])): ?>
+                <div class="revision-banner">
+                    <strong><i class="bi bi-arrow-repeat"></i> Resubmitted after revision</strong>
+                    <div class="revised-parts">
+                        <?= h(date('M d, Y h:i A', strtotime($resubmission['created_at']))) ?>
+                        &middot; Revised:
+                        <?php foreach ($resubmission['revision_fields'] as $revisedField): ?>
+                        <span class="chip"><?= h($revisionFieldLabels[$revisedField] ?? ucwords(str_replace('_', ' ', $revisedField))) ?></span>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+                <?php endif; ?>
+
                 <div class="grid">
                     <div>
                         <section class="panel">
@@ -819,13 +872,8 @@ function person_name($first, $last) {
                                     <p>Explain the correction and select every section the student may update.</p>
                                     <textarea name="remarks" placeholder="Revision reason and instructions"
                                         required></textarea>
-                                    <div class="revision-fields">
-                                        <?php foreach ([
-                                    'complaint_title' => 'Complaint Title', 'complaint_details' => 'Complaint Description',
-                                    'incident_date' => 'Incident Date', 'incident_time' => 'Incident Time',
-                                    'incident_location' => 'Incident Location', 'respondents' => 'Respondent Information',
-                                    'witnesses' => 'Witness Information', 'evidence' => 'Supporting Evidence',
-                                ] as $field => $label): ?>
+<div class="revision-fields">
+                                        <?php foreach ($revisionFieldLabels as $field => $label): ?>
                                         <label class="revision-field"><input type="checkbox" name="revision_fields[]"
                                                 value="<?= h($field) ?>"> <span><?= h($label) ?></span></label>
                                         <?php endforeach; ?>
