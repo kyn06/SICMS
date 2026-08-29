@@ -18,6 +18,7 @@ $complainantCourse = $old['complainant_course'] ?? $complainantProgram['course']
 $complainantSection = $old['complainant_section'] ?? $complainantProgram['section'];
 $complainantType = $old['complainant_type'] ?? 'Student';
 $complainantName = $complainantType === 'Student' ? trim($user['first_name'] . ' ' . $user['last_name']) : ($old['complainant_name'] ?? '');
+$complainantGender = $old['complainant_gender'] ?? ($complainantType === 'Student' ? trim($user['gender'] ?? '') : '');
 
 function old_value($old, $key, $default = '') {
     return htmlspecialchars($old[$key] ?? $default);
@@ -55,40 +56,51 @@ $respondentItem = function ($index = null, $old = []) {
     $value = function ($key) use ($index, $old) {
         return is_int($index) ? ($old['respondent_' . $key][$index] ?? '') : '';
     };
+    $respondentType = $value('type') ?: '';
 
     ob_start();
     ?>
     <div class="dynamic-item respondent-item">
         <div class="form-grid">
-            <div class="field">
-                <label>Full Name</label>
-                <input name="respondent_name[]" aria-label="Respondent full name" value="<?= h($value('name')) ?>">
+            <div class="field full">
+                <label>Respondent Type <span class="required">*</span></label>
+                <select name="respondent_type[]" aria-label="Respondent type" required>
+                    <option value="">Select Respondent Type</option>
+                    <option value="Student" <?= selected_if($respondentType, 'Student') ?>>Student</option>
+                    <option value="Employee" <?= selected_if($respondentType, 'Employee') ?>>Employee</option>
+                    <option value="Private Individual" <?= selected_if($respondentType, 'Private Individual') ?>>Private Individual</option>
+                    <option value="Other" <?= selected_if($respondentType, 'Other') ?>>Other</option>
+                </select>
             </div>
             <div class="field">
+                <label>Full Name <span class="required">*</span></label>
+                <input name="respondent_name[]" aria-label="Respondent full name" value="<?= h($value('name')) ?>" required>
+            </div>
+            <div class="field" data-respondent-types="Student" <?= type_field_hidden('Student', $respondentType) ?>>
                 <label>Student Number</label>
-                <input name="respondent_student_no[]" aria-label="Respondent student number" value="<?= h($value('student_no')) ?>">
+                <input name="respondent_student_no[]" aria-label="Respondent student number" value="<?= h($value('student_no')) ?>" <?= type_field_disabled('Student', $respondentType) ?>>
             </div>
-            <div class="field">
+            <div class="field" data-respondent-types="Student" <?= type_field_hidden('Student', $respondentType) ?>>
                 <label>College</label>
-                <select name="respondent_college[]" aria-label="Respondent college">
+                <select name="respondent_college[]" aria-label="Respondent college" <?= type_field_disabled('Student', $respondentType) ?>>
                     <option value="">Select College</option>
                     <?php foreach (Colleges::all() as $collegeOption): ?>
                         <option value="<?= h($collegeOption) ?>" <?= selected_if($value('college'), $collegeOption) ?>><?= h($collegeOption) ?></option>
                     <?php endforeach; ?>
                 </select>
             </div>
-            <div class="field">
-                <label>Course</label>
-                <select name="respondent_course[]" aria-label="Respondent course">
+            <div class="field" data-respondent-types="Student" <?= type_field_hidden('Student', $respondentType) ?>>
+                <label>Course/Program</label>
+                <select name="respondent_course[]" aria-label="Respondent course" <?= type_field_disabled('Student', $respondentType) ?>>
                     <option value="">Select Course</option>
                     <?php foreach (Courses::all() as $courseOption): ?>
                         <option value="<?= h($courseOption) ?>" <?= selected_if($course, $courseOption) ?>><?= h($courseOption) ?></option>
                     <?php endforeach; ?>
                 </select>
             </div>
-            <div class="field">
+            <div class="field" data-respondent-types="Student" <?= type_field_hidden('Student', $respondentType) ?>>
                 <label>Section</label>
-                <select name="respondent_section[]" aria-label="Respondent section">
+                <select name="respondent_section[]" aria-label="Respondent section" <?= type_field_disabled('Student', $respondentType) ?>>
                     <option value="">Select Section</option>
                     <?php foreach (Courses::sections() as $year => $sections): ?>
                         <optgroup label="<?= h($year) ?>">
@@ -100,13 +112,37 @@ $respondentItem = function ($index = null, $old = []) {
                 </select>
                 <input type="hidden" name="respondent_course_year[]" value="<?= h($courseYear) ?>">
             </div>
+            <div class="field" data-respondent-types="Employee" <?= type_field_hidden('Employee', $respondentType) ?>>
+                <label>Employee Number</label>
+                <input name="respondent_employee_no[]" aria-label="Respondent employee number" value="<?= h($value('employee_no')) ?>" <?= type_field_disabled('Employee', $respondentType) ?>>
+            </div>
+            <div class="field" data-respondent-types="Employee" <?= type_field_hidden('Employee', $respondentType) ?>>
+                <label>Position</label>
+                <input name="respondent_position[]" aria-label="Respondent position" value="<?= h($value('position')) ?>" placeholder="Example: Instructor, Administrative Assistant, Security Officer" <?= type_field_disabled('Employee', $respondentType) ?>>
+            </div>
+            <div class="field" data-respondent-types="Employee" <?= type_field_hidden('Employee', $respondentType) ?>>
+                <label>College/Office/Department</label>
+                <input name="respondent_department[]" aria-label="Respondent college office or department" value="<?= h($value('department')) ?>" <?= type_field_disabled('Employee', $respondentType) ?>>
+            </div>
+            <div class="field" data-respondent-types="Private Individual,Other" <?= type_field_hidden('Private Individual,Other', $respondentType) ?>>
+                <label>Contact Information <span class="optional">if applicable</span></label>
+                <input name="respondent_contact[]" aria-label="Respondent contact information" value="<?= h($value('contact')) ?>" <?= type_field_disabled('Private Individual,Other', $respondentType) ?>>
+            </div>
+            <div class="field" data-respondent-types="Other" <?= type_field_hidden('Other', $respondentType) ?>>
+                <label>Affiliation/Organization <span class="optional">if applicable</span></label>
+                <input name="respondent_affiliation[]" aria-label="Respondent affiliation or organization" value="<?= h($value('affiliation')) ?>" <?= type_field_disabled('Other', $respondentType) ?>>
+            </div>
             <div class="field">
-                <label>Contact Information</label>
-                <input name="respondent_contact[]" aria-label="Respondent contact information" value="<?= h($value('contact')) ?>">
+                <label>Gender</label>
+                <select name="respondent_gender[]" aria-label="Respondent gender">
+                    <option value="">Select Gender</option>
+                    <option value="Male" <?= $value('gender') === 'Male' ? 'selected' : '' ?>>Male</option>
+                    <option value="Female" <?= $value('gender') === 'Female' ? 'selected' : '' ?>>Female</option>
+                </select>
             </div>
             <div class="field">
                 <label>Details</label>
-                <input name="respondent_details[]" aria-label="Respondent details" value="<?= h($value('details')) ?>">
+                <input name="respondent_details[]" aria-label="Respondent details" value="<?= h($value('details')) ?>" placeholder="Example: relationship, social media, or other relevant details.">
             </div>
         </div>
         <div class="dynamic-actions">
@@ -121,26 +157,92 @@ $witnessItem = function ($index = null, $old = []) {
     $value = function ($key) use ($index, $old) {
         return is_int($index) ? ($old['witness_' . $key][$index] ?? '') : '';
     };
+    $witnessType = $value('type') ?: 'Student';
 
     ob_start();
     ?>
     <div class="dynamic-item witness-item">
         <div class="form-grid">
+            <div class="field full">
+                <label>Witness Type</label>
+                <select name="witness_type[]" aria-label="Witness type">
+                    <option value="">Select Witness Type</option>
+                    <option value="Student" <?= selected_if($witnessType, 'Student') ?>>Student</option>
+                    <option value="Employee" <?= selected_if($witnessType, 'Employee') ?>>Employee</option>
+                    <option value="Private Individual" <?= selected_if($witnessType, 'Private Individual') ?>>Private Individual</option>
+                    <option value="Other" <?= selected_if($witnessType, 'Other') ?>>Other</option>
+                </select>
+            </div>
             <div class="field">
                 <label>Full Name</label>
                 <input name="witness_name[]" aria-label="Witness full name" value="<?= h($value('name')) ?>">
             </div>
             <div class="field">
-                <label>Student Number</label>
-                <input name="witness_student_no[]" aria-label="Witness student number" value="<?= h($value('student_no')) ?>">
+                <label>Gender</label>
+                <select name="witness_gender[]" aria-label="Witness gender">
+                    <option value="">Select Gender</option>
+                    <option value="Male" <?= $value('gender') === 'Male' ? 'selected' : '' ?>>Male</option>
+                    <option value="Female" <?= $value('gender') === 'Female' ? 'selected' : '' ?>>Female</option>
+                </select>
             </div>
-            <div class="field">
-                <label>Contact Information</label>
-                <input name="witness_contact[]" aria-label="Witness contact information" value="<?= h($value('contact')) ?>">
+            <div class="field" data-witness-types="Student" <?= type_field_hidden('Student', $witnessType) ?>>
+                <label>Student Number</label>
+                <input name="witness_student_no[]" aria-label="Witness student number" value="<?= h($value('student_no')) ?>" <?= type_field_disabled('Student', $witnessType) ?>>
+            </div>
+            <div class="field" data-witness-types="Student" <?= type_field_hidden('Student', $witnessType) ?>>
+                <label>College</label>
+                <select name="witness_college[]" aria-label="Witness college" <?= type_field_disabled('Student', $witnessType) ?>>
+                    <option value="">Select College</option>
+                    <?php foreach (Colleges::all() as $collegeOption): ?>
+                        <option value="<?= h($collegeOption) ?>" <?= selected_if($value('college'), $collegeOption) ?>><?= h($collegeOption) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="field" data-witness-types="Student" <?= type_field_hidden('Student', $witnessType) ?>>
+                <label>Course/Program</label>
+                <select name="witness_course[]" aria-label="Witness course" <?= type_field_disabled('Student', $witnessType) ?>>
+                    <option value="">Select Course</option>
+                    <?php foreach (Courses::all() as $courseOption): ?>
+                        <option value="<?= h($courseOption) ?>" <?= selected_if($value('course'), $courseOption) ?>><?= h($courseOption) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="field" data-witness-types="Student" <?= type_field_hidden('Student', $witnessType) ?>>
+                <label>Section</label>
+                <select name="witness_section[]" aria-label="Witness section" <?= type_field_disabled('Student', $witnessType) ?>>
+                    <option value="">Select Section</option>
+                    <?php foreach (Courses::sections() as $year => $sections): ?>
+                        <optgroup label="<?= h($year) ?>">
+                            <?php foreach ($sections as $sectionOption): ?>
+                                <option value="<?= h($sectionOption) ?>" <?= selected_if($value('section'), $sectionOption) ?>><?= h($sectionOption) ?></option>
+                            <?php endforeach; ?>
+                        </optgroup>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="field" data-witness-types="Employee" <?= type_field_hidden('Employee', $witnessType) ?>>
+                <label>Employee Number</label>
+                <input name="witness_employee_no[]" aria-label="Witness employee number" value="<?= h($value('employee_no')) ?>" <?= type_field_disabled('Employee', $witnessType) ?>>
+            </div>
+            <div class="field" data-witness-types="Employee" <?= type_field_hidden('Employee', $witnessType) ?>>
+                <label>Position</label>
+                <input name="witness_position[]" aria-label="Witness position" value="<?= h($value('position')) ?>" placeholder="Example: Instructor, Administrative Assistant, Security Officer" <?= type_field_disabled('Employee', $witnessType) ?>>
+            </div>
+            <div class="field" data-witness-types="Employee" <?= type_field_hidden('Employee', $witnessType) ?>>
+                <label>College/Office or Department</label>
+                <input name="witness_department[]" aria-label="Witness college or office or department" value="<?= h($value('department')) ?>" <?= type_field_disabled('Employee', $witnessType) ?>>
+            </div>
+            <div class="field" data-witness-types="Other" <?= type_field_hidden('Other', $witnessType) ?>>
+                <label>Affiliation/Organization <span class="optional">if applicable</span></label>
+                <input name="witness_affiliation[]" aria-label="Witness affiliation or organization" value="<?= h($value('affiliation')) ?>" <?= type_field_disabled('Other', $witnessType) ?>>
+            </div>
+            <div class="field" data-witness-types="Private Individual,Other" <?= type_field_hidden('Private Individual,Other', $witnessType) ?>>
+                <label>Contact Information <span class="optional">if applicable</span></label>
+                <input name="witness_contact[]" aria-label="Witness contact information" value="<?= h($value('contact')) ?>" <?= type_field_disabled('Private Individual,Other', $witnessType) ?>>
             </div>
             <div class="field">
                 <label>Statement</label>
-                <input name="witness_statement[]" aria-label="Witness statement" value="<?= h($value('statement')) ?>">
+                <input name="witness_statement[]" aria-label="Witness statement" value="<?= h($value('statement')) ?>" placeholder="Example: explain what the witness saw/heard during the incident.">
             </div>
         </div>
         <div class="dynamic-actions">
@@ -277,7 +379,10 @@ $witnessItem = function ($index = null, $old = []) {
             grid-column: 1 / -1;
         }
 
-        [data-complainant-types][hidden] { display: none; }
+        [data-complainant-types][hidden],
+        [data-respondent-types][hidden],
+        [data-witness-types][hidden],
+        #evidenceUploadField[hidden] { display: none !important; }
 
         label {
             font-size: 13px;
@@ -374,6 +479,24 @@ $witnessItem = function ($index = null, $old = []) {
             margin-top: 6px;
         }
 
+        .radio-group {
+            display: flex;
+            gap: 18px;
+        }
+
+        .radio-item {
+            align-items: center;
+            display: inline-flex;
+            gap: 7px;
+            font-size: 14px;
+        }
+
+        .radio-item input {
+            accent-color: #1f6f43;
+            height: 16px;
+            width: 16px;
+        }
+
         @media (max-width: 760px) {
             .complaint-header {
                 align-items: flex-start;
@@ -432,6 +555,14 @@ $witnessItem = function ($index = null, $old = []) {
                             <label for="complainant_name">Full Name</label>
                             <input id="complainant_name" name="complainant_name" value="<?= h($complainantName) ?>" required>
                         </div>
+                        <div class="field">
+                            <label for="complainant_gender">Gender</label>
+                            <select id="complainant_gender" name="complainant_gender">
+                                <option value="">Select Gender</option>
+                                <option value="Male" <?= $complainantGender === 'Male' ? 'selected' : '' ?>>Male</option>
+                                <option value="Female" <?= $complainantGender === 'Female' ? 'selected' : '' ?>>Female</option>
+                            </select>
+                        </div>
                         <div class="field" data-complainant-types="Student" <?= type_field_hidden('Student', $complainantType) ?>>
                             <label for="complainant_student_no">Student Number</label>
                             <input id="complainant_student_no" name="complainant_student_no" value="<?= old_value($old, 'complainant_student_no') ?>" required <?= type_field_disabled('Student', $complainantType) ?>>
@@ -476,15 +607,6 @@ $witnessItem = function ($index = null, $old = []) {
                             </select>
                             <input id="complainant_course_year" type="hidden" name="complainant_course_year" value="<?= h(Courses::combine($complainantCourse, $complainantSection)) ?>">
                         </div>
-                        <div class="field" data-complainant-types="Student" <?= type_field_hidden('Student', $complainantType) ?>>
-                            <label for="complainant_year_level">Year Level</label>
-                            <select id="complainant_year_level" name="complainant_year_level" required <?= type_field_disabled('Student', $complainantType) ?>>
-                                <option value="">Select Year Level</option>
-                                <?php foreach (['First Year', 'Second Year', 'Third Year', 'Fourth Year', 'Fifth Year'] as $level): ?>
-                                    <option value="<?= h($level) ?>" <?= (($old['complainant_year_level'] ?? '') === $level) ? 'selected' : '' ?>><?= h($level) ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
                         <div class="field" data-complainant-types="Private Individual" <?= type_field_hidden('Private Individual', $complainantType) ?>>
                             <label for="complainant_relationship">Relationship to CLSU <span class="optional">Optional</span></label>
                             <select id="complainant_relationship" name="complainant_relationship" <?= type_field_disabled('Private Individual', $complainantType) ?>>
@@ -521,13 +643,9 @@ $witnessItem = function ($index = null, $old = []) {
                     <div class="complaint-section-heading"><span><i class="bi bi-file-earmark-text"></i></span><div><h2>Complaint Information</h2><p>Incident and complaint details</p></div></div>
                     <div class="form-grid">
                         <div class="field">
-                            <label for="complaint_title">Complaint Title</label>
-                            <input id="complaint_title" name="complaint_title" maxlength="255" value="<?= old_value($old, 'complaint_title') ?>" required>
-                        </div>
-                        <div class="field">
                             <label for="case_classification">Case Classification</label>
                             <select id="case_classification" name="case_classification" required>
-                                <option value="">Select classification</option>
+                                <option value="">Select Case Classification</option>
                                 <?php foreach ($classifications as $classification): ?>
                                     <option value="<?= htmlspecialchars($classification) ?>" <?= (($old['case_classification'] ?? '') === $classification) ? 'selected' : '' ?>>
                                         <?= htmlspecialchars($classification) ?>
@@ -546,11 +664,11 @@ $witnessItem = function ($index = null, $old = []) {
                         </div>
                         <div class="field full">
                             <label for="incident_location">Incident Location</label>
-                            <input id="incident_location" name="incident_location" value="<?= old_value($old, 'incident_location') ?>" required>
+                            <input id="incident_location" name="incident_location" value="<?= old_value($old, 'incident_location') ?>" placeholder="Example: College of Engineering, 2nd Floor, Room 204 / Near the Carabao Gate" required>
                         </div>
                         <div class="field full">
                             <label for="complaint_details">Complaint Details</label>
-                            <textarea id="complaint_details" name="complaint_details" maxlength="5000" aria-describedby="complaintCounter" required><?= old_value($old, 'complaint_details') ?></textarea>
+                            <textarea id="complaint_details" name="complaint_details" maxlength="5000" aria-describedby="complaintCounter" placeholder="Explain how the incident started, what happened during the incident, who was involved, and how the incident ended." required><?= old_value($old, 'complaint_details') ?></textarea>
                             <div class="character-counter" id="complaintCounter"><span id="complaintCharacterCount">0</span> / 5000 characters</div>
                         </div>
                     </div>
@@ -569,38 +687,50 @@ $witnessItem = function ($index = null, $old = []) {
                                 $respondentProgram = Courses::split($old['respondent_course_year'][$index] ?? '');
                                 $respondentCourse = $old['respondent_course'][$index] ?? $respondentProgram['course'];
                                 $respondentSection = $old['respondent_section'][$index] ?? $respondentProgram['section'];
+                                $respondentType = trim((string) ($old['respondent_type'][$index] ?? ''));
+                                if (!in_array($respondentType, ['Student', 'Employee', 'Private Individual', 'Other'], true)) $respondentType = 'Student';
                             ?>
                             <div class="dynamic-item respondent-item">
                                 <div class="form-grid">
-                                    <div class="field">
-                                        <label>Full Name</label>
-                                        <input name="respondent_name[]" aria-label="Respondent full name" value="<?= old_array_value($old, 'respondent_name', $index) ?>">
+                                    <div class="field full">
+                                        <label>Respondent Type <span class="required">*</span></label>
+                                        <select name="respondent_type[]" aria-label="Respondent type" required>
+                                            <option value="">Select Respondent Type</option>
+                                            <option value="Student" <?= $respondentType === 'Student' ? 'selected' : '' ?>>Student</option>
+                                            <option value="Employee" <?= $respondentType === 'Employee' ? 'selected' : '' ?>>Employee</option>
+                                            <option value="Private Individual" <?= $respondentType === 'Private Individual' ? 'selected' : '' ?>>Private Individual</option>
+                                            <option value="Other" <?= $respondentType === 'Other' ? 'selected' : '' ?>>Other</option>
+                                        </select>
                                     </div>
                                     <div class="field">
+                                        <label>Full Name <span class="required">*</span></label>
+                                        <input name="respondent_name[]" aria-label="Respondent full name" value="<?= old_array_value($old, 'respondent_name', $index) ?>" required>
+                                    </div>
+                                    <div class="field" data-respondent-types="Student" <?= type_field_hidden('Student', $respondentType) ?>>
                                         <label>Student Number</label>
-                                        <input name="respondent_student_no[]" aria-label="Respondent student number" value="<?= old_array_value($old, 'respondent_student_no', $index) ?>">
+                                        <input name="respondent_student_no[]" aria-label="Respondent student number" value="<?= old_array_value($old, 'respondent_student_no', $index) ?>" <?= type_field_disabled('Student', $respondentType) ?>>
                                     </div>
-                                    <div class="field">
+                                    <div class="field" data-respondent-types="Student" <?= type_field_hidden('Student', $respondentType) ?>>
                                         <label>College</label>
-                                        <select name="respondent_college[]" aria-label="Respondent college">
+                                        <select name="respondent_college[]" aria-label="Respondent college" <?= type_field_disabled('Student', $respondentType) ?>>
                                             <option value="">Select College</option>
                                             <?php foreach (Colleges::all() as $college): ?>
                                                 <option value="<?= h($college) ?>" <?= (($old['respondent_college'][$index] ?? '') === $college) ? 'selected' : '' ?>><?= h($college) ?></option>
                                             <?php endforeach; ?>
                                         </select>
                                     </div>
-                                    <div class="field">
-                                        <label>Course</label>
-                                        <select name="respondent_course[]" aria-label="Respondent course">
+                                    <div class="field" data-respondent-types="Student" <?= type_field_hidden('Student', $respondentType) ?>>
+                                        <label>Course/Program</label>
+                                        <select name="respondent_course[]" aria-label="Respondent course" <?= type_field_disabled('Student', $respondentType) ?>>
                                             <option value="">Select Course</option>
                                             <?php foreach (Courses::all() as $course): ?>
                                                 <option value="<?= h($course) ?>" <?= $respondentCourse === $course ? 'selected' : '' ?>><?= h($course) ?></option>
                                             <?php endforeach; ?>
                                         </select>
                                     </div>
-                                    <div class="field">
+                                    <div class="field" data-respondent-types="Student" <?= type_field_hidden('Student', $respondentType) ?>>
                                         <label>Section</label>
-                                        <select name="respondent_section[]" aria-label="Respondent section">
+                                        <select name="respondent_section[]" aria-label="Respondent section" <?= type_field_disabled('Student', $respondentType) ?>>
                                             <option value="">Select Section</option>
                                             <?php foreach (Courses::sections() as $year => $sections): ?>
                                                 <optgroup label="<?= h($year) ?>">
@@ -612,13 +742,37 @@ $witnessItem = function ($index = null, $old = []) {
                                         </select>
                                         <input type="hidden" name="respondent_course_year[]" value="<?= h(Courses::combine($respondentCourse, $respondentSection)) ?>">
                                     </div>
+                                    <div class="field" data-respondent-types="Employee" <?= type_field_hidden('Employee', $respondentType) ?>>
+                                        <label>Employee Number</label>
+                                        <input name="respondent_employee_no[]" aria-label="Respondent employee number" value="<?= old_array_value($old, 'respondent_employee_no', $index) ?>" <?= type_field_disabled('Employee', $respondentType) ?>>
+                                    </div>
+                                    <div class="field" data-respondent-types="Employee" <?= type_field_hidden('Employee', $respondentType) ?>>
+                                        <label>Position</label>
+                                        <input name="respondent_position[]" aria-label="Respondent position" value="<?= old_array_value($old, 'respondent_position', $index) ?>" placeholder="Example: Instructor, Administrative Assistant, Security Officer" <?= type_field_disabled('Employee', $respondentType) ?>>
+                                    </div>
+                                    <div class="field" data-respondent-types="Employee" <?= type_field_hidden('Employee', $respondentType) ?>>
+                                        <label>College/Office/Department</label>
+                                        <input name="respondent_department[]" aria-label="Respondent college office or department" value="<?= old_array_value($old, 'respondent_department', $index) ?>" <?= type_field_disabled('Employee', $respondentType) ?>>
+                                    </div>
+                                    <div class="field" data-respondent-types="Private Individual,Other" <?= type_field_hidden('Private Individual,Other', $respondentType) ?>>
+                                        <label>Contact Information <span class="optional">if applicable</span></label>
+                                        <input name="respondent_contact[]" aria-label="Respondent contact information" value="<?= old_array_value($old, 'respondent_contact', $index) ?>" <?= type_field_disabled('Private Individual,Other', $respondentType) ?>>
+                                    </div>
+                                    <div class="field" data-respondent-types="Other" <?= type_field_hidden('Other', $respondentType) ?>>
+                                        <label>Affiliation/Organization <span class="optional">if applicable</span></label>
+                                        <input name="respondent_affiliation[]" aria-label="Respondent affiliation or organization" value="<?= old_array_value($old, 'respondent_affiliation', $index) ?>" <?= type_field_disabled('Other', $respondentType) ?>>
+                                    </div>
                                     <div class="field">
-                                        <label>Contact Information</label>
-                                        <input name="respondent_contact[]" aria-label="Respondent contact information" value="<?= old_array_value($old, 'respondent_contact', $index) ?>">
+                                        <label>Gender</label>
+                                        <select name="respondent_gender[]" aria-label="Respondent gender">
+                                            <option value="">Select Gender</option>
+                                            <option value="Male" <?= (($old['respondent_gender'][$index] ?? '') === 'Male') ? 'selected' : '' ?>>Male</option>
+                                            <option value="Female" <?= (($old['respondent_gender'][$index] ?? '') === 'Female') ? 'selected' : '' ?>>Female</option>
+                                        </select>
                                     </div>
                                     <div class="field">
                                         <label>Details</label>
-                                        <input name="respondent_details[]" aria-label="Respondent details" value="<?= old_array_value($old, 'respondent_details', $index) ?>">
+                                        <input name="respondent_details[]" aria-label="Respondent details" value="<?= old_array_value($old, 'respondent_details', $index) ?>" placeholder="Example: relationship, social media, or other relevant details.">
                                     </div>
                                 </div>
                                 <div class="dynamic-actions">
@@ -642,29 +796,7 @@ $witnessItem = function ($index = null, $old = []) {
                     <div id="witness-list" class="dynamic-list">
                         <?php $witnessCount = count($old['witness_name'] ?? []); ?>
                         <?php for ($index = 0; $index < $witnessCount; $index++): ?>
-                            <div class="dynamic-item witness-item">
-                                <div class="form-grid">
-                                    <div class="field">
-                                        <label>Full Name</label>
-                                        <input name="witness_name[]" aria-label="Witness full name" value="<?= old_array_value($old, 'witness_name', $index) ?>">
-                                    </div>
-                                    <div class="field">
-                                        <label>Student Number</label>
-                                        <input name="witness_student_no[]" aria-label="Witness student number" value="<?= old_array_value($old, 'witness_student_no', $index) ?>">
-                                    </div>
-                                    <div class="field">
-                                        <label>Contact Information</label>
-                                        <input name="witness_contact[]" aria-label="Witness contact information" value="<?= old_array_value($old, 'witness_contact', $index) ?>">
-                                    </div>
-                                    <div class="field">
-                                        <label>Statement</label>
-                                        <input name="witness_statement[]" aria-label="Witness statement" value="<?= old_array_value($old, 'witness_statement', $index) ?>">
-                                    </div>
-                                </div>
-                                <div class="dynamic-actions">
-                                    <button type="button" class="btn-remove" data-remove-item><i class="bi bi-trash"></i> Remove</button>
-                                </div>
-                            </div>
+                            <?= $witnessItem($index, $old) ?>
                         <?php endfor; ?>
                     </div>
                     <template id="witness-item-template"><?= $witnessItem() ?></template>
@@ -676,6 +808,13 @@ $witnessItem = function ($index = null, $old = []) {
                 <section class="form-section">
                     <div class="complaint-section-heading"><span><i class="bi bi-paperclip"></i></span><div><h2>Supporting Evidence</h2><p>PDF, DOCX, JPG, JPEG, or PNG up to 5MB each</p></div></div>
                     <div class="field">
+                        <label>Do you have supporting evidence to submit?</label>
+                        <div class="radio-group">
+                            <label class="radio-item"><input type="radio" name="has_evidence" value="yes" required> Yes</label>
+                            <label class="radio-item"><input type="radio" name="has_evidence" value="no"> No</label>
+                        </div>
+                    </div>
+                    <div class="field" id="evidenceUploadField" hidden>
                         <label for="evidence">Upload Files</label>
                         <input id="evidence" type="file" name="evidence[]" accept=".pdf,.jpg,.jpeg,.png,.docx" multiple required>
                         <p class="file-note">Accepted formats: PDF, JPG, PNG, DOCX. Maximum size: 5MB per file.</p>
@@ -720,10 +859,12 @@ $witnessItem = function ($index = null, $old = []) {
         const submissionProgress = document.getElementById('submissionProgress');
         const complainantTypeInput = document.getElementById('complainant_type');
         const complainantNameInput = document.getElementById('complainant_name');
+        const complainantGenderInput = document.getElementById('complainant_gender');
         const complainantEmailInput = document.getElementById('complainant_email');
         const complainantContactInput = document.getElementById('complainant_contact');
         const studentAccountName = <?= json_encode(trim($user['first_name'] . ' ' . $user['last_name'])) ?>;
         const studentAccountEmail = <?= json_encode($user['email']) ?>;
+        const studentAccountGender = <?= json_encode(trim($user['gender'] ?? '')) ?>;
         let activeComplainantType = complainantTypeInput.value;
         const complainantIdentityCache = {};
         let confirmed = false;
@@ -759,10 +900,58 @@ $witnessItem = function ($index = null, $old = []) {
 
         function addRespondent() {
             addPerson('respondent-list', 'respondent-item-template');
+            const items = document.getElementById('respondent-list').querySelectorAll('.respondent-item');
+            updateRespondentFields(items[items.length - 1]);
         }
 
         function addWitness() {
             addPerson('witness-list', 'witness-item-template');
+            const items = document.getElementById('witness-list').querySelectorAll('.witness-item');
+            updateWitnessFields(items[items.length - 1]);
+        }
+
+        function updateRespondentFields(item) {
+            if (!item) return;
+            const typeSelect = item.querySelector('[name="respondent_type[]"]');
+            const type = typeSelect ? typeSelect.value : 'Student';
+            if (!type) return;
+            const requiredByType = {
+                Student: ['respondent_student_no[]', 'respondent_college[]', 'respondent_course[]', 'respondent_section[]'],
+                Employee: ['respondent_employee_no[]', 'respondent_position[]', 'respondent_department[]'],
+                'Private Individual': [],
+                Other: []
+            };
+            const requiredNames = requiredByType[type] || [];
+            item.querySelectorAll('[data-respondent-types]').forEach(field => {
+                const visible = field.dataset.respondentTypes.split(',').includes(type);
+                field.hidden = !visible;
+                field.querySelectorAll('input, select').forEach(control => {
+                    control.disabled = !visible;
+                    control.required = visible && requiredNames.includes(control.name);
+                });
+            });
+        }
+
+        function updateWitnessFields(item) {
+            if (!item) return;
+            const typeSelect = item.querySelector('[name="witness_type[]"]');
+            const type = typeSelect ? typeSelect.value : 'Student';
+            if (!type) return;
+            const requiredByType = {
+                Student: ['witness_student_no[]', 'witness_college[]', 'witness_course[]', 'witness_section[]'],
+                Employee: ['witness_employee_no[]', 'witness_position[]', 'witness_department[]'],
+                'Private Individual': [],
+                Other: []
+            };
+            const requiredNames = requiredByType[type] || [];
+            item.querySelectorAll('[data-witness-types]').forEach(field => {
+                const visible = field.dataset.witnessTypes.split(',').includes(type);
+                field.hidden = !visible;
+                field.querySelectorAll('input, select').forEach(control => {
+                    control.disabled = !visible;
+                    control.required = visible && requiredNames.includes(control.name);
+                });
+            });
         }
 
         function composeIncidentDatetime() {
@@ -783,16 +972,9 @@ $witnessItem = function ($index = null, $old = []) {
             });
         }
 
-        function synchronizeAcademicFields(source) {
-            const year = document.getElementById('complainant_year_level');
-            const section = document.getElementById('complainant_section');
-            const mapping = {'1':'First Year','2':'Second Year','3':'Third Year','4':'Fourth Year','5':'Fifth Year'};
-            if (source === section && section.value) year.value = mapping[section.value.charAt(0)] || '';
-            if (source === year && section.value) {
-                const expected = Object.entries(mapping).find(([, label]) => label === year.value)?.[0];
-                if (!expected || !section.value.startsWith(`${expected}-`)) section.value = '';
-            }
-            composeCourseSections();
+        function yearLevelFromSection(section) {
+            const mapping = {'1':'First Year','2':'Second Year','3':'Third Year','4':'Fourth Year','5':'Fifth Year','6':'Sixth Year'};
+            return section ? (mapping[section.charAt(0)] || '') : '';
         }
 
         function updateComplainantFields(initial = false) {
@@ -815,6 +997,7 @@ $witnessItem = function ($index = null, $old = []) {
                 complainantEmailInput.value = studentAccountEmail;
                 complainantNameInput.readOnly = true;
                 complainantEmailInput.readOnly = true;
+                if (!initial) complainantGenderInput.value = studentAccountGender;
             } else {
                 complainantNameInput.readOnly = false;
                 complainantEmailInput.readOnly = false;
@@ -836,7 +1019,17 @@ $witnessItem = function ($index = null, $old = []) {
             return `${(bytes / 1048576).toFixed(1)} MB`;
         }
 
+        function hasEvidence() {
+            const yes = document.querySelector('input[name="has_evidence"][value="yes"]');
+            return !!(yes && yes.checked);
+        }
+
         function validateEvidence() {
+            if (!hasEvidence()) {
+                evidenceInput.setCustomValidity('');
+                evidenceError.textContent = '';
+                return true;
+            }
             const allowed = ['pdf', 'jpg', 'jpeg', 'png', 'docx'];
             const files = Array.from(evidenceInput.files);
             const invalid = files.find(file => file.size > 5 * 1024 * 1024 || !allowed.includes(file.name.split('.').pop().toLowerCase()));
@@ -876,6 +1069,25 @@ $witnessItem = function ($index = null, $old = []) {
             validateEvidence();
         }
 
+        function updateEvidenceField() {
+            const field = document.getElementById('evidenceUploadField');
+            const show = hasEvidence();
+            field.hidden = !show;
+            const controls = field.querySelectorAll('input, select');
+            controls.forEach(control => {
+                if (control.dataset.typeRequired === undefined) {
+                    control.dataset.typeRequired = control.required ? '1' : '0';
+                }
+                control.disabled = !show;
+                control.required = show && control.dataset.typeRequired === '1';
+            });
+            if (!show && evidenceInput.files.length > 0) {
+                evidenceInput.value = '';
+                renderEvidence();
+            }
+            validateEvidence();
+        }
+
         function valueOf(id, fallback = 'Not provided') {
             const control = document.getElementById(id);
             if (!control) return fallback;
@@ -905,7 +1117,6 @@ $witnessItem = function ($index = null, $old = []) {
             composeCourseSections();
             reviewContent.replaceChildren();
             addReviewGroup('Complaint Information', [
-                ['Title', valueOf('complaint_title')],
                 ['Classification', valueOf('case_classification')],
                 ['Incident', `${valueOf('incident_date')} ${valueOf('incident_time')}`],
                 ['Location', valueOf('incident_location')],
@@ -914,11 +1125,12 @@ $witnessItem = function ($index = null, $old = []) {
             addReviewGroup('Complainant Information', [
                 ['Complainant Type', valueOf('complainant_type')],
                 ['Full Name', valueOf('complainant_name')],
+                ['Gender', document.getElementById('complainant_gender').value || 'Not provided'],
                 ...(complainantTypeInput.value === 'Student' ? [
                     ['Student Number', valueOf('complainant_student_no')],
                     ['College', valueOf('complainant_college')],
                     ['Course', valueOf('complainant_course')],
-                    ['Year Level', valueOf('complainant_year_level')],
+                    ['Year Level', yearLevelFromSection(document.getElementById('complainant_section').value) || 'Not provided'],
                     ['Section', valueOf('complainant_section')],
                 ] : complainantTypeInput.value === 'Employee' ? [
                     ['Employee Number', valueOf('complainant_employee_no')],
@@ -933,12 +1145,43 @@ $witnessItem = function ($index = null, $old = []) {
                 ['Email', valueOf('complainant_email')],
                 ['Contact', valueOf('complainant_contact')],
             ]);
-            const respondentNames = Array.from(document.querySelectorAll('[name="respondent_name[]"]')).map(input => input.value.trim()).filter(Boolean);
-            const witnessNames = Array.from(document.querySelectorAll('[name="witness_name[]"]')).map(input => input.value.trim()).filter(Boolean);
+            const respondentNames = Array.from(document.querySelectorAll('.respondent-item')).map(item => {
+                const input = item.querySelector('[name="respondent_name[]"]');
+                const name = input.value.trim();
+                if (!name) return '';
+                const type = item.querySelector('[name="respondent_type[]"]').value;
+                const typeLabel = type || 'Student';
+                const detail = type === 'Student'
+                    ? item.querySelector('[name="respondent_student_no[]"]').value.trim()
+                    : type === 'Employee'
+                        ? item.querySelector('[name="respondent_employee_no[]"]').value.trim()
+                        : type === 'Other'
+                            ? item.querySelector('[name="respondent_affiliation[]"]').value.trim()
+                            : '';
+                const contact = item.querySelector('[name="respondent_contact[]"]').value.trim();
+                const parts = [typeLabel, detail, contact].filter(Boolean);
+                return name + (parts.length ? ` (${parts.join(', ')})` : '');
+            }).filter(Boolean);
+            const witnessNames = Array.from(document.querySelectorAll('.witness-item')).map(item => {
+                const name = item.querySelector('[name="witness_name[]"]').value.trim();
+                if (!name) return '';
+                const type = item.querySelector('[name="witness_type[]"]').value;
+                const typeLabel = type || 'Student';
+                const detail = type === 'Student'
+                    ? item.querySelector('[name="witness_student_no[]"]').value.trim()
+                    : type === 'Employee'
+                        ? item.querySelector('[name="witness_employee_no[]"]').value.trim()
+                        : type === 'Other'
+                            ? item.querySelector('[name="witness_affiliation[]"]').value.trim()
+                            : '';
+                const contact = item.querySelector('[name="witness_contact[]"]').value.trim();
+                const parts = [typeLabel, detail, contact].filter(Boolean);
+                return name + (parts.length ? ` (${parts.join(', ')})` : '');
+            }).filter(Boolean);
             addReviewGroup('People and Evidence', [
                 ['Respondents', respondentNames.join(', ')],
                 ['Witnesses', witnessNames.join(', ')],
-                ['Evidence', Array.from(evidenceInput.files).map(file => file.name).join(', ')],
+                ['Evidence', hasEvidence() ? (Array.from(evidenceInput.files).map(file => file.name).join(', ') || 'Yes (no files selected)') : 'No'],
             ]);
         }
 
@@ -946,14 +1189,28 @@ $witnessItem = function ($index = null, $old = []) {
         incidentDate.addEventListener('change', composeIncidentDatetime);
         incidentTime.addEventListener('change', composeIncidentDatetime);
         complainantTypeInput.addEventListener('change', () => updateComplainantFields(false));
-        document.getElementById('complainant_year_level').addEventListener('change', event => synchronizeAcademicFields(event.target));
-        document.getElementById('complainant_section').addEventListener('change', event => synchronizeAcademicFields(event.target));
         complaintForm.addEventListener('change', event => {
             if (event.target.matches('[name="complainant_course"], [name="complainant_section"], [name="respondent_course[]"], [name="respondent_section[]"]')) {
                 composeCourseSections();
             }
         });
+        document.getElementById('respondent-list').addEventListener('change', event => {
+            if (event.target.matches('[name="respondent_type[]"]')) {
+                updateRespondentFields(event.target.closest('.respondent-item'));
+            }
+        });
+        document.querySelectorAll('.respondent-item').forEach(updateRespondentFields);
+        document.getElementById('witness-list').addEventListener('change', event => {
+            if (event.target.matches('[name="witness_type[]"]')) {
+                updateWitnessFields(event.target.closest('.witness-item'));
+            }
+        });
+        document.querySelectorAll('.witness-item').forEach(updateWitnessFields);
         evidenceInput.addEventListener('change', renderEvidence);
+        document.querySelectorAll('input[name="has_evidence"]').forEach(radio => {
+            radio.addEventListener('change', updateEvidenceField);
+        });
+        updateEvidenceField();
         certification.addEventListener('change', () => { confirmSubmit.disabled = !certification.checked; });
         document.getElementById('closeReview').addEventListener('click', () => reviewDialog.close());
         document.getElementById('editComplaint').addEventListener('click', () => reviewDialog.close());

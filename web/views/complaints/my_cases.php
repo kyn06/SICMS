@@ -9,7 +9,6 @@ $statuses = ['Submitted', 'Verified', 'Returned for Revision', 'Rejected', 'Reso
 $allCases = Complaint::forStudent((int) $user['account_id'], 10000, ['sort' => 'newest'], 0);
 
 function h($value) { return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8'); }
-function case_title(array $case) { return $case['complaint_title'] ?? $case['case_classification']; }
 function status_class($status) { return strtolower(str_replace(' ', '-', $status)); }
 function filtered_student_cases(array $cases, array $input) {
     $search = trim((string) ($input['search'] ?? ''));
@@ -17,7 +16,7 @@ function filtered_student_cases(array $cases, array $input) {
     $year = preg_match('/^\d{4}$/', (string) ($input['year'] ?? '')) ? (string) $input['year'] : '';
 
     return array_values(array_filter($cases, function ($case) use ($search, $status, $year) {
-        $matchesSearch = $search === '' || stripos($case['case_number'], $search) !== false || stripos(case_title($case), $search) !== false;
+        $matchesSearch = $search === '' || stripos($case['case_number'], $search) !== false || stripos($case['case_classification'], $search) !== false;
         $matchesStatus = $status === '' || $case['status'] === $status;
         $matchesYear = $year === '' || date('Y', strtotime($case['submitted_at'])) === $year;
         return $matchesSearch && $matchesStatus && $matchesYear;
@@ -27,7 +26,6 @@ function case_payload(array $case) {
     return [
         'id' => (int) $case['complaint_id'],
         'case_number' => $case['case_number'],
-        'title' => case_title($case),
         'complainant_type' => $case['complainant_type'] ?? 'Student',
         'classification' => $case['case_classification'],
         'submitted' => date('M d, Y', strtotime($case['submitted_at'])),
@@ -129,14 +127,14 @@ rsort($years);
             </section>
 
             <form class="filter-panel" id="caseFilters">
-                <div class="field search-field"><label for="search">Search complaints</label><div><i class="bi bi-search"></i><input id="search" name="search" autocomplete="off" placeholder="Case number or complaint title"></div></div>
+                <div class="field search-field"><label for="search">Search complaints</label><div><i class="bi bi-search"></i><input id="search" name="search" autocomplete="off" placeholder="Case number or classification"></div></div>
                 <div class="field"><label for="status">Status</label><select id="status" name="status"><option value="">All Statuses</option><?php foreach ($statuses as $status): ?><option value="<?= h($status) ?>"><?= h($status) ?></option><?php endforeach; ?></select></div>
                 <div class="field"><label for="year">Year</label><select id="year" name="year"><option value="">All Years</option><?php foreach ($years as $year): ?><option value="<?= h($year) ?>"><?= h($year) ?></option><?php endforeach; ?></select></div>
                 <div class="filter-actions"><button class="btn btn-secondary" id="resetFilters" type="button"><i class="bi bi-arrow-counterclockwise"></i> Reset</button></div>
             </form>
 
             <section class="table-panel" id="caseResults" aria-live="polite">
-                <div class="table-scroll"><table class="cases-table"><thead><tr><th>Case Number</th><th>Complaint Title</th><th>Complainant Type</th><th>Classification</th><th>Date Submitted</th><th>Current Status</th><th>Last Updated</th><th>Actions</th></tr></thead><tbody id="caseRows"></tbody></table></div>
+                <div class="table-scroll"><table class="cases-table"><thead><tr><th>Case Number</th><th>Complainant Type</th><th>Classification</th><th>Date Submitted</th><th>Current Status</th><th>Last Updated</th><th>Actions</th></tr></thead><tbody id="caseRows"></tbody></table></div>
                 <div class="empty-state" id="emptyState" hidden><i class="bi bi-folder2-open"></i><h2>No complaints found.</h2><p id="emptyMessage">You have not submitted any complaints yet. Click Submit Complaint to file your first complaint.</p><a class="btn btn-primary" href="create.php">Submit Complaint</a></div>
                 <div class="pagination" id="pagination"><span class="pagination-info" id="paginationInfo"></span><div class="pagination-buttons" id="paginationButtons"></div></div>
             </section>
@@ -164,7 +162,7 @@ rsort($years);
         const totalPages = Math.max(1, Math.ceil(cases.length / perPage));
         currentPage = Math.min(currentPage, totalPages);
         const pageCases = cases.slice((currentPage - 1) * perPage, currentPage * perPage);
-        rows.innerHTML = pageCases.map(item => `<tr><td><a class="case-link" href="case_details.php?id=${item.id}">${escapeHtml(item.case_number)}</a></td><td>${escapeHtml(item.title)}</td><td>${escapeHtml(item.complainant_type)}</td><td>${escapeHtml(item.classification)}</td><td>${escapeHtml(item.submitted)}</td><td><span class="status-pill status-${statusClass(item.status)}">${escapeHtml(item.status)}</span></td><td>${escapeHtml(item.updated)}</td><td><div class="row-actions">${item.status === 'Returned for Revision' ? '<a class="btn btn-secondary" href="revise.php?id=' + item.id + '"><i class="bi bi-pencil-square"></i> Revise Complaint</a>' : ''}<a class="btn btn-primary" href="case_details.php?id=${item.id}"><i class="bi bi-eye"></i> View Details</a></div></td></tr>`).join('');
+        rows.innerHTML = pageCases.map(item => `<tr><td><a class="case-link" href="case_details.php?id=${item.id}">${escapeHtml(item.case_number)}</a></td><td>${escapeHtml(item.complainant_type)}</td><td>${escapeHtml(item.classification)}</td><td>${escapeHtml(item.submitted)}</td><td><span class="status-pill status-${statusClass(item.status)}">${escapeHtml(item.status)}</span></td><td>${escapeHtml(item.updated)}</td><td><div class="row-actions">${item.status === 'Returned for Revision' ? '<a class="btn btn-secondary" href="revise.php?id=' + item.id + '"><i class="bi bi-pencil-square"></i> Revise Complaint</a>' : ''}<a class="btn btn-primary" href="case_details.php?id=${item.id}"><i class="bi bi-eye"></i> View Details</a></div></td></tr>`).join('');
         emptyState.hidden = cases.length > 0;
         const filtersActive = Boolean(document.getElementById('search').value || document.getElementById('status').value || document.getElementById('year').value);
         document.getElementById('emptyMessage').textContent = filtersActive

@@ -200,10 +200,16 @@ class Complaint extends Model {
             foreach ($respondents as $respondent) {
                 self::createRelatedRecord('complaint_respondents', [
                     'complaint_id' => $complaintId,
+                    'respondent_type' => $respondent['respondent_type'],
                     'full_name' => $respondent['full_name'],
+                    'gender' => $respondent['gender'] ?? '',
                     'student_no' => $respondent['student_no'],
+                    'employee_no' => $respondent['employee_no'],
                     'college' => $respondent['college'],
+                    'office_department' => $respondent['office_department'],
                     'course_year' => $respondent['course_year'],
+                    'position' => $respondent['position'],
+                    'affiliation' => $respondent['affiliation'],
                     'contact_info' => $respondent['contact_info'],
                     'details' => $respondent['details'],
                     'created_at' => date('Y-m-d H:i:s'),
@@ -213,10 +219,18 @@ class Complaint extends Model {
             foreach ($witnesses as $witness) {
                 self::createRelatedRecord('complaint_witnesses', [
                     'complaint_id' => $complaintId,
+                    'person_type' => $witness['person_type'],
                     'full_name' => $witness['full_name'],
+                    'gender' => $witness['gender'] ?? '',
                     'student_no' => $witness['student_no'],
                     'contact_info' => $witness['contact_info'],
                     'statement' => $witness['statement'],
+                    'employee_no' => $witness['employee_no'],
+                    'college' => $witness['college'],
+                    'office_department' => $witness['office_department'],
+                    'position' => $witness['position'],
+                    'affiliation' => $witness['affiliation'] ?? '',
+                    'course_year' => $witness['course_year'],
                     'created_at' => date('Y-m-d H:i:s'),
                 ]);
             }
@@ -267,7 +281,7 @@ class Complaint extends Model {
             }
 
             if ($requestedFields) {
-                foreach (['complaint_title', 'complaint_details', 'incident_location'] as $field) {
+                foreach (['complaint_details', 'incident_location'] as $field) {
                     if (in_array($field, $requestedFields, true)
                         && array_key_exists($field, $updates)
                         && trim((string) $updates[$field]) !== trim((string) ($case[$field] ?? ''))) {
@@ -289,10 +303,16 @@ class Complaint extends Model {
                 if ($respondents !== null && in_array('respondents', $requestedFields, true)) {
                     $storedRespondents = array_map(static function (array $row): array {
                         return [
+                            'respondent_type' => trim((string) ($row['respondent_type'] ?? '')),
                             'full_name' => trim((string) ($row['full_name'] ?? '')),
+                            'gender' => trim((string) ($row['gender'] ?? '')),
                             'student_no' => trim((string) ($row['student_no'] ?? '')),
+                            'employee_no' => trim((string) ($row['employee_no'] ?? '')),
                             'college' => trim((string) ($row['college'] ?? '')),
+                            'office_department' => trim((string) ($row['office_department'] ?? '')),
                             'course_year' => trim((string) ($row['course_year'] ?? '')),
+                            'position' => trim((string) ($row['position'] ?? '')),
+                            'affiliation' => trim((string) ($row['affiliation'] ?? '')),
                             'contact_info' => trim((string) ($row['contact_info'] ?? '')),
                             'details' => trim((string) ($row['details'] ?? '')),
                         ];
@@ -303,10 +323,18 @@ class Complaint extends Model {
                 if ($witnesses !== null && in_array('witnesses', $requestedFields, true)) {
                     $storedWitnesses = array_map(static function (array $row): array {
                         return [
+                            'person_type' => trim((string) ($row['person_type'] ?? '')),
                             'full_name' => trim((string) ($row['full_name'] ?? '')),
+                            'gender' => trim((string) ($row['gender'] ?? '')),
                             'student_no' => trim((string) ($row['student_no'] ?? '')),
                             'contact_info' => trim((string) ($row['contact_info'] ?? '')),
                             'statement' => trim((string) ($row['statement'] ?? '')),
+                            'employee_no' => trim((string) ($row['employee_no'] ?? '')),
+                            'college' => trim((string) ($row['college'] ?? '')),
+                            'office_department' => trim((string) ($row['office_department'] ?? '')),
+                            'position' => trim((string) ($row['position'] ?? '')),
+                            'affiliation' => trim((string) ($row['affiliation'] ?? '')),
+                            'course_year' => trim((string) ($row['course_year'] ?? '')),
                         ];
                     }, CaseRecord::getWitnesses($complaintId));
                     if (self::peopleChanged($witnesses, $storedWitnesses)) $revisedFields[] = 'witnesses';
@@ -332,13 +360,15 @@ class Complaint extends Model {
 
             if ($respondents !== null) {
                 self::replacePeople('complaint_respondents', 'respondent_id', $complaintId, $respondents, [
-                    'full_name', 'student_no', 'college', 'course_year', 'contact_info', 'details',
+                    'respondent_type', 'full_name', 'gender', 'student_no', 'employee_no', 'college',
+                    'office_department', 'course_year', 'position', 'affiliation', 'contact_info', 'details',
                 ]);
             }
 
             if ($witnesses !== null) {
                 self::replacePeople('complaint_witnesses', 'witness_id', $complaintId, $witnesses, [
-                    'full_name', 'student_no', 'contact_info', 'statement',
+                    'person_type', 'full_name', 'gender', 'student_no', 'contact_info', 'statement',
+                    'employee_no', 'college', 'office_department', 'position', 'affiliation', 'course_year',
                 ]);
             }
 

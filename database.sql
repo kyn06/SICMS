@@ -1,6 +1,27 @@
 -- =============================================================
 -- SICMS - Student Integrity Case Management System
--- Complete database schema
+-- Complete database schema and seed data (single-file import)
+-- -------------------------------------------------------------
+-- This is the consolidated database.sql, merged from:
+--   sicms.sql                                   (base schema + seed)
+--   sicms_upgrade_gender.sql                    (complainant/respondent gender)
+--   sicms_upgrade_gender_backfill.sql           (legacy gender backfill)
+--   sicms_upgrade_respondent_type.sql           (respondent type fields)
+--   sicms_upgrade_respondent_gender_backfill.sql(legacy respondent backfill)
+--   sicms_upgrade_witness_gender_affiliation.sql(witness type/gender/affiliation)
+--   sicms_upgrade_google_calendar.sql           (google event + system_settings)
+--   sicms_upgrade_legacy_cases.sql              (case_source, original_case_date,
+--                                                legacy fields, evidence doc_type)
+--
+-- All upgrade schema changes are already present in the base
+-- table definitions below, so the ALTER/upgrade statements are
+-- NOT repeated here (doing so would duplicate columns and error).
+-- The one-time LEGACY backfill UPDATEs that only reference data
+-- in older installations are intentionally omitted because on a
+-- fresh import there is no data to backfill, and one referenced a
+-- column (accounts.student_no) that does not exist in the current
+-- schema — keeping it would break a clean import.
+--
 -- Engine: MySQL  (connection settings in web/config/Database.php)
 --   host: 127.0.0.1  port: 3307  db: sicms
 -- =============================================================
@@ -35,15 +56,6 @@ CREATE TABLE IF NOT EXISTS accounts (
     KEY idx_accounts_status (status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-ALTER TABLE accounts
-    MODIFY created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    MODIFY updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP;
-
--- Bring older installations in line with the current timestamp behavior.
-ALTER TABLE accounts
-    MODIFY created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    MODIFY updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP;
-
 -- -------------------------------------------------------------
 -- complaints
 -- -------------------------------------------------------------
@@ -53,6 +65,7 @@ CREATE TABLE IF NOT EXISTS complaints (
     complaint_title VARCHAR(255) NOT NULL,
     submitted_by_account_id INT UNSIGNED NOT NULL,
     complainant_name        VARCHAR(255) NOT NULL,
+    complainant_gender      VARCHAR(20)  DEFAULT NULL,
     complainant_type        VARCHAR(50)  NOT NULL DEFAULT 'Student',
     complainant_relationship VARCHAR(100) DEFAULT NULL,
     complainant_employee_no VARCHAR(100) DEFAULT NULL,
@@ -77,6 +90,13 @@ CREATE TABLE IF NOT EXISTS complaints (
     submitted_at            DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     created_at              DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at              DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    case_source             VARCHAR(20)  NOT NULL DEFAULT 'Online Submission',
+    original_case_date      DATE         DEFAULT NULL,
+    legacy_outcome          VARCHAR(255) DEFAULT NULL,
+    action_taken            TEXT         DEFAULT NULL,
+    resolution_date         DATE         DEFAULT NULL,
+    remarks_notes           TEXT         DEFAULT NULL,
+    legacy_entry_source     VARCHAR(100) DEFAULT NULL,
     PRIMARY KEY (complaint_id),
     UNIQUE KEY uq_complaints_case_number (case_number),
     KEY idx_complaints_submitted_by (submitted_by_account_id),
@@ -84,6 +104,8 @@ CREATE TABLE IF NOT EXISTS complaints (
     KEY idx_complaints_status (status),
     KEY idx_complaints_classification (case_classification),
     KEY idx_complaints_submitted_at (submitted_at),
+    KEY idx_complaints_source (case_source),
+    KEY idx_complaints_source_orig_year (case_source, original_case_date),
     CONSTRAINT fk_complaints_submitter
         FOREIGN KEY (submitted_by_account_id) REFERENCES accounts (account_id),
     CONSTRAINT fk_complaints_coordinator
@@ -94,15 +116,21 @@ CREATE TABLE IF NOT EXISTS complaints (
 -- complaint_respondents
 -- -------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS complaint_respondents (
-    respondent_id INT UNSIGNED NOT NULL AUTO_INCREMENT,
-    complaint_id  INT UNSIGNED NOT NULL,
-    full_name     VARCHAR(255) NOT NULL,
-    student_no    VARCHAR(50)  DEFAULT NULL,
-    college       VARCHAR(255) DEFAULT NULL,
-    course_year   VARCHAR(100) DEFAULT NULL,
-    contact_info  VARCHAR(255) DEFAULT NULL,
-    details       TEXT,
-    created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    respondent_id     INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    complaint_id      INT UNSIGNED NOT NULL,
+    respondent_type   VARCHAR(50)  NOT NULL DEFAULT 'Student',
+    full_name         VARCHAR(255) NOT NULL,
+    gender            VARCHAR(20)  DEFAULT NULL,
+    student_no        VARCHAR(50)  DEFAULT NULL,
+    employee_no       VARCHAR(100) DEFAULT NULL,
+    college           VARCHAR(255) DEFAULT NULL,
+    office_department VARCHAR(255) DEFAULT NULL,
+    course_year       VARCHAR(100) DEFAULT NULL,
+    position          VARCHAR(255) DEFAULT NULL,
+    affiliation       VARCHAR(255) DEFAULT NULL,
+    contact_info      VARCHAR(255) DEFAULT NULL,
+    details           TEXT,
+    created_at        DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (respondent_id),
     KEY idx_respondents_complaint (complaint_id),
     CONSTRAINT fk_respondents_complaint
@@ -114,13 +142,24 @@ CREATE TABLE IF NOT EXISTS complaint_respondents (
 -- complaint_witnesses
 -- -------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS complaint_witnesses (
-    witness_id   INT UNSIGNED NOT NULL AUTO_INCREMENT,
-    complaint_id INT UNSIGNED NOT NULL,
-    full_name    VARCHAR(255) NOT NULL,
-    student_no   VARCHAR(50)  DEFAULT NULL,
-    contact_info VARCHAR(255) DEFAULT NULL,
-    statement    TEXT,
-    created_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    witness_id      INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    complaint_id    INT UNSIGNED NOT NULL,
+    person_type     VARCHAR(50)  NOT NULL DEFAULT 'Student',
+    full_name       VARCHAR(255) NOT NULL,
+    gender          VARCHAR(20)  DEFAULT NULL,
+    student_no      VARCHAR(50)  DEFAULT NULL,
+    contact_info    VARCHAR(255) DEFAULT NULL,
+    statement       TEXT,
+    email           VARCHAR(255) DEFAULT NULL,
+    employee_no     VARCHAR(100) DEFAULT NULL,
+    college         VARCHAR(255) DEFAULT NULL,
+    office_department VARCHAR(255) DEFAULT NULL,
+    position        VARCHAR(255) DEFAULT NULL,
+    affiliation     VARCHAR(255) DEFAULT NULL,
+    address         VARCHAR(255) DEFAULT NULL,
+    year_level      VARCHAR(50)  DEFAULT NULL,
+    course_year     VARCHAR(100) DEFAULT NULL,
+    created_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (witness_id),
     KEY idx_witnesses_complaint (complaint_id),
     CONSTRAINT fk_witnesses_complaint
@@ -140,6 +179,7 @@ CREATE TABLE IF NOT EXISTS complaint_evidence (
     mime_type          VARCHAR(100) DEFAULT NULL,
     file_size          BIGINT UNSIGNED DEFAULT NULL,
     uploaded_at        DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    doc_type           VARCHAR(50)  DEFAULT NULL,
     PRIMARY KEY (evidence_id),
     KEY idx_evidence_complaint (complaint_id),
     CONSTRAINT fk_evidence_complaint

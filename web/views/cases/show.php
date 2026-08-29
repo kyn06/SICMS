@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../../controllers/CaseController.php';
+require_once __DIR__ . '/../../helpers/Courses.php';
 
 $controller = new CaseController();
 $complaintId = (int) ($_GET['id'] ?? 0);
@@ -21,7 +22,7 @@ $resubmission = $viewData['resubmission'];
 $controller->clearFlash();
 
 $revisionFieldLabels = [
-    'complaint_title' => 'Complaint Title', 'complaint_details' => 'Complaint Description',
+    'complaint_details' => 'Complaint Description',
     'incident_date' => 'Incident Date', 'incident_time' => 'Incident Time',
     'incident_location' => 'Incident Location', 'respondents' => 'Respondent Information',
     'witnesses' => 'Witness Information', 'evidence' => 'Supporting Evidence',
@@ -623,6 +624,10 @@ function person_name($first, $last) {
                                     <div class="value"><?= h($case['complainant_name']) ?></div>
                                 </div>
                                 <div class="detail">
+                                    <div class="label">Gender</div>
+                                    <div class="value"><?= h($case['complainant_gender'] ?: 'Not provided') ?></div>
+                                </div>
+                                <div class="detail">
                                     <div class="label">Complainant Type</div>
                                     <div class="value"><?= h($case['complainant_type'] ?? 'Student') ?></div>
                                 </div>
@@ -646,7 +651,7 @@ function person_name($first, $last) {
                                 <div class="detail">
                                     <div class="label">Course and Section</div>
                                     <div class="value">
-                                        <?= h(trim(($case['complainant_course'] ?? '') . ' ' . ($case['complainant_year_level'] ?? '') . ' ' . ($case['complainant_section'] ?? '')) ?: $case['complainant_course_year']) ?>
+                                        <?= h(trim(($case['complainant_course'] ?? '') . ' ' . (($case['complainant_year_level'] ?? '') ?: Courses::yearLevel($case['complainant_section'] ?? '')) . ' ' . ($case['complainant_section'] ?? '')) ?: $case['complainant_course_year']) ?>
                                     </div>
                                 </div>
                                 <?php elseif (($case['complainant_type'] ?? '') === 'Employee'): ?>
@@ -708,12 +713,44 @@ function person_name($first, $last) {
                             <h2>Respondents</h2>
                             <div class="list">
                                 <?php foreach ($respondents as $respondent): ?>
+                                <?php $rtype = $respondent['respondent_type'] ?? 'Student'; ?>
                                 <div class="list-item">
-                                    <strong><?= h($respondent['full_name']) ?></strong>
-                                    <div class="muted"><?= h($respondent['student_no']) ?>
-                                        <?= h($respondent['college']) ?> <?= h($respondent['course_year']) ?></div>
-                                    <div class="value"><?= h($respondent['contact_info']) ?></div>
-                                    <div class="value"><?= h($respondent['details']) ?></div>
+                                    <strong><?= h($respondent['full_name']) ?>
+                                        <span class="muted">(<?= h($rtype) ?>)</span></strong>
+                                    <?php if (!empty($respondent['gender'])): ?>
+                                        <div class="muted">Gender: <?= h($respondent['gender']) ?></div>
+                                    <?php endif; ?>
+                                    <?php if ($rtype === 'Student'): ?>
+                                        <?php if (!empty($respondent['student_no'])): ?>
+                                            <div class="muted">Student Number: <?= h($respondent['student_no']) ?></div>
+                                        <?php endif; ?>
+                                        <?php if (!empty($respondent['college'])): ?>
+                                            <div class="muted">College: <?= h($respondent['college']) ?></div>
+                                        <?php endif; ?>
+                                        <?php if (!empty($respondent['course_year'])): ?>
+                                            <div class="muted">Course and Section: <?= h($respondent['course_year']) ?></div>
+                                        <?php endif; ?>
+                                    <?php elseif ($rtype === 'Employee'): ?>
+                                        <?php if (!empty($respondent['employee_no'])): ?>
+                                            <div class="muted">Employee Number: <?= h($respondent['employee_no']) ?></div>
+                                        <?php endif; ?>
+                                        <?php if (!empty($respondent['position'])): ?>
+                                            <div class="muted">Position: <?= h($respondent['position']) ?></div>
+                                        <?php endif; ?>
+                                        <?php if (!empty($respondent['office_department'])): ?>
+                                            <div class="muted">College/Office/Department: <?= h($respondent['office_department']) ?></div>
+                                        <?php endif; ?>
+                                    <?php elseif ($rtype === 'Other'): ?>
+                                        <?php if (!empty($respondent['affiliation'])): ?>
+                                            <div class="muted">Affiliation/Organization: <?= h($respondent['affiliation']) ?></div>
+                                        <?php endif; ?>
+                                    <?php endif; ?>
+                                    <?php if (!empty($respondent['contact_info'])): ?>
+                                        <div class="muted">Contact Information: <?= h($respondent['contact_info']) ?></div>
+                                    <?php endif; ?>
+                                    <?php if (!empty($respondent['details'])): ?>
+                                        <div class="value"><?= h($respondent['details']) ?></div>
+                                    <?php endif; ?>
                                 </div>
                                 <?php endforeach; ?>
                             </div>
@@ -723,10 +760,32 @@ function person_name($first, $last) {
                             <h2>Witnesses</h2>
                             <div class="list">
                                 <?php foreach ($witnesses as $witness): ?>
+                                <?php $wtype = $witness['person_type'] ?? 'Private Individual'; ?>
                                 <div class="list-item">
-                                    <strong><?= h($witness['full_name']) ?></strong>
-                                    <div class="muted"><?= h($witness['student_no']) ?>
-                                        <?= h($witness['contact_info']) ?></div>
+                                    <strong><?= h($witness['full_name']) ?>
+                                        <span class="muted">(<?= h($wtype) ?>)</span></strong>
+                                    <?php if (!empty($witness['gender'])): ?>
+                                        <div class="muted">Gender: <?= h($witness['gender']) ?></div>
+                                    <?php endif; ?>
+                                    <?php if (($witness['student_no'] ?? '') !== ''): ?>
+                                        <div class="muted">Student Number: <?= h($witness['student_no']) ?></div>
+                                    <?php endif; ?>
+                                    <?php if (($witness['employee_no'] ?? '') !== ''): ?>
+                                        <div class="muted">Employee Number: <?= h($witness['employee_no']) ?></div>
+                                    <?php endif; ?>
+                                    <?php if (($witness['college'] ?? '') !== '' || ($witness['course_year'] ?? '') !== ''): ?>
+                                        <div class="muted"><?= h(trim(($witness['college'] ?? '') . ' | ' . ($witness['course_year'] ?? ''), ' |')) ?></div>
+                                    <?php endif; ?>
+                                    <?php if (($witness['position'] ?? '') !== ''): ?>
+                                        <div class="muted">Position: <?= h($witness['position']) ?></div>
+                                    <?php endif; ?>
+                                    <?php if (($witness['office_department'] ?? '') !== ''): ?>
+                                        <div class="muted">College/Office or Department: <?= h($witness['office_department']) ?></div>
+                                    <?php endif; ?>
+                                    <?php if (($witness['affiliation'] ?? '') !== ''): ?>
+                                        <div class="muted">Affiliation/Organization: <?= h($witness['affiliation']) ?></div>
+                                    <?php endif; ?>
+                                    <div class="muted"><?= h($witness['contact_info']) ?></div>
                                     <div class="value"><?= h($witness['statement']) ?></div>
                                 </div>
                                 <?php endforeach; ?>

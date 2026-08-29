@@ -77,15 +77,18 @@ $studentRemarks = array_values(array_filter($history, fn($item) =>
                         <h2>Complaint Information</h2>
                         <div class="info-grid">
                             <div><div class="label">Case Number</div><div class="value"><?= h($case['case_number']) ?></div></div>
-                            <div><div class="label">Complaint Title</div><div class="value"><?= h($case['complaint_title'] ?? $case['case_classification']) ?></div></div>
+                            <?php if (!empty($case['complaint_title']) && $case['complaint_title'] !== $case['case_classification']): ?>
+                                <div><div class="label">Complaint Title</div><div class="value"><?= h($case['complaint_title']) ?></div></div>
+                            <?php endif; ?>
                             <div><div class="label">Classification</div><div class="value"><?= h($case['case_classification']) ?></div></div>
                             <div><div class="label">Date Submitted</div><div class="value"><?= h(date('M d, Y', strtotime($case['submitted_at']))) ?></div></div>
                             <div><div class="label">Current Status</div><div class="value"><?= h($case['status']) ?></div></div>
                             <div><div class="label">Complainant Type</div><div class="value"><?= h($case['complainant_type'] ?? 'Student') ?></div></div>
                             <div><div class="label">Complainant</div><div class="value"><?= h($case['complainant_name']) ?></div></div>
+                            <div><div class="label">Gender</div><div class="value"><?= h($case['complainant_gender'] ?: 'Not provided') ?></div></div>
                             <?php if (($case['complainant_type'] ?? 'Student') === 'Student'): ?>
                                 <div><div class="label">Student Number</div><div class="value"><?= h($case['complainant_student_no']) ?></div></div>
-                                <div><div class="label">Academic Information</div><div class="value"><?= h(trim(($case['complainant_college'] ?? '') . ' | ' . ($case['complainant_course'] ?? '') . ' | ' . ($case['complainant_year_level'] ?? '') . ' | ' . ($case['complainant_section'] ?? ''), ' |') ?: $case['complainant_course_year']) ?></div></div>
+                                <div><div class="label">Academic Information</div><div class="value"><?= h(trim(($case['complainant_college'] ?? '') . ' | ' . ($case['complainant_course'] ?? '') . ' | ' . (($case['complainant_year_level'] ?? '') ?: Courses::yearLevel($case['complainant_section'] ?? '')) . ' | ' . ($case['complainant_section'] ?? ''), ' |') ?: $case['complainant_course_year']) ?></div></div>
                             <?php elseif (($case['complainant_type'] ?? '') === 'Employee'): ?>
                                 <div><div class="label">Employee Number</div><div class="value"><?= h($case['complainant_employee_no']) ?></div></div>
                                 <div><div class="label">Department</div><div class="value"><?= h($case['complainant_department']) ?></div></div>

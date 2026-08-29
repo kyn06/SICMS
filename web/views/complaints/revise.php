@@ -1,6 +1,6 @@
 <?php
-
 require_once __DIR__ . '/../../controllers/ComplaintController.php';
+require_once __DIR__ . '/../../helpers/Courses.php';
 
 $controller = new ComplaintController();
 $viewData = $controller->handleRevisionRequest((int) ($_GET['id'] ?? 0));
@@ -14,534 +14,123 @@ $evidence = $viewData['evidence'];
 $errors = $viewData['errors'];
 $old = $viewData['old'];
 
-$allowed = $revision['revision_fields'];
+$allowed = array_values(array_intersect(
+    ['complaint_details', 'incident_date', 'incident_time', 'incident_location', 'respondents', 'witnesses', 'evidence'],
+    (array) ($revision['revision_fields'] ?? [])
+));
 
-function h($value)
-{
+function h($value) {
     return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
 }
 
-function editable($field, $allowed)
-{
+function editable($field, $allowed) {
     return in_array($field, $allowed, true);
 }
 
-function field_class($field, $allowed)
-{
-    return editable($field, $allowed)
-        ? 'revision-required'
-        : 'revision-readonly';
+function field_class($field, $allowed) {
+    return editable($field, $allowed) ? 'needs-revision' : '';
 }
 
-$incident = strtotime($case['incident_datetime']);
-
-$labels = [
-    'complaint_title' => 'Complaint Title',
-    'complaint_details' => 'Complaint Description',
-    'incident_date' => 'Incident Date',
-    'incident_time' => 'Incident Time',
-    'incident_location' => 'Incident Location',
-    'respondents' => 'Respondent Information',
-    'witnesses' => 'Witness Information',
-    'evidence' => 'Supporting Evidence',
-];
-
+$oldIncident = !empty($old['incident_datetime']) ? strtotime($old['incident_datetime']) : strtotime($case['incident_datetime'] ?? '');
+$oldDate = $oldIncident ? date('Y-m-d', $oldIncident) : '';
+$oldTime = $oldIncident ? date('H:i', $oldIncident) : '';
 ?>
-
 <!DOCTYPE html>
 <html lang="en">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
     <title>Revise Complaint | SICMS</title>
-
     <link rel="stylesheet" href="../layout/style.css">
-    <link rel="stylesheet" href="../layout/system.css?v=2">
-    <link rel="stylesheet" href="../layout/sidebar.css">
-    <link
-        rel="stylesheet"
-        href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"
-    >
-
-    <style>
-        body {
-            align-items: stretch;
-            display: block;
-            justify-content: flex-start;
-            padding: 0;
-        }
-
-        .revision-wrap {
-            max-width: 1100px;
-            margin: 0 auto;
-            padding: 24px;
-        }
-
-        .revision-intro {
-            margin-bottom: 18px;
-        }
-
-        .revision-intro h1 {
-            color: #172017;
-            font-size: 24px;
-            margin: 0 0 6px;
-        }
-
-        .revision-intro p {
-            color: #5f6d5d;
-            font-size: 13px;
-            line-height: 1.6;
-            margin: 0;
-        }
-
-        .revision-card {
-            background: #fff;
-            border: 1px solid #dce7d9;
-            border-radius: 8px;
-            box-shadow: 0 8px 24px rgba(18, 60, 27, 0.07);
-            margin-bottom: 16px;
-            padding: 20px;
-        }
-
-        .revision-card h2 {
-            color: #123c1b;
-            font-size: 17px;
-            margin: 0 0 14px;
-        }
-
-        .remarks-card {
-            background: #fff9e8;
-            border-color: #e7c966;
-        }
-
-        .remarks-grid,
-        .meta-grid,
-        .form-grid {
-            display: grid;
-            gap: 14px;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-        }
-
-        .remarks-text {
-            grid-column: 1 / -1;
-            border-top: 1px solid #eadba7;
-            padding-top: 13px;
-        }
-
-        .label {
-            color: #687565;
-            font-size: 11px;
-            font-weight: 800;
-            text-transform: uppercase;
-        }
-
-        .value {
-            color: #263225;
-            font-size: 14px;
-            line-height: 1.55;
-            margin-top: 4px;
-        }
-
-        .editable-sections {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 7px;
-            margin-top: 12px;
-        }
-
-        .editable-badge,
-        .needs-badge {
-            background: #e8f5e6;
-            border-radius: 999px;
-            color: #187325;
-            font-size: 11px;
-            font-weight: 800;
-            padding: 6px 9px;
-        }
-
-        .field {
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-        }
-
-        .field.full {
-            grid-column: 1 / -1;
-        }
-
-        .field input,
-        .field textarea {
-            width: 100%;
-        }
-
-        .field textarea {
-            min-height: 120px;
-        }
-
-        .revision-required {
-            background: #f7fcf5;
-            border: 1px solid #8bc783;
-            border-radius: 8px;
-            padding: 14px;
-        }
-
-        .revision-readonly {
-            background: #f6f7f5;
-            border: 1px solid #dfe5dd;
-            border-radius: 8px;
-            padding: 14px;
-        }
-
-        .field-head {
-            align-items: center;
-            display: flex;
-            justify-content: space-between;
-            gap: 8px;
-        }
-
-        .repeat-list {
-            display: grid;
-            gap: 12px;
-        }
-
-        .unknown-toggle {
-            align-items: center;
-            color: #4a5544;
-            cursor: pointer;
-            display: flex;
-            font-size: 13px;
-            gap: 8px;
-            margin: 4px 0 12px;
-        }
-
-        .unknown-toggle input {
-            accent-color: #1f6f43;
-            height: 16px;
-            width: 16px;
-        }
-
-        .unknown-toggle span {
-            user-select: none;
-        }
-
-        .repeat-item {
-            border: 1px solid #dce7d9;
-            border-radius: 8px;
-            padding: 14px;
-        }
-
-        .evidence-row {
-            align-items: center;
-            background: #f8faf7;
-            border: 1px solid #e0e7de;
-            border-radius: 8px;
-            display: grid;
-            gap: 12px;
-            grid-template-columns: minmax(0, 1fr) auto;
-            padding: 12px;
-        }
-
-        .evidence-actions {
-            display: flex;
-            gap: 7px;
-        }
-
-        .confirm-row {
-            align-items: flex-start;
-            display: flex;
-            gap: 10px;
-        }
-
-        .confirm-row input {
-            height: 17px;
-            margin-top: 2px;
-            width: 17px;
-        }
-
-        .submit-row {
-            display: flex;
-            justify-content: flex-end;
-            margin-top: 16px;
-        }
-
-        .alert {
-            margin-bottom: 16px;
-        }
-
-        @media (max-width: 720px) {
-            .remarks-grid,
-            .meta-grid,
-            .form-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .remarks-text,
-            .field.full {
-                grid-column: auto;
-            }
-
-            .evidence-row {
-                grid-template-columns: 1fr;
-            }
-
-            .revision-wrap {
-                padding: 16px;
-            }
-        }
-    </style>
 </head>
 
 <body>
-
-    <div class="dashboard-shell">
-
+    <div class="app-shell">
         <?php require __DIR__ . '/../layout/sidebar.php'; ?>
 
-        <div class="app-content">
+        <div class="main-area">
+            <?php $pageTitle = 'Revise Complaint'; require __DIR__ . '/../layout/topbar.php'; ?>
 
-            <?php
-            $pageTitle = 'Revise Complaint';
-            require __DIR__ . '/../layout/topbar.php';
-            ?>
-
-            <main class="revision-wrap">
-
-                <header class="revision-intro">
-                    <h1>Revise Complaint</h1>
-                    <p>
-                        Your complaint has been returned for revision.
-                        Please review the SDRU remarks and update only the
-                        highlighted sections before resubmitting your complaint.
-                    </p>
-                </header>
+            <main class="content">
 
                 <?php if ($errors): ?>
-                    <div class="alert alert-error">
-                        <?php foreach ($errors as $error): ?>
-                            <div><?= h($error) ?></div>
-                        <?php endforeach; ?>
+                    <div class="alert alert-danger">
+                        <ul>
+                            <?php foreach ($errors as $error): ?>
+                                <li><?= h($error) ?></li>
+                            <?php endforeach; ?>
+                        </ul>
                     </div>
                 <?php endif; ?>
 
-                <section class="revision-card remarks-card">
-
-                    <h2>
-                        <i class="bi bi-exclamation-circle"></i>
-                        SDRU Remarks
-                    </h2>
-
-                    <div class="remarks-grid">
-
-                        <div>
-                            <div class="label">Returned By</div>
-
-                            <div class="value">
-                                <?= h(
-                                    trim(
-                                        ($revision['actor_first_name'] ?? '') .
-                                        ' ' .
-                                        ($revision['actor_last_name'] ?? '')
-                                    )
-                                ) ?: 'SDRU Reviewer' ?>
-
-                                (<?= h($revision['actor_role'] ?? 'Staff') ?>)
-                            </div>
-                        </div>
-
-                        <div>
-                            <div class="label">Date Returned</div>
-
-                            <div class="value">
-                                <?= h(
-                                    date(
-                                        'M d, Y h:i A',
-                                        strtotime($revision['created_at'])
-                                    )
-                                ) ?>
-                            </div>
-                        </div>
-
-                        <div class="remarks-text">
-
-                            <div class="label">
-                                Revision Reason and Instructions
-                            </div>
-
-                            <div class="value">
-                                <?= nl2br(h($revision['remarks'])) ?>
-                            </div>
-
-                        </div>
-
+                <?php if (!empty($revision['remarks'])): ?>
+                    <div class="revision-remarks">
+                        <h3>SDRU Remarks</h3>
+                        <p><?= nl2br(h($revision['remarks'])) ?></p>
                     </div>
+                <?php endif; ?>
 
-                    <div class="editable-sections">
+                <form id="revisionForm" method="post" enctype="multipart/form-data">
+                    <?= Security::csrfField() ?>
+                    <input type="hidden" name="revision_fields" value="<?= h(implode(',', $allowed)) ?>">
 
-                        <?php foreach ($allowed as $field): ?>
-
-                            <span class="editable-badge">
-                                <?= h($labels[$field] ?? $field) ?>
-                            </span>
-
-                        <?php endforeach; ?>
-
-                    </div>
-
-                </section>
-
-                <section class="revision-card">
-
-                    <h2>Complaint Information</h2>
-
-                    <div class="meta-grid">
-
-                        <div>
-                            <div class="label">Case Number</div>
-                            <div class="value">
-                                <?= h($case['case_number']) ?>
-                            </div>
+                    <section class="revision-card <?= field_class('complaint_details', $allowed) ?>">
+                        <div class="field-head">
+                            <h2>Complaint Details</h2>
+                            <?php if (editable('complaint_details', $allowed)): ?>
+                                <span class="needs-badge">Needs Revision</span>
+                            <?php endif; ?>
                         </div>
-
-                        <div>
-                            <div class="label">Current Status</div>
-                            <div class="value">
-                                <?= h($case['status']) ?>
-                            </div>
+                        <div class="field">
+                            <label>Complaint Description</label>
+                            <textarea
+                                name="complaint_details"
+                                rows="6"
+                                <?= editable('complaint_details', $allowed) ? '' : 'readonly' ?>
+                                <?= editable('complaint_details', $allowed) ? 'required' : '' ?>
+                            ><?= h($old['complaint_details'] ?? $case['complaint_details'] ?? '') ?></textarea>
                         </div>
+                    </section>
 
-                        <div>
-                            <div class="label">Date Submitted</div>
-                            <div class="value">
-                                <?= h(
-                                    date(
-                                        'M d, Y h:i A',
-                                        strtotime($case['submitted_at'])
-                                    )
-                                ) ?>
-                            </div>
+                    <section class="revision-card <?= field_class('incident_date', $allowed) ?> <?= field_class('incident_time', $allowed) ?> <?= field_class('incident_location', $allowed) ?>">
+                        <div class="field-head">
+                            <h2>Incident Information</h2>
+                            <?php if (editable('incident_date', $allowed) || editable('incident_time', $allowed) || editable('incident_location', $allowed)): ?>
+                                <span class="needs-badge">Needs Revision</span>
+                            <?php endif; ?>
                         </div>
-
-                        <div>
-                            <div class="label">Last Updated</div>
-                            <div class="value">
-                                <?= h(
-                                    date(
-                                        'M d, Y h:i A',
-                                        strtotime($case['updated_at'])
-                                    )
-                                ) ?>
-                            </div>
-                        </div>
-
-                    </div>
-
-                </section>
-
-                <form
-                    id="revisionForm"
-                    method="POST"
-                    enctype="multipart/form-data"
-                >
-
-                    <input
-                        type="hidden"
-                        name="csrf_token"
-                        value="<?= h(Security::csrfToken()) ?>"
-                    >
-
-                    <section class="revision-card">
-
-                        <h2>Complaint Details</h2>
-
                         <div class="form-grid">
-
-                            <?php
-                            foreach (
-                                [
-                                    [
-                                        'complaint_title',
-                                        'Complaint Title',
-                                        $case['complaint_title'] ?: $case['case_classification'],
-                                        'text',
-                                    ],
-                                    [
-                                        'incident_date',
-                                        'Incident Date',
-                                        date('Y-m-d', $incident),
-                                        'date',
-                                    ],
-                                    [
-                                        'incident_time',
-                                        'Incident Time',
-                                        date('H:i', $incident),
-                                        'time',
-                                    ],
-                                    [
-                                        'incident_location',
-                                        'Incident Location',
-                                        $case['incident_location'],
-                                        'text',
-                                    ],
-                                ] as [$field, $label, $value, $type]
-                            ):
-                            ?>
-
-                                <div class="field <?= field_class($field, $allowed) ?>">
-
-                                    <div class="field-head">
-
-                                        <label for="<?= $field ?>">
-                                            <?= h($label) ?>
-                                        </label>
-
-                                        <?php if (editable($field, $allowed)): ?>
-                                            <span class="needs-badge">
-                                                Needs Revision
-                                            </span>
-                                        <?php endif; ?>
-
-                                    </div>
-
-                                    <input
-                                        id="<?= $field ?>"
-                                        type="<?= $type ?>"
-                                        name="<?= $field ?>"
-                                        value="<?= h($old[$field] ?? $value) ?>"
-                                        <?= editable($field, $allowed) ? 'required' : 'readonly' ?>
-                                    >
-
-                                </div>
-
-                            <?php endforeach; ?>
-
-                            <div class="field full <?= field_class('complaint_details', $allowed) ?>">
-
-                                <div class="field-head">
-
-                                    <label for="complaint_details">
-                                        Complaint Description
-                                    </label>
-
-                                    <?php if (editable('complaint_details', $allowed)): ?>
-                                        <span class="needs-badge">
-                                            Needs Revision
-                                        </span>
-                                    <?php endif; ?>
-
-                                </div>
-
-                                <textarea
-                                    id="complaint_details"
-                                    name="complaint_details"
-                                    <?= editable('complaint_details', $allowed) ? 'required' : 'readonly' ?>
-                                ><?= h($old['complaint_details'] ?? $case['complaint_details']) ?></textarea>
-
+                            <div class="field">
+                                <label>Incident Date</label>
+                                <input
+                                    type="date"
+                                    name="incident_date"
+                                    value="<?= h($old['incident_date'] ?? $oldDate) ?>"
+                                    <?= editable('incident_date', $allowed) ? '' : 'readonly' ?>
+                                    <?= editable('incident_date', $allowed) ? 'required' : '' ?>
+                                >
                             </div>
-
+                            <div class="field">
+                                <label>Incident Time</label>
+                                <input
+                                    type="time"
+                                    name="incident_time"
+                                    value="<?= h($old['incident_time'] ?? $oldTime) ?>"
+                                    <?= editable('incident_time', $allowed) ? '' : 'readonly' ?>
+                                    <?= editable('incident_time', $allowed) ? 'required' : '' ?>
+                                >
+                            </div>
+                            <div class="field full">
+                                <label>Incident Location</label>
+                                <input
+                                    name="incident_location"
+                                    value="<?= h($old['incident_location'] ?? $case['incident_location'] ?? '') ?>"
+                                    <?= editable('incident_location', $allowed) ? '' : 'readonly' ?>
+                                    <?= editable('incident_location', $allowed) ? 'required' : '' ?>
+                                >
+                            </div>
                         </div>
-
                     </section>
 
                     <section class="revision-card <?= field_class('respondents', $allowed) ?>">
@@ -579,40 +168,155 @@ $labels = [
                         <div class="repeat-list" id="respondents">
 
                             <?php foreach ($respondents as $i => $person): ?>
+                                <?php
+                                $personType = trim((string) ($person['respondent_type'] ?? ''));
+                                if (!in_array($personType, ['Student', 'Employee', 'Private Individual', 'Other'], true)) $personType = 'Student';
+                                $program = Courses::split($person['course_year'] ?? '');
+                                $rCourse = trim((string) ($person['course'] ?? $program['course']));
+                                $rSection = trim((string) ($person['section'] ?? $program['section']));
+                                ?>
 
-                                <div class="repeat-item">
+                                <div class="repeat-item respondent-repeat-item">
 
                                     <div class="form-grid">
 
-                                        <?php
-                                        foreach (
-                                            [
-                                                'full_name' => 'Full Name',
-                                                'student_no' => 'Student Number',
-                                                'college' => 'College',
-                                                'course_year' => 'Course and Section',
-                                                'contact_info' => 'Contact Information',
-                                                'details' => 'Details',
-                                            ] as $key => $label
-                                        ):
-                                        ?>
+                                        <div class="field full">
+                                            <label>Respondent Type</label>
+                                            <select
+                                                name="respondent_type[]"
+                                                <?= editable('respondents', $allowed) ? '' : 'disabled' ?>
+                                                <?= editable('respondents', $allowed) ? 'required' : '' ?>
+                                            >
+                                                <option value="">Select Respondent Type</option>
+                                                <option value="Student" <?= $personType === 'Student' ? 'selected' : '' ?>>Student</option>
+                                                <option value="Employee" <?= $personType === 'Employee' ? 'selected' : '' ?>>Employee</option>
+                                                <option value="Private Individual" <?= $personType === 'Private Individual' ? 'selected' : '' ?>>Private Individual</option>
+                                                <option value="Other" <?= $personType === 'Other' ? 'selected' : '' ?>>Other</option>
+                                            </select>
+                                        </div>
 
-                                            <div class="field">
+                                        <div class="field">
+                                            <label>Full Name</label>
+                                            <input
+                                                name="respondent_name[]"
+                                                value="<?= h($person['full_name'] ?? '') ?>"
+                                                <?= editable('respondents', $allowed) ? 'required' : 'readonly' ?>
+                                            >
+                                        </div>
 
-                                                <label>
-                                                    <?= h($label) ?>
-                                                </label>
+                                        <div class="field" data-respondent-types="Student" <?= $personType === 'Student' ? '' : 'hidden' ?>>
+                                            <label>Student Number</label>
+                                            <input
+                                                name="respondent_student_no[]"
+                                                value="<?= h($person['student_no'] ?? '') ?>"
+                                                <?= editable('respondents', $allowed) ? '' : 'readonly' ?>
+                                                <?= $personType === 'Student' ? '' : 'disabled' ?>
+                                            >
+                                        </div>
 
-                                                <input
-                                                    name="respondent_<?= $key === 'contact_info' ? 'contact' : ($key === 'full_name' ? 'name' : $key) ?>[]"
-                                                    value="<?= h($person[$key] ?? '') ?>"
-                                                    <?= editable('respondents', $allowed) ? '' : 'readonly' ?>
-                                                    <?= ($key === 'full_name' && editable('respondents', $allowed)) ? 'required' : '' ?>
-                                                >
+                                        <div class="field" data-respondent-types="Student" <?= $personType === 'Student' ? '' : 'hidden' ?>>
+                                            <label>College</label>
+                                            <input
+                                                name="respondent_college[]"
+                                                value="<?= h($person['college'] ?? '') ?>"
+                                                <?= editable('respondents', $allowed) ? '' : 'readonly' ?>
+                                                <?= $personType === 'Student' ? '' : 'disabled' ?>
+                                            >
+                                        </div>
 
-                                            </div>
+                                        <div class="field" data-respondent-types="Student" <?= $personType === 'Student' ? '' : 'hidden' ?>>
+                                            <label>Course/Program</label>
+                                            <input
+                                                name="respondent_course[]"
+                                                value="<?= h($rCourse) ?>"
+                                                <?= editable('respondents', $allowed) ? '' : 'readonly' ?>
+                                                <?= $personType === 'Student' ? '' : 'disabled' ?>
+                                            >
+                                        </div>
 
-                                        <?php endforeach; ?>
+                                        <div class="field" data-respondent-types="Student" <?= $personType === 'Student' ? '' : 'hidden' ?>>
+                                            <label>Section</label>
+                                            <input
+                                                name="respondent_section[]"
+                                                value="<?= h($rSection) ?>"
+                                                <?= editable('respondents', $allowed) ? '' : 'readonly' ?>
+                                                <?= $personType === 'Student' ? '' : 'disabled' ?>
+                                            >
+                                            <input type="hidden" name="respondent_course_year[]" value="<?= h($person['course_year'] ?? '') ?>">
+                                        </div>
+
+                                        <div class="field" data-respondent-types="Employee" <?= $personType === 'Employee' ? '' : 'hidden' ?>>
+                                            <label>Employee Number</label>
+                                            <input
+                                                name="respondent_employee_no[]"
+                                                value="<?= h($person['employee_no'] ?? '') ?>"
+                                                <?= editable('respondents', $allowed) ? '' : 'readonly' ?>
+                                                <?= $personType === 'Employee' ? '' : 'disabled' ?>
+                                            >
+                                        </div>
+
+                                        <div class="field" data-respondent-types="Employee" <?= $personType === 'Employee' ? '' : 'hidden' ?>>
+                                            <label>Position</label>
+                                            <input
+                                                name="respondent_position[]"
+                                                value="<?= h($person['position'] ?? '') ?>"
+                                                placeholder="Example: Instructor, Administrative Assistant, Security Officer"
+                                                <?= editable('respondents', $allowed) ? '' : 'readonly' ?>
+                                                <?= $personType === 'Employee' ? '' : 'disabled' ?>
+                                            >
+                                        </div>
+
+                                        <div class="field" data-respondent-types="Employee" <?= $personType === 'Employee' ? '' : 'hidden' ?>>
+                                            <label>College/Office/Department</label>
+                                            <input
+                                                name="respondent_department[]"
+                                                value="<?= h($person['office_department'] ?? '') ?>"
+                                                <?= editable('respondents', $allowed) ? '' : 'readonly' ?>
+                                                <?= $personType === 'Employee' ? '' : 'disabled' ?>
+                                            >
+                                        </div>
+
+                                        <div class="field" data-respondent-types="Private Individual,Other" <?= in_array($personType, ['Private Individual', 'Other'], true) ? '' : 'hidden' ?>>
+                                            <label>Contact Information <span>if applicable</span></label>
+                                            <input
+                                                name="respondent_contact[]"
+                                                value="<?= h($person['contact_info'] ?? '') ?>"
+                                                <?= editable('respondents', $allowed) ? '' : 'readonly' ?>
+                                                <?= in_array($personType, ['Private Individual', 'Other'], true) ? '' : 'disabled' ?>
+                                            >
+                                        </div>
+
+                                        <div class="field" data-respondent-types="Other" <?= $personType === 'Other' ? '' : 'hidden' ?>>
+                                            <label>Affiliation/Organization <span>if applicable</span></label>
+                                            <input
+                                                name="respondent_affiliation[]"
+                                                value="<?= h($person['affiliation'] ?? '') ?>"
+                                                <?= editable('respondents', $allowed) ? '' : 'readonly' ?>
+                                                <?= $personType === 'Other' ? '' : 'disabled' ?>
+                                            >
+                                        </div>
+
+                                        <div class="field">
+                                            <label>Gender</label>
+                                            <select
+                                                name="respondent_gender[]"
+                                                <?= editable('respondents', $allowed) ? '' : 'disabled' ?>
+                                            >
+                                                <option value="">Select Gender</option>
+                                                <option value="Male" <?= ($person['gender'] ?? '') === 'Male' ? 'selected' : '' ?>>Male</option>
+                                                <option value="Female" <?= ($person['gender'] ?? '') === 'Female' ? 'selected' : '' ?>>Female</option>
+                                            </select>
+                                        </div>
+
+                                        <div class="field">
+                                            <label>Details</label>
+                                            <input
+                                                name="respondent_details[]"
+                                                value="<?= h($person['details'] ?? '') ?>"
+                                                placeholder="Example: relationship, social media, or other relevant details."
+                                                <?= editable('respondents', $allowed) ? '' : 'readonly' ?>
+                                            >
+                                        </div>
 
                                     </div>
 
@@ -683,37 +387,192 @@ $labels = [
 
                             <?php foreach ($witnesses as $person): ?>
 
-                                <div class="repeat-item">
+                                <?php
+                                $personType = ($person['person_type'] ?? '') ?: 'Student';
+                                $program = Courses::split($person['course_year'] ?? '');
+                                $witnessCourse = trim((string) ($person['course'] ?? $program['course']));
+                                $witnessSection = trim((string) ($person['section'] ?? $program['section']));
+                                ?>
+
+                                <div class="repeat-item witness-repeat-item">
 
                                     <div class="form-grid">
 
-                                        <?php
-                                        foreach (
-                                            [
-                                                'full_name' => 'Full Name',
-                                                'student_no' => 'Student Number',
-                                                'contact_info' => 'Contact Information',
-                                                'statement' => 'Statement',
-                                            ] as $key => $label
-                                        ):
-                                        ?>
+                                        <div class="field full">
 
-                                            <div class="field">
+                                            <label>Witness Type</label>
 
-                                                <label>
-                                                    <?= h($label) ?>
-                                                </label>
+                                            <select
+                                                name="witness_type[]"
+                                                <?= editable('witnesses', $allowed) ? '' : 'disabled' ?>
+                                            >
+                                                <option value="">Select Witness Type</option>
+                                                <option value="Student" <?= $personType === 'Student' ? 'selected' : '' ?>>Student</option>
+                                                <option value="Employee" <?= $personType === 'Employee' ? 'selected' : '' ?>>Employee</option>
+                                                <option value="Private Individual" <?= $personType === 'Private Individual' ? 'selected' : '' ?>>Private Individual</option>
+                                                <option value="Other" <?= $personType === 'Other' ? 'selected' : '' ?>>Other</option>
+                                            </select>
 
-                                                <input
-                                                    name="witness_<?= $key === 'contact_info' ? 'contact' : ($key === 'full_name' ? 'name' : $key) ?>[]"
-                                                    value="<?= h($person[$key] ?? '') ?>"
-                                                    <?= editable('witnesses', $allowed) ? '' : 'readonly' ?>
-                                                    <?= ($key === 'full_name' && editable('witnesses', $allowed)) ? 'required' : '' ?>
-                                                >
+                                        </div>
 
-                                            </div>
+                                        <div class="field">
 
-                                        <?php endforeach; ?>
+                                            <label>Full Name</label>
+
+                                            <input
+                                                name="witness_name[]"
+                                                value="<?= h($person['full_name'] ?? '') ?>"
+                                                <?= editable('witnesses', $allowed) ? '' : 'readonly' ?>
+                                                <?= editable('witnesses', $allowed) ? 'required' : '' ?>
+                                            >
+
+                                        </div>
+
+                                        <div class="field">
+
+                                            <label>Gender</label>
+
+                                            <select
+                                                name="witness_gender[]"
+                                                <?= editable('witnesses', $allowed) ? '' : 'disabled' ?>
+                                            >
+                                                <option value="">Select Gender</option>
+                                                <option value="Male" <?= ($person['gender'] ?? '') === 'Male' ? 'selected' : '' ?>>Male</option>
+                                                <option value="Female" <?= ($person['gender'] ?? '') === 'Female' ? 'selected' : '' ?>>Female</option>
+                                            </select>
+
+                                        </div>
+
+                                        <div class="field" data-witness-types="Student" <?= $personType === 'Student' ? '' : 'hidden' ?>>
+
+                                            <label>Student Number</label>
+
+                                            <input
+                                                name="witness_student_no[]"
+                                                value="<?= h($person['student_no'] ?? '') ?>"
+                                                <?= editable('witnesses', $allowed) ? '' : 'readonly' ?>
+                                                <?= $personType === 'Student' ? '' : 'disabled' ?>
+                                            >
+
+                                        </div>
+
+                                        <div class="field" data-witness-types="Student" <?= $personType === 'Student' ? '' : 'hidden' ?>>
+
+                                            <label>College</label>
+
+                                            <input
+                                                name="witness_college[]"
+                                                value="<?= h($person['college'] ?? '') ?>"
+                                                <?= editable('witnesses', $allowed) ? '' : 'readonly' ?>
+                                                <?= $personType === 'Student' ? '' : 'disabled' ?>
+                                            >
+
+                                        </div>
+
+                                        <div class="field" data-witness-types="Student" <?= $personType === 'Student' ? '' : 'hidden' ?>>
+
+                                            <label>Course/Program</label>
+
+                                            <input
+                                                name="witness_course[]"
+                                                value="<?= h($witnessCourse) ?>"
+                                                <?= editable('witnesses', $allowed) ? '' : 'readonly' ?>
+                                                <?= $personType === 'Student' ? '' : 'disabled' ?>
+                                            >
+
+                                        </div>
+
+                                        <div class="field" data-witness-types="Student" <?= $personType === 'Student' ? '' : 'hidden' ?>>
+
+                                            <label>Section</label>
+
+                                            <input
+                                                name="witness_section[]"
+                                                value="<?= h($witnessSection) ?>"
+                                                <?= editable('witnesses', $allowed) ? '' : 'readonly' ?>
+                                                <?= $personType === 'Student' ? '' : 'disabled' ?>
+                                            >
+
+                                        </div>
+
+                                        <div class="field" data-witness-types="Employee" <?= $personType === 'Employee' ? '' : 'hidden' ?>>
+
+                                            <label>Employee Number</label>
+
+                                            <input
+                                                name="witness_employee_no[]"
+                                                value="<?= h($person['employee_no'] ?? '') ?>"
+                                                <?= editable('witnesses', $allowed) ? '' : 'readonly' ?>
+                                                <?= $personType === 'Employee' ? '' : 'disabled' ?>
+                                            >
+
+                                        </div>
+
+                                        <div class="field" data-witness-types="Employee" <?= $personType === 'Employee' ? '' : 'hidden' ?>>
+
+                                            <label>Position</label>
+
+                                            <input
+                                                name="witness_position[]"
+                                                value="<?= h($person['position'] ?? '') ?>"
+                                                placeholder="Example: Instructor, Administrative Assistant, Security Officer"
+                                                <?= editable('witnesses', $allowed) ? '' : 'readonly' ?>
+                                                <?= $personType === 'Employee' ? '' : 'disabled' ?>
+                                            >
+
+                                        </div>
+
+                                        <div class="field" data-witness-types="Employee" <?= $personType === 'Employee' ? '' : 'hidden' ?>>
+
+                                            <label>College/Office or Department</label>
+
+                                            <input
+                                                name="witness_department[]"
+                                                value="<?= h($person['office_department'] ?? '') ?>"
+                                                <?= editable('witnesses', $allowed) ? '' : 'readonly' ?>
+                                                <?= $personType === 'Employee' ? '' : 'disabled' ?>
+                                            >
+
+                                        </div>
+
+                                        <div class="field" data-witness-types="Other" <?= $personType === 'Other' ? '' : 'hidden' ?>>
+
+                                            <label>Affiliation/Organization <span>if applicable</span></label>
+
+                                            <input
+                                                name="witness_affiliation[]"
+                                                value="<?= h($person['affiliation'] ?? '') ?>"
+                                                <?= editable('witnesses', $allowed) ? '' : 'readonly' ?>
+                                                <?= $personType === 'Other' ? '' : 'disabled' ?>
+                                            >
+
+                                        </div>
+
+                                        <div class="field" data-witness-types="Private Individual,Other" <?= in_array($personType, ['Private Individual', 'Other'], true) ? '' : 'hidden' ?>>
+
+                                            <label>Contact Information</label>
+
+                                            <input
+                                                name="witness_contact[]"
+                                                value="<?= h($person['contact_info'] ?? '') ?>"
+                                                <?= editable('witnesses', $allowed) ? '' : 'readonly' ?>
+                                                <?= in_array($personType, ['Private Individual', 'Other'], true) ? '' : 'disabled' ?>
+                                            >
+
+                                        </div>
+
+                                        <div class="field">
+
+                                            <label>Statement</label>
+
+                                            <input
+                                                name="witness_statement[]"
+                                                value="<?= h($person['statement'] ?? '') ?>"
+                                                placeholder="Example: explain what the witness saw/heard during the incident."
+                                                <?= editable('witnesses', $allowed) ? '' : 'readonly' ?>
+                                            >
+
+                                        </div>
 
                                     </div>
 
@@ -762,89 +621,64 @@ $labels = [
 
                         </div>
 
-                        <div class="repeat-list">
-
-                            <?php foreach ($evidence as $file): ?>
-
-                                <div class="evidence-row">
-
-                                    <div>
-
-                                        <strong>
-                                            <?= h($file['original_filename']) ?>
-                                        </strong>
-
-                                        <div class="value">
-                                            <?= h($file['mime_type']) ?>
-                                            ·
-                                            <?= h(number_format($file['file_size'] / 1024, 1)) ?> KB
-                                            ·
-                                            <?= h(date('M d, Y', strtotime($file['uploaded_at']))) ?>
-                                        </div>
-
-                                    </div>
-
-                                    <div class="evidence-actions">
-
-                                        <a
-                                            class="btn btn-secondary"
-                                            target="_blank"
-                                            href="attachment.php?id=<?= (int) $file['evidence_id'] ?>&amp;mode=view"
-                                        >
-                                            View
-                                        </a>
-
-                                        <a
-                                            class="btn btn-secondary"
-                                            href="attachment.php?id=<?= (int) $file['evidence_id'] ?>&amp;mode=download"
-                                        >
-                                            Download
-                                        </a>
-
-                                        <?php if (editable('evidence', $allowed)): ?>
-
-                                            <label class="btn btn-secondary">
-
-                                                <input
-                                                    type="checkbox"
-                                                    name="remove_evidence[]"
-                                                    value="<?= (int) $file['evidence_id'] ?>"
-                                                >
-
-                                                Remove
-
-                                            </label>
-
-                                        <?php endif; ?>
-
-                                    </div>
-
-                                </div>
-
-                            <?php endforeach; ?>
-
-                        </div>
-
                         <?php if (editable('evidence', $allowed)): ?>
 
-                            <div class="field" style="margin-top: 14px">
+                            <div class="existing-evidence">
 
-                                <label for="evidence">
-                                    Upload Additional Evidence
-                                </label>
+                                <?php foreach ($evidence as $file): ?>
+
+                                    <div class="evidence-row">
+
+                                        <span>
+                                            <?= h($file['original_filename']) ?> (<?= h(number_format($file['file_size'] / 1024, 1)) ?> KB)
+                                        </span>
+
+                                        <label class="remove-evidence">
+
+                                            <input
+                                                type="checkbox"
+                                                name="remove_evidence[]"
+                                                value="<?= (int) $file['evidence_id'] ?>"
+                                            >
+
+                                            <span>Remove</span>
+
+                                        </label>
+
+                                    </div>
+
+                                <?php endforeach; ?>
+
+                            </div>
+
+                            <div class="field">
+
+                                <label>Add More Files</label>
 
                                 <input
-                                    id="evidence"
                                     type="file"
                                     name="evidence[]"
                                     accept=".pdf,.jpg,.jpeg,.png,.docx"
                                     multiple
                                 >
 
-                                <div class="value">
-                                    PDF, JPG, PNG, or DOCX.
-                                    Maximum 5MB per file.
-                                </div>
+                            </div>
+
+                        <?php else: ?>
+
+                            <div class="field">
+
+                                <label>Files</label>
+
+                                <ul>
+
+                                    <?php foreach ($evidence as $file): ?>
+
+                                        <li><?= h($file['original_filename']) ?></li>
+
+                                    <?php endforeach; ?>
+
+                                </ul>
 
                             </div>
 
@@ -899,18 +733,34 @@ $labels = [
 
         const personFieldSets = {
             respondents: [
-                ['name', 'Full Name', 'required'],
-                ['student_no', 'Student Number', ''],
-                ['college', 'College', ''],
-                ['course_year', 'Course and Section', ''],
-                ['contact', 'Contact Information', ''],
+                ['type', 'Respondent Type', 'required', 'respondentType'],
+                ['name', 'Full Name', 'required', 'text'],
+                ['student_no', 'Student Number', '', 'text', 'Student'],
+                ['college', 'College', '', 'text', 'Student'],
+                ['course', 'Course/Program', '', 'text', 'Student'],
+                ['section', 'Section', '', 'text', 'Student'],
+                ['employee_no', 'Employee Number', '', 'text', 'Employee'],
+                ['position', 'Position', '', 'text', 'Employee'],
+                ['department', 'College/Office/Department', '', 'text', 'Employee'],
+                ['contact', 'Contact Information', '', 'text', 'Private Individual,Other'],
+                ['affiliation', 'Affiliation/Organization', '', 'text', 'Other'],
+                ['gender', 'Gender', '', 'select'],
                 ['details', 'Details', '']
             ],
 
             witnesses: [
-                ['name', 'Full Name', 'required'],
-                ['student_no', 'Student Number', ''],
-                ['contact', 'Contact Information', ''],
+                ['type', 'Witness Type', '', 'witnessType'],
+                ['name', 'Full Name', 'required', 'text'],
+                ['gender', 'Gender', '', 'select'],
+                ['student_no', 'Student Number', '', 'text', 'Student'],
+                ['college', 'College', '', 'text', 'Student'],
+                ['course', 'Course/Program', '', 'text', 'Student'],
+                ['section', 'Section', '', 'text', 'Student'],
+                ['employee_no', 'Employee Number', '', 'text', 'Employee'],
+                ['position', 'Position', '', 'text', 'Employee'],
+                ['department', 'College/Office or Department', '', 'text', 'Employee'],
+                ['affiliation', 'Affiliation/Organization', '', 'text', 'Other'],
+                ['contact', 'Contact Information', '', 'text', 'Private Individual,Other'],
                 ['statement', 'Statement', '']
             ]
         };
@@ -922,19 +772,59 @@ $labels = [
 
         function buildPersonItem(type) {
             const fields = personFieldSets[type] || [];
+            const isWitness = type === 'witnesses';
 
             return `
-                <div class="repeat-item">
+                <div class="repeat-item ${isWitness ? 'witness-repeat-item' : ''}">
                     <div class="form-grid">
                         ${fields
-                            .map(([key, label, rule]) => {
+                            .map(([key, label, rule, controlType, typeNames]) => {
+                                const typeAttr = typeNames
+                                    ? (isWitness ? ` data-witness-types="${typeNames}"` : ` data-respondent-types="${typeNames}"`)
+                                    : '';
+                                let control;
+
+                                if (controlType === 'select') {
+                                    control = `
+                                        <select name="${type}_${key}[]">
+                                            <option value="">Select Gender</option>
+                                            <option value="Male">Male</option>
+                                            <option value="Female">Female</option>
+                                        </select>
+                                    `;
+                                } else if (controlType === 'respondentType') {
+                                    control = `
+                                        <select name="respondent_type[]" required>
+                                            <option value="">Select Respondent Type</option>
+                                            <option value="Student">Student</option>
+                                            <option value="Employee">Employee</option>
+                                            <option value="Private Individual">Private Individual</option>
+                                            <option value="Other">Other</option>
+                                        </select>
+                                    `;
+                                } else if (controlType === 'witnessType') {
+                                    control = `
+                                        <select name="witness_type[]">
+                                            <option value="">Select Witness Type</option>
+                                            <option value="Student" selected>Student</option>
+                                            <option value="Employee">Employee</option>
+                                            <option value="Private Individual">Private Individual</option>
+                                            <option value="Other">Other</option>
+                                        </select>
+                                    `;
+                                } else {
+                                    const placeholder = (type === 'respondents' && key === 'details')
+                                        ? ' placeholder="Example: relationship, social media, or other relevant details."'
+                                        : (type === 'witnesses' && key === 'statement')
+                                            ? ' placeholder="Example: explain what the witness saw/heard during the incident."'
+                                            : '';
+                                    control = `<input name="${type}_${key}[]"${placeholder} ${rule === 'required' ? 'required' : ''}>`;
+                                }
+
                                 return `
-                                    <div class="field">
+                                    <div class="field${key === 'type' ? ' full' : ''}"${typeAttr}>
                                         <label>${label}</label>
-                                        <input
-                                            name="${type}_${key}[]"
-                                            ${rule === 'required' ? 'required' : ''}
-                                        >
+                                        ${control}
                                     </div>
                                 `;
                             })
@@ -961,8 +851,8 @@ $labels = [
                 if (template) {
                     item = template.cloneNode(true);
 
-                    item.querySelectorAll('input').forEach(input => {
-                        input.value = '';
+                    item.querySelectorAll('input, select').forEach(control => {
+                        control.value = '';
                     });
                 } else {
                     item = document.createElement('div');
@@ -971,8 +861,82 @@ $labels = [
                 }
 
                 list.appendChild(item);
+
+                if (button.dataset.list === 'witnesses') {
+                    updateWitnessFields(item);
+                } else if (button.dataset.list === 'respondents') {
+                    updateRespondentFields(item);
+                }
             });
         });
+
+        function updateWitnessFields(item) {
+            if (!item) return;
+            const typeSelect = item.querySelector('[name="witness_type[]"]');
+            const type = (typeSelect && typeSelect.value) ? typeSelect.value : 'Student';
+            const requiredByType = {
+                Student: ['witness_student_no[]', 'witness_college[]', 'witness_course[]', 'witness_section[]'],
+                Employee: ['witness_employee_no[]', 'witness_position[]', 'witness_department[]'],
+                'Private Individual': [],
+                Other: []
+            };
+            const requiredNames = requiredByType[type] || [];
+            item.querySelectorAll('[data-witness-types]').forEach(field => {
+                const visible = field.dataset.witnessTypes.split(',').includes(type);
+                field.hidden = !visible;
+                field.querySelectorAll('input, select').forEach(control => {
+                    if (control.dataset.reviseTypeRequired === undefined) {
+                        control.dataset.reviseTypeRequired = control.required ? '1' : '0';
+                    }
+                    control.disabled = !visible;
+                    control.required = visible && requiredNames.includes(control.name);
+                });
+            });
+        }
+
+        document.querySelectorAll('#witnesses').forEach(list => {
+            list.addEventListener('change', event => {
+                if (event.target.matches('[name="witness_type[]"]')) {
+                    updateWitnessFields(event.target.closest('.repeat-item'));
+                }
+            });
+        });
+
+        document.querySelectorAll('#witnesses .repeat-item').forEach(updateWitnessFields);
+
+        function updateRespondentFields(item) {
+            if (!item) return;
+            const typeSelect = item.querySelector('[name="respondent_type[]"]');
+            const type = (typeSelect && typeSelect.value) ? typeSelect.value : 'Student';
+            const requiredByType = {
+                Student: ['respondent_student_no[]', 'respondent_college[]', 'respondent_course[]', 'respondent_section[]'],
+                Employee: ['respondent_employee_no[]', 'respondent_position[]', 'respondent_department[]'],
+                'Private Individual': [],
+                Other: []
+            };
+            const requiredNames = requiredByType[type] || [];
+            item.querySelectorAll('[data-respondent-types]').forEach(field => {
+                const visible = field.dataset.respondentTypes.split(',').includes(type);
+                field.hidden = !visible;
+                field.querySelectorAll('input, select').forEach(control => {
+                    if (control.dataset.reviseTypeRequired === undefined) {
+                        control.dataset.reviseTypeRequired = control.required ? '1' : '0';
+                    }
+                    control.disabled = !visible;
+                    control.required = visible && requiredNames.includes(control.name);
+                });
+            });
+        }
+
+        document.querySelectorAll('#respondents').forEach(list => {
+            list.addEventListener('change', event => {
+                if (event.target.matches('[name="respondent_type[]"]')) {
+                    updateRespondentFields(event.target.closest('.repeat-item'));
+                }
+            });
+        });
+
+        document.querySelectorAll('#respondents .repeat-item').forEach(updateRespondentFields);
 
         document.addEventListener('click', event => {
             const button = event.target.closest('.remove-person');

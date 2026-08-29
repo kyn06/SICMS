@@ -131,7 +131,6 @@ $chartData = [
     'casesByClassification' => chart_payload($reportData['casesByClassification']),
     'casesByCollege' => chart_payload($reportData['casesByCollege']),
     'hearingsByMonth' => chart_payload($reportData['hearingsByMonth']),
-    'sexDistribution' => chart_payload($reportData['casesBySex'] ?? []),
 ];
 
 $rows = $reportData['rows'];
@@ -1118,11 +1117,6 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
                         <div class="section-title"><i class="bi bi-building"></i> Cases per College</div>
                         <div class="chart-box"><canvas id="casesByCollege"></canvas></div>
                     </article>
-                    <article class="panel">
-                        <div class="section-title"><i class="bi bi-gender-ambiguous"></i> Sex Distribution</div>
-                        <div class="chart-box"><canvas id="casesBySex"></canvas></div>
-                        <div class="section-subtitle">Based on the linked student account records.</div>
-                    </article>
                     <article class="panel chart-wide">
                         <div class="section-title"><i class="bi bi-calendar-range"></i> Hearings per Month</div>
                         <div class="section-subtitle">Scheduled hearings, last 12 months</div>
@@ -1462,9 +1456,6 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
         showValues: true
     });
     makeChart('hearingsByMonth', 'line');
-    makeChart('casesBySex', 'doughnut', {
-        centerLabel: 'COMPLAINANTS'
-    });
 
     const dashboardFilters = document.getElementById('dashboardFilters');
     const dashboardFilterStatus = document.getElementById('dashboardFilterStatus');
@@ -1640,9 +1631,6 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
                 showValues: true
             });
             makeChart('hearingsByMonth', 'line');
-            makeChart('casesBySex', 'doughnut', {
-                centerLabel: 'COMPLAINANTS'
-            });
             params.delete('ajax');
             const query = params.toString();
             history.replaceState({}, '', query ? `${dashboardFilters.action}?${query}` : dashboardFilters.action);

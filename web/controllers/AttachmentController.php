@@ -150,6 +150,9 @@ class AttachmentController {
 
     private function canAccess(array $file) {
         $role = strtolower(str_replace(['_', ' '], '-', $this->user['role'] ?? ''));
+        if (($file['case_source'] ?? '') === 'Legacy') {
+            return in_array($role, ['super-admin', 'admin', 'sdr-staff', 'sdru-staff', 'head-of-sdru', 'coordinator'], true);
+        }
         if ($role === 'student') return (int) $file['submitted_by_account_id'] === (int) $this->user['account_id'];
         if ($role === 'coordinator') return (int) $file['assigned_coordinator_account_id'] === (int) $this->user['account_id'];
         return in_array($role, ['super-admin', 'admin', 'sdr-staff', 'sdru-staff', 'head-of-sdru', 'sdru-head'], true);
