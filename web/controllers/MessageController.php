@@ -20,104 +20,85 @@ class MessageController {
     }
 
     public function index() {
-        $conversations = Message::conversationsForUser($this->user);
-        [$selectedConversationId, $selectedCounterpartId] = self::parseConversationId($_GET['conversation_id'] ?? '');
+        $conversations = Message::threadsForUser($this->user);
+        $counterpartId = (int) ($_GET['conversation_id'] ?? 0);
 
-        if ($selectedConversationId <= 0 && !empty($conversations)) {
-            $selectedConversationId = (int) $conversations[0]['complaint_id'];
-            $selectedCounterpartId = (int) $conversations[0]['counterpart_account_id'];
+        if ($counterpartId <= 0 && !empty($conversations)) {
+            $counterpartId = (int) $conversations[0]['counterpart_account_id'];
         }
 
-        $conversation = $selectedConversationId > 0
-            ? $this->conversation($selectedConversationId, $selectedCounterpartId)
+        $conversation = $counterpartId > 0
+            ? $this->conversationData($counterpartId, true)
             : [
-                'case' => null,
-                'messages' => [],
                 'recipient' => null,
+                'messages' => [],
+                'cases' => [],
+                'isStaffPeer' => false,
             ];
-
-        if ($selectedConversationId > 0 && !$conversation['case']) {
-            header('Location: index.php');
-            exit;
-        }
 
         return [
             'user' => $this->user,
             'conversations' => $conversations,
             'candidates' => Message::newConversationCandidates($this->user),
-            'selectedConversationId' => $conversation['case']
-                ? $selectedConversationId . '-' . ($selectedCounterpartId > 0 ? $selectedCounterpartId : (int) $conversation['recipient']['account_id'])
-                : '',
-            'case' => $conversation['case'],
-            'messages' => $conversation['messages'],
+            'selectedConversationId' => $conversation['recipient'] ? (string) $counterpartId : '',
             'recipient' => $conversation['recipient'],
+            'messages' => $conversation['messages'],
+            'cases' => $conversation['cases'],
+            'isStaffPeer' => $conversation['isStaffPeer'],
         ];
     }
 
-    public function conversation($complaintId, $counterpartId = 0) {
-        return $this->conversationData($complaintId, $counterpartId, true);
+    public function conversation($counterpartId) {
+        return $this->conversationData((int) $counterpartId, true);
     }
 
-    private function conversationData($complaintId, $counterpartId, $markRead) {
-        $case = CaseRecord::findCase((int) $complaintId);
+    private function conversationData($counterpartId, $markRead) {
+        $counterpart = Message::counterpartAccount($counterpartId);
 
-        if (!$case || !Message::canAccessConversation($case, $this->user)) {
+        if (!$counterpart || Message::isValidMessagingPeer($this->user, $counterpartId) === null) {
             return [
-                'case' => null,
-                'messages' => [],
                 'recipient' => null,
-            ];
-        }
-
-        if ($counterpartId <= 0 || !Message::isValidRecipientForCase($case, $this->user, $counterpartId)) {
-            $counterpart = Message::defaultCounterpartForCase($case, $this->user);
-        } else {
-            $counterpart = Message::counterpartAccount($counterpartId);
-        }
-
-        if (!$counterpart) {
-            return [
-                'case' => null,
                 'messages' => [],
-                'recipient' => null,
+                'cases' => [],
+                'isStaffPeer' => false,
             ];
         }
 
         $counterpartId = (int) $counterpart['account_id'];
 
         if ($markRead) {
-            Message::markPairMessagesRead((int) $complaintId, (int) $this->user['account_id'], $counterpartId);
+            Message::markPairMessagesRead((int) $this->user['account_id'], $counterpartId);
         }
 
         return [
-            'case' => $case,
-            'messages' => Message::forPair((int) $complaintId, (int) $this->user['account_id'], $counterpartId),
             'recipient' => $counterpart,
+            'messages' => Message::forPair((int) $this->user['account_id'], $counterpartId),
+            'cases' => Message::casesForComplainant($counterpartId),
+            'isStaffPeer' => Message::isStaffRole($counterpart['role']),
         ];
     }
 
     public function poll() {
-        [$caseId, $counterpartId] = self::parseConversationId($_GET['conversation_id'] ?? '');
+        $counterpartId = (int) ($_GET['conversation_id'] ?? 0);
 
         $payload = [
             'success' => true,
-            'conversations' => Message::conversationsForUser($this->user),
+            'conversations' => Message::threadsForUser($this->user),
             'candidates' => Message::newConversationCandidates($this->user),
             'currentUserId' => (int) $this->user['account_id'],
         ];
 
-        if ($caseId > 0) {
-            $payload['conversation'] = $this->conversationData($caseId, $counterpartId, false);
+        if ($counterpartId > 0) {
+            $payload['conversation'] = $this->conversationData($counterpartId, false);
         }
 
         $this->json($payload);
     }
 
-    public function conversationJson($complaintId) {
-        [$caseId, $counterpartId] = self::parseConversationId($complaintId);
-        $conversation = $this->conversation($caseId, $counterpartId);
+    public function conversationJson($conversationId) {
+        $conversation = $this->conversation((int) $conversationId);
 
-        if (!$conversation['case']) {
+        if (!$conversation['recipient']) {
             $this->json([
                 'success' => false,
                 'message' => 'Conversation not found or access denied.',
@@ -127,7 +108,7 @@ class MessageController {
         $this->json([
             'success' => true,
             'conversation' => $conversation,
-            'conversations' => Message::conversationsForUser($this->user),
+            'conversations' => Message::threadsForUser($this->user),
             'currentUserId' => (int) $this->user['account_id'],
         ]);
     }
@@ -137,20 +118,25 @@ class MessageController {
         $complaintId = (int) ($_POST['complaint_id'] ?? 0);
         $receiverId = (int) ($_POST['receiver_account_id'] ?? 0);
         $message = trim($_POST['message'] ?? '');
-        $case = CaseRecord::findCase($complaintId);
         $isAjax = $this->isAjaxRequest();
 
-        if (!$case || !Message::canStartCaseConversation($case, $this->user)) {
-            if ($isAjax) {
-                $this->json(['success' => false, 'message' => 'Access denied.'], 403);
-            }
+        if ($complaintId > 0) {
+            $case = CaseRecord::findCase($complaintId);
 
-            http_response_code(403);
-            echo 'Access denied.';
-            exit;
+            if (!$case || !Message::canAccessCaseMessages($case, $this->user)) {
+                if ($isAjax) {
+                    $this->json(['success' => false, 'message' => 'Access denied.'], 403);
+                }
+
+                http_response_code(403);
+                echo 'Access denied.';
+                exit;
+            }
         }
 
-        if ($message === '' || $receiverId <= 0 || !Message::isValidRecipientForCase($case, $this->user, $receiverId)) {
+        $peer = Message::isValidMessagingPeer($this->user, $receiverId);
+
+        if ($message === '' || $receiverId <= 0 || !$peer) {
             if ($isAjax) {
                 $this->json([
                     'success' => false,
@@ -159,31 +145,31 @@ class MessageController {
             }
 
             $_SESSION['case_errors'] = ['Please select a valid recipient and enter a message.'];
-            header('Location: ../cases/show.php?id=' . $complaintId);
+            header('Location: ' . ($complaintId > 0 ? '../cases/show.php?id=' . $complaintId : 'index.php'));
             exit;
         }
 
         $attachmentPath = $this->handleAttachmentUpload($complaintId, $isAjax);
-        $createdMessage = Message::createMessage($complaintId, (int) $this->user['account_id'], $receiverId, $message, $attachmentPath);
+        $createdMessage = Message::createMessage((int) $this->user['account_id'], $receiverId, $message, $attachmentPath);
 
         Notification::notifyNewMessage(
             $receiverId,
             trim($this->user['first_name'] . ' ' . $this->user['last_name']),
-            'web/views/messages/index.php?conversation_id=' . $complaintId
+            'web/views/messages/index.php?conversation_id=' . (int) $this->user['account_id']
         );
 
         AuditLog::record(
             $this->user,
             'Messages Sent',
-            'Sent a message for case ' . ($case['case_number'] ?? ('#' . $complaintId)) . '.'
+            'Sent a direct message to ' . Message::accountName($receiverId) . ($complaintId > 0 ? ' for case #' . $complaintId : '') . '.'
         );
 
         if ($isAjax) {
             $this->json([
                 'success' => true,
                 'message' => $createdMessage,
-                'messages' => Message::forPair($complaintId, (int) $this->user['account_id'], $receiverId),
-                'conversations' => Message::conversationsForUser($this->user),
+                'messages' => Message::forPair((int) $this->user['account_id'], $receiverId),
+                'conversations' => Message::threadsForUser($this->user),
             ]);
         }
 
@@ -192,31 +178,12 @@ class MessageController {
         exit;
     }
 
-    public static function parseConversationId($value) {
-        $value = trim((string) $value);
-
-        if ($value === '') {
-            return [0, 0];
-        }
-
-        if (strpos($value, '-') !== false) {
-            [$caseId, $counterpartId] = array_pad(explode('-', $value, 2), 2, '0');
-
-            return [(int) $caseId, (int) $counterpartId];
-        }
-
-        return [(int) $value, 0];
-    }
-
     public function start() {
         Security::requireCsrfToken();
-        $complaintId = (int) ($_POST['complaint_id'] ?? 0);
         $counterpartId = (int) ($_POST['counterpart_account_id'] ?? 0);
-        $case = CaseRecord::findCase($complaintId);
         $isAjax = $this->isAjaxRequest();
-        $roleKey = strtolower(str_replace(['_', ' '], '-', (string) ($this->user['role'] ?? '')));
 
-        if ($roleKey === 'student') {
+        if (!Message::isStaffRole($this->user['role'])) {
             if ($isAjax) {
                 $this->json(['success' => false, 'message' => 'Students cannot start new conversations.'], 403);
             }
@@ -226,8 +193,10 @@ class MessageController {
             exit;
         }
 
-        if (!$case || !Message::canAccessConversation($case, $this->user)
-            || $counterpartId <= 0 || !Message::isValidNewConversationCandidate($case, $this->user, $counterpartId)) {
+        $peer = Message::isValidMessagingPeer($this->user, $counterpartId);
+        $canStart = $counterpartId > 0 && Message::canStartThread($this->user, $counterpartId);
+
+        if (!$canStart || !$peer) {
             if ($isAjax) {
                 $this->json(['success' => false, 'message' => 'This recipient is not available for a new conversation.'], 422);
             }
@@ -237,37 +206,34 @@ class MessageController {
             exit;
         }
 
-        Message::openPair($complaintId, (int) $this->user['account_id'], $counterpartId);
+        Message::startThread((int) $this->user['account_id'], $counterpartId);
 
         AuditLog::record(
             $this->user,
             'Conversations Started',
-            'Started a conversation with ' . Message::accountName($counterpartId) . ' for case ' . ($case['case_number'] ?? ('#' . $complaintId)) . '.'
+            'Started a conversation with ' . Message::accountName($counterpartId) . '.'
         );
 
         if ($isAjax) {
             $this->json([
                 'success' => true,
                 'message' => 'Conversation started.',
-                'conversations' => Message::conversationsForUser($this->user),
+                'conversations' => Message::threadsForUser($this->user),
                 'candidates' => Message::newConversationCandidates($this->user),
             ]);
         }
 
         $_SESSION['case_message'] = 'Conversation started.';
-        header('Location: index.php?conversation_id=' . $complaintId . '-' . $counterpartId);
+        header('Location: index.php?conversation_id=' . $counterpartId);
         exit;
     }
 
     public function delete() {
         Security::requireCsrfToken();
-        $complaintId = (int) ($_POST['complaint_id'] ?? 0);
         $counterpartId = (int) ($_POST['counterpart_account_id'] ?? 0);
-        $case = CaseRecord::findCase($complaintId);
         $isAjax = $this->isAjaxRequest();
 
-        if (!$case || !Message::canAccessConversation($case, $this->user)
-            || $counterpartId <= 0 || !Message::isValidRecipientForCase($case, $this->user, $counterpartId)) {
+        if ($counterpartId <= 0 || !Message::accountThreadExists((int) $this->user['account_id'], $counterpartId)) {
             if ($isAjax) {
                 $this->json(['success' => false, 'message' => 'Conversation not found or access denied.'], 403);
             }
@@ -277,19 +243,19 @@ class MessageController {
             exit;
         }
 
-        Message::hidePair($complaintId, (int) $this->user['account_id'], $counterpartId);
+        Message::hidePair((int) $this->user['account_id'], $counterpartId);
 
         AuditLog::record(
             $this->user,
             'Messages Deleted',
-            'Deleted their copy of the conversation with ' . Message::accountName($counterpartId) . ' for case ' . ($case['case_number'] ?? ('#' . $complaintId)) . '.'
+            'Deleted their copy of the conversation with ' . Message::accountName($counterpartId) . '.'
         );
 
         if ($isAjax) {
             $this->json([
                 'success' => true,
                 'message' => 'Conversation deleted.',
-                'conversations' => Message::conversationsForUser($this->user),
+                'conversations' => Message::threadsForUser($this->user),
                 'candidates' => Message::newConversationCandidates($this->user),
             ]);
         }
@@ -416,7 +382,7 @@ class MessageController {
             mkdir($storageDir, 0755, true);
         }
 
-        $filename = 'message_' . $complaintId . '_' . bin2hex(random_bytes(8)) . '.' . $extension;
+        $filename = 'message_' . (int) $complaintId . '_' . bin2hex(random_bytes(8)) . '.' . $extension;
         $target = $storageDir . '/' . $filename;
 
         if (!move_uploaded_file($_FILES['attachment']['tmp_name'], $target)) {

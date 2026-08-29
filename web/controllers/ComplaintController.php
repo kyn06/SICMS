@@ -85,7 +85,9 @@ class ComplaintController {
             exit;
         }
 
-        Message::markCaseMessagesRead($complaintId, (int) $this->user['account_id']);
+        Message::markAllRead((int) $this->user['account_id']);
+
+        $messagePeer = Message::defaultCounterpartForCase($case, $this->user);
 
         return [
             'user' => $this->user,
@@ -95,7 +97,10 @@ class ComplaintController {
             'evidence' => CaseRecord::getEvidence($complaintId),
             'history' => CaseRecord::getHistory($complaintId),
             'hearings' => Complaint::hearingsForStudentCase($complaintId, (int) $this->user['account_id']),
-            'messages' => Message::forCaseForUser($complaintId, (int) $this->user['account_id']),
+            'messages' => $messagePeer
+                ? Message::forPair((int) $this->user['account_id'], (int) $messagePeer['account_id'])
+                : [],
+            'messageReceiver' => $messagePeer,
         ];
     }
 
