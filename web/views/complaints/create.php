@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../../controllers/ComplaintController.php';
 require_once __DIR__ . '/../../helpers/Colleges.php';
 require_once __DIR__ . '/../../helpers/Courses.php';
+require_once __DIR__ . '/../../helpers/ProfileCompletion.php';
 
 $controller = new ComplaintController();
 $viewData = $controller->handleCreateRequest();
@@ -14,11 +15,17 @@ $success = $viewData['success'];
 $oldIncident = !empty($old['incident_datetime']) ? strtotime($old['incident_datetime']) : false;
 $successCaseNumber = $success && preg_match('/Case Number:\s*([^\s]+)/', $success, $caseMatch) ? $caseMatch[1] : '';
 $complainantProgram = Courses::split($old['complainant_course_year'] ?? '');
-$complainantCourse = $old['complainant_course'] ?? $complainantProgram['course'];
-$complainantSection = $old['complainant_section'] ?? $complainantProgram['section'];
+$complainantCourse = $old['complainant_course'] ?? $complainantProgram['course'] ?? ($user['course'] ?? '');
+$complainantSection = $old['complainant_section'] ?? $complainantProgram['section'] ?? ($user['section'] ?? '');
 $complainantType = $old['complainant_type'] ?? 'Student';
 $complainantName = $complainantType === 'Student' ? trim($user['first_name'] . ' ' . $user['last_name']) : ($old['complainant_name'] ?? '');
 $complainantGender = $old['complainant_gender'] ?? ($complainantType === 'Student' ? trim($user['gender'] ?? '') : '');
+$complainantStudentNo = $old['complainant_student_no'] ?? ($user['student_number'] ?? '');
+$complainantCollege = $old['complainant_college'] ?? ($user['college'] ?? '');
+$complainantContact = $old['complainant_contact'] ?? ($user['phone_number'] ?? '');
+
+$profileIncomplete = ProfileCompletion::isStudentAccount($user) && !ProfileCompletion::isComplete($user);
+$profileMissingFields = ProfileCompletion::isStudentAccount($user) ? ProfileCompletion::missingFields($user) : [];
 
 function old_value($old, $key, $default = '') {
     return htmlspecialchars($old[$key] ?? $default);
@@ -565,7 +572,7 @@ $witnessItem = function ($index = null, $old = []) {
                         </div>
                         <div class="field" data-complainant-types="Student" <?= type_field_hidden('Student', $complainantType) ?>>
                             <label for="complainant_student_no">Student Number</label>
-                            <input id="complainant_student_no" name="complainant_student_no" value="<?= old_value($old, 'complainant_student_no') ?>" required <?= type_field_disabled('Student', $complainantType) ?>>
+                            <input id="complainant_student_no" name="complainant_student_no" value="<?= h($complainantStudentNo) ?>" required <?= type_field_disabled('Student', $complainantType) ?>>
                         </div>
                         <div class="field">
                             <label for="complainant_email">Email</label>
@@ -573,14 +580,14 @@ $witnessItem = function ($index = null, $old = []) {
                         </div>
                         <div class="field">
                             <label for="complainant_contact">Contact Number</label>
-                            <input id="complainant_contact" name="complainant_contact" value="<?= old_value($old, 'complainant_contact') ?>" required>
+                            <input id="complainant_contact" name="complainant_contact" value="<?= h($complainantContact) ?>" required>
                         </div>
                         <div class="field" data-complainant-types="Student" <?= type_field_hidden('Student', $complainantType) ?>>
                             <label for="complainant_college">College</label>
                             <select id="complainant_college" name="complainant_college" required <?= type_field_disabled('Student', $complainantType) ?>>
                                 <option value="">Select College</option>
                                 <?php foreach (Colleges::all() as $college): ?>
-                                    <option value="<?= h($college) ?>" <?= (($old['complainant_college'] ?? '') === $college) ? 'selected' : '' ?>><?= h($college) ?></option>
+                                    <option value="<?= h($college) ?>" <?= $complainantCollege === $college ? 'selected' : '' ?>><?= h($college) ?></option>
                                 <?php endforeach; ?>
                             </select>
                         </div>
@@ -838,6 +845,13 @@ $witnessItem = function ($index = null, $old = []) {
             </dialog>
         </main>
         </div>
+
+        <?php
+        $profileGateMode = 'auto';
+        $blurTarget = '.complaint-page.app-content';
+        $profileGateSettingsUrl = '../settings/index.php';
+        require __DIR__ . '/../layout/profile_gate.php';
+        ?>
     </div>
 
     <script>
@@ -865,6 +879,11 @@ $witnessItem = function ($index = null, $old = []) {
         const studentAccountName = <?= json_encode(trim($user['first_name'] . ' ' . $user['last_name'])) ?>;
         const studentAccountEmail = <?= json_encode($user['email']) ?>;
         const studentAccountGender = <?= json_encode(trim($user['gender'] ?? '')) ?>;
+        const studentAccountStudentNo = <?= json_encode($user['student_number'] ?? '') ?>;
+        const studentAccountCollege = <?= json_encode($user['college'] ?? '') ?>;
+        const studentAccountCourse = <?= json_encode($user['course'] ?? '') ?>;
+        const studentAccountSection = <?= json_encode($user['section'] ?? '') ?>;
+        const studentAccountPhone = <?= json_encode($user['phone_number'] ?? '') ?>;
         let activeComplainantType = complainantTypeInput.value;
         const complainantIdentityCache = {};
         let confirmed = false;
@@ -998,6 +1017,17 @@ $witnessItem = function ($index = null, $old = []) {
                 complainantNameInput.readOnly = true;
                 complainantEmailInput.readOnly = true;
                 if (!initial) complainantGenderInput.value = studentAccountGender;
+                [
+                    ['complainant_student_no', studentAccountStudentNo],
+                    ['complainant_college', studentAccountCollege],
+                    ['complainant_course', studentAccountCourse],
+                    ['complainant_section', studentAccountSection],
+                    ['complainant_contact', studentAccountPhone],
+                ].forEach(([id, value]) => {
+                    if (!value) return;
+                    const control = document.getElementById(id);
+                    if (control && !control.value.trim()) control.value = value;
+                });
             } else {
                 complainantNameInput.readOnly = false;
                 complainantEmailInput.readOnly = false;

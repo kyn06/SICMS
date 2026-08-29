@@ -7,6 +7,9 @@ require_once __DIR__ . '/../../models/User.php';
 require_once __DIR__ . '/../../models/AuditLog.php';
 require_once __DIR__ . '/../../../routes.php';
 require_once __DIR__ . '/../../services/GoogleCalendarService.php';
+require_once __DIR__ . '/../../helpers/ProfileCompletion.php';
+require_once __DIR__ . '/../../helpers/Colleges.php';
+require_once __DIR__ . '/../../helpers/Courses.php';
 
 if (!isset($_SESSION['email'])) {
     header('Location: web/views/auth/login.php');
@@ -31,6 +34,8 @@ if (!$user || $user['status'] !== 'active') {
 function h($value) {
     return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
 }
+
+$isStudent = ProfileCompletion::isStudentAccount($user);
 
 $success = null;
 $errors = [];
@@ -108,6 +113,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $phone     = trim($_POST['phone_number'] ?? '');
         $gender    = trim($_POST['gender'] ?? '');
         $address   = trim($_POST['address'] ?? '');
+        $studentNumber = trim($_POST['student_number'] ?? '');
+        $college   = trim($_POST['college'] ?? '');
+        $course    = trim($_POST['course'] ?? '');
+        $section   = trim($_POST['section'] ?? '');
 
         if ($firstName === '' || $lastName === '') {
             $errors[] = 'First name and last name are required.';
@@ -125,19 +134,55 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $errors[] = 'Phone number must be 20 characters or fewer.';
         }
 
+        if ($isStudent) {
+            if ($studentNumber === '') {
+                $errors[] = 'Student number is required.';
+            } elseif (strlen($studentNumber) > 50) {
+                $errors[] = 'Student number must be 50 characters or fewer.';
+            }
+
+            if ($college === '') {
+                $errors[] = 'College is required.';
+            } elseif (!Colleges::contains($college)) {
+                $errors[] = 'Please select a valid college.';
+            }
+
+            if ($course === '') {
+                $errors[] = 'Course is required.';
+            } elseif (!in_array($course, Courses::all(), true)) {
+                $errors[] = 'Please select a valid course.';
+            }
+
+            $validSections = array_merge(...array_values(Courses::sections()));
+            if ($section === '') {
+                $errors[] = 'Section is required.';
+            } elseif (!in_array($section, $validSections, true)) {
+                $errors[] = 'Please select a valid section.';
+            }
+        }
+
         if (!empty($errors)) {
             $old = $_POST;
         } else {
             $currentUser = User::find($user['account_id']);
             if ($currentUser) {
-                $result = $currentUser->update([
+                $updateData = [
                     'first_name'   => $firstName,
                     'last_name'    => $lastName,
                     'phone_number' => $phone,
                     'gender'       => $gender,
                     'address'      => $address,
                     'updated_at'   => date('Y-m-d H:i:s'),
-                ]);
+                ];
+
+                if ($isStudent) {
+                    $updateData['student_number'] = $studentNumber;
+                    $updateData['college']        = $college;
+                    $updateData['course']         = $course;
+                    $updateData['section']        = $section;
+                }
+
+                $result = $currentUser->update($updateData);
 
                 if ($result) {
                     $success = 'Profile updated successfully.';
@@ -202,7 +247,7 @@ unset($_SESSION['cal_message'], $_SESSION['cal_error']);
                         </div>
                     <?php endif; ?>
 
-                    <form method="POST" action="index.php" class="settings-form">
+                    <form method="POST" action="<?= h(app_url('web/views/settings/index.php')) ?>" class="settings-form">
                         <?= Security::csrfField() ?>
 
                         <div class="settings-avatar-section">
@@ -254,12 +299,73 @@ unset($_SESSION['cal_message'], $_SESSION['cal_error']);
                             </div>
                         </div>
 
+                        <?php if ($isStudent): ?>
+                            <div class="settings-section-header">
+                                <h3 class="settings-section-title"><i class="bi bi-mortarboard"></i> Student Information</h3>
+                                <p class="settings-section-description">
+                                    These details are required so you can submit and track your complaints.
+                                </p>
+                            </div>
+                            <div class="settings-fields">
+                                <div class="settings-field">
+                                    <label for="student_number">Student Number <span class="required">*</span></label>
+                                    <input type="text" id="student_number" name="student_number" value="<?= h($old['student_number'] ?? '') ?>" maxlength="50" placeholder="e.g. 12-3456">
+                                </div>
+                                <div class="settings-field-row">
+                                    <div class="settings-field">
+                                        <label for="college">College <span class="required">*</span></label>
+                                        <select id="college" name="college">
+                                            <option value="">Select your college</option>
+                                            <?php foreach (Colleges::all() as $collegeOption): ?>
+                                                <option value="<?= h($collegeOption) ?>" <?= ($old['college'] ?? '') === $collegeOption ? 'selected' : '' ?>>
+                                                    <?= h($collegeOption) ?>
+                                                </option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                    </div>
+                                    <div class="settings-field">
+                                        <label for="course">Course <span class="required">*</span></label>
+                                        <select id="course" name="course">
+                                            <option value="">Select your course</option>
+                                            <?php foreach (Courses::all() as $courseOption): ?>
+                                                <option value="<?= h($courseOption) ?>" <?= ($old['course'] ?? '') === $courseOption ? 'selected' : '' ?>>
+                                                    <?= h($courseOption) ?>
+                                                </option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="settings-field">
+                                    <label for="section">Section <span class="required">*</span></label>
+                                    <select id="section" name="section">
+                                        <option value="">Select your section</option>
+                                        <?php foreach (Courses::sections() as $yearLabel => $sections): ?>
+                                            <optgroup label="<?= h($yearLabel) ?>">
+                                                <?php foreach ($sections as $sectionOption): ?>
+                                                    <option value="<?= h($sectionOption) ?>" <?= ($old['section'] ?? '') === $sectionOption ? 'selected' : '' ?>>
+                                                        <?= h($sectionOption) ?>
+                                                    </option>
+                                                <?php endforeach; ?>
+                                            </optgroup>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </div>
+                            </div>
+                        <?php endif; ?>
+
                         <div class="settings-actions">
                             <button type="submit" class="btn btn-primary"><i class="bi bi-check2"></i> Save Changes</button>
                         </div>
                     </form>
 
-                    <form method="POST" action="index.php" class="settings-form settings-password-form">
+                    <?php if (!$hasPassword && $user['auth_provider'] === 'google'): ?>
+                        <div class="alert alert-warning">
+                            <i class="bi bi-key"></i>
+                            Set a password below so you can also log in with your email and password. Your Google sign-in will keep working.
+                        </div>
+                    <?php endif; ?>
+
+                    <form method="POST" action="<?= h(app_url('web/views/settings/index.php')) ?>" class="settings-form settings-password-form">
                         <?= Security::csrfField() ?>
                         <input type="hidden" name="action" value="change_password">
 
@@ -285,8 +391,9 @@ unset($_SESSION['cal_message'], $_SESSION['cal_error']);
                         <?php endif; ?>
 
                         <div class="settings-fields">
+                            <?php if ($hasPassword): ?>
                             <div class="settings-field">
-                                <label for="current_password">Current Password <?= $hasPassword ? '<span class="required">*</span>' : '' ?></label>
+                                <label for="current_password">Current Password <span class="required">*</span></label>
                                 <div class="password-wrapper">
                                     <input
                                         type="password"
@@ -294,17 +401,18 @@ unset($_SESSION['cal_message'], $_SESSION['cal_error']);
                                         name="current_password"
                                         autocomplete="current-password"
                                         placeholder="Enter your current password"
-                                        <?= $hasPassword ? 'required' : '' ?>
+                                        required
                                     >
                                     <button type="button" class="password-toggle" aria-label="Show password">
                                         <i class="bi bi-eye"></i>
                                     </button>
                                 </div>
                             </div>
+                            <?php endif; ?>
 
                             <div class="settings-field-row">
                                 <div class="settings-field">
-                                    <label for="new_password">New Password <span class="required">*</span></label>
+                                    <label for="new_password"><?= $hasPassword ? 'New Password' : 'Add New Password' ?> <span class="required">*</span></label>
                                     <div class="password-wrapper">
                                         <input
                                             type="password"
@@ -347,7 +455,8 @@ unset($_SESSION['cal_message'], $_SESSION['cal_error']);
                         </div>
                     </form>
 
-                    <form method="POST" action="index.php" class="settings-form settings-password-form" data-confirm="<?= $calConnected ? 'Disconnect Google Calendar? Existing calendar events will not be removed.' : '' ?>">
+                    <?php if (!$isStudent): ?>
+                    <form method="POST" action="<?= h(app_url('web/views/settings/index.php')) ?>" class="settings-form settings-password-form" data-confirm="<?= $calConnected ? 'Disconnect Google Calendar? Existing calendar events will not be removed.' : '' ?>">
                         <?= Security::csrfField() ?>
                         <input type="hidden" name="action" value="disconnect_calendar">
 
@@ -401,6 +510,7 @@ unset($_SESSION['cal_message'], $_SESSION['cal_error']);
                             </div>
                         </div>
                     </form>
+                <?php endif; ?>
                 </div> 
             </section>
         </div>

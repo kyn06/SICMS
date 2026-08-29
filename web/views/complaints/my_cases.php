@@ -1,10 +1,13 @@
 <?php
 require_once __DIR__ . '/../../controllers/ComplaintController.php';
 require_once __DIR__ . '/../../../routes.php';
+require_once __DIR__ . '/../../helpers/ProfileCompletion.php';
 
 $controller = new ComplaintController();
 $viewData = $controller->handleTrackingRequest();
 $user = $viewData['user'];
+$profileIncomplete = ProfileCompletion::isStudentAccount($user) && !ProfileCompletion::isComplete($user);
+$profileMissingFields = ProfileCompletion::isStudentAccount($user) ? ProfileCompletion::missingFields($user) : [];
 $statuses = ['Submitted', 'Verified', 'Returned for Revision', 'Rejected', 'Resolved', 'Archived'];
 $allCases = Complaint::forStudent((int) $user['account_id'], 10000, ['sort' => 'newest'], 0);
 
@@ -140,6 +143,12 @@ rsort($years);
             </section>
         </main>
     </div>
+    <?php
+    $profileGateMode = 'auto';
+    $blurTarget = '.app-content';
+    $profileGateSettingsUrl = '../settings/index.php';
+    require __DIR__ . '/../layout/profile_gate.php';
+    ?>
 </div>
 <script>
     const initialCases = <?= json_encode(array_map('case_payload', $filteredCases), JSON_UNESCAPED_SLASHES | JSON_HEX_TAG) ?>;

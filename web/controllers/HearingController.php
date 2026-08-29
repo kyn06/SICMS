@@ -188,7 +188,7 @@ class HearingController {
                 'hearing_scheduled',
                 'Hearing Scheduled',
                 'A hearing for case ' . $case['case_number'] . ' was scheduled on ' . date('M d, Y h:i A', strtotime($hearing['hearing_datetime'])) . '.',
-                'web/views/hearings/index.php'
+                'web/views/complaints/case_details.php?id=' . (int) $case['complaint_id']
             );
         }
 
@@ -368,7 +368,7 @@ class HearingController {
             'hearing_' . strtolower($status),
             'Hearing ' . $status,
             'The hearing for case ' . $case['case_number'] . ' was marked as ' . $status . '.',
-            'web/views/hearings/index.php'
+            'web/views/complaints/case_details.php?id=' . (int) $case['complaint_id']
         );
     }
 
