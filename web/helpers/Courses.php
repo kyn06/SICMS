@@ -39,12 +39,29 @@ class Courses {
         ];
     }
 
+    public static function yearOptions() {
+        return [
+            1 => 'First Year',
+            2 => 'Second Year',
+            3 => 'Third Year',
+            4 => 'Fourth Year',
+            5 => 'Fifth Year',
+            6 => 'Sixth Year',
+        ];
+    }
+
     public static function sections() {
         $groups = [];
-        foreach ([1 => 'First Year', 2 => 'Second Year', 3 => 'Third Year', 4 => 'Fourth Year', 5 => 'Fifth Year'] as $year => $label) {
+        foreach (self::yearOptions() as $year => $label) {
             $groups[$label] = array_map(fn($section) => $year . '-' . $section, range(1, 7));
         }
         return $groups;
+    }
+
+    public static function yearLevel($section) {
+        if (!self::containsSection($section)) return '';
+        $labels = self::yearOptions();
+        return $labels[(int) explode('-', (string) $section)[0]] ?? '';
     }
 
     public static function split($value) {

@@ -98,4 +98,4 @@ window.SICMS_NOTIFY = {
     api: <?= json_encode(app_url('web/api/notifications.php'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>
 };
 </script>
-<script src="<?= h(app_url('web/views/layout/system.js')) ?>" defer></script>
+<script src="<?= h(app_url('web/views/layout/system.js')) ?>?v=20260829c" defer></script>

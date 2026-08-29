@@ -1,8 +1,8 @@
 <?php
-require_once __DIR__ . '/../../controllers/CaseController.php';
+require_once __DIR__ . '/../../controllers/LegacyCaseController.php';
 require_once __DIR__ . '/../../../routes.php';
 
-$controller = new CaseController();
+$controller = new LegacyCaseController();
 
 if (($_GET['ajax'] ?? '') === '1') {
     $controller->search();
@@ -15,13 +15,21 @@ $cases = $viewData['cases'];
 $filters = $viewData['filters'];
 $statuses = $viewData['statuses'];
 $classifications = $viewData['classifications'];
+$colleges = $viewData['colleges'];
+$canEdit = $viewData['canEdit'];
+$message = $viewData['message'];
+$errors = $viewData['errors'];
 
-function h($value) {
-    return htmlspecialchars((string) $value);
+if (!function_exists('h')) {
+    function h($value) {
+        return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
+    }
 }
 
-function role_key($role) {
-    return strtolower(str_replace(['_', ' '], '-', (string) $role));
+if (!function_exists('role_key')) {
+    function role_key($role) {
+        return strtolower(str_replace(['_', ' '], '-', (string) $role));
+    }
 }
 
 ?>
@@ -31,10 +39,11 @@ function role_key($role) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Case Management | SICMS</title>
+    <title>Legacy Cases | SICMS</title>
     <link rel="stylesheet" href="../layout/style.css">
     <link rel="stylesheet" href="../layout/sidebar.css">
     <link rel="stylesheet" href="../layout/cases.css">
+    <link rel="stylesheet" href="../layout/legacy_cases.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link rel="stylesheet" href="../layout/system.css?v=2">
 </head>
@@ -43,9 +52,16 @@ function role_key($role) {
     <div class="dashboard-shell">
         <?php require __DIR__ . '/../layout/sidebar.php'; ?>
         <div class="case-shell app-content">
-            <?php $pageTitle = 'Case Management'; require __DIR__ . '/../layout/topbar.php'; ?>
+            <?php $pageTitle = 'Legacy Cases'; require __DIR__ . '/../layout/topbar.php'; ?>
 
         <main class="case-wrap">
+            <?php if ($message): ?>
+                <div class="alert alert-success"><?= h($message) ?></div>
+            <?php endif; ?>
+            <?php if ($errors): ?>
+                <div class="alert alert-danger"><?= h(implode(' ', $errors)) ?></div>
+            <?php endif; ?>
+
             <section class="filter-panel">
                 <form id="caseFilters" method="GET" action="index.php">
                     <div class="filter-grid">
@@ -68,12 +84,25 @@ function role_key($role) {
                             </select>
                         </div>
                         <div class="field">
-                            <label for="case_number">Case Number</label>
+                            <label for="college">College</label>
+                            <select id="college" name="college">
+                                <option value="">All colleges</option>
+                                <?php foreach ($colleges as $college): ?>
+                                    <option value="<?= h($college) ?>" <?= $filters['college'] === $college ? 'selected' : '' ?>><?= h($college) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="field">
+                            <label for="year">Original Year</label>
+                            <input id="year" name="year" value="<?= h($filters['year']) ?>" placeholder="e.g. 2023">
+                        </div>
+                        <div class="field">
+                            <label for="case_number">Original Case Number</label>
                             <input id="case_number" name="case_number" value="<?= h($filters['case_number']) ?>">
                         </div>
                         <div class="field">
-                            <label for="student_name">Student Name</label>
-                            <input id="student_name" name="student_name" value="<?= h($filters['student_name']) ?>">
+                            <label for="complainant_name">Complainant Name</label>
+                            <input id="complainant_name" name="complainant_name" value="<?= h($filters['complainant_name']) ?>">
                         </div>
                     </div>
                     <div class="filter-actions">
@@ -84,41 +113,47 @@ function role_key($role) {
             </section>
 
             <section class="table-panel">
-                    <div class="empty-state" id="caseEmptyState" <?= empty($cases) ? '' : 'hidden' ?>>No complaints found.</div>
-                    <table id="caseTable" <?= empty($cases) ? 'hidden' : '' ?>>
-                        <thead>
+                <div class="table-actions">
+                    <?php if ($canEdit): ?>
+                        <a class="btn btn-primary" href="create.php"><i class="bi bi-plus-lg"></i> Digitize Legacy Case</a>
+                    <?php endif; ?>
+                </div>
+                <div class="empty-state" id="caseEmptyState" <?= empty($cases) ? '' : 'hidden' ?>>No legacy cases found.</div>
+                <table id="caseTable" <?= empty($cases) ? 'hidden' : '' ?>>
+                    <thead>
+                        <tr>
+                            <th>Original Case No.</th>
+                            <th>Complainant</th>
+                            <th>Classification</th>
+                            <th>Original Case Date</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="caseTableBody">
+                        <?php foreach ($cases as $case): ?>
                             <tr>
-                                <th>Case Number</th>
-                                <th>Complainant Name</th>
-                                <th>Gender</th>
-                                <th>Classification</th>
-                                <th>Status</th>
-                                <th>Date Submitted</th>
-                                <th>Actions</th>
+                                <td>
+                                    <a class="case-link" href="show.php?id=<?= (int) $case['complaint_id'] ?>">
+                                        <?= h($case['case_number']) ?>
+                                    </a>
+                                </td>
+                                <td><?= h($case['complainant_name']) ?></td>
+                                <td><?= h($case['case_classification']) ?></td>
+                                <td><?= h(date('M d, Y', strtotime($case['original_case_date'] ?: $case['submitted_at']))) ?></td>
+                                <td><span class="status"><?= h($case['status']) ?></span></td>
+                                <td>
+                                    <div class="row-actions">
+                                        <a class="btn btn-primary" href="show.php?id=<?= (int) $case['complaint_id'] ?>"><i class="bi bi-eye"></i> View</a>
+                                        <?php if ($canEdit): ?>
+                                            <a class="btn btn-secondary" href="edit.php?id=<?= (int) $case['complaint_id'] ?>"><i class="bi bi-pencil"></i> Edit</a>
+                                        <?php endif; ?>
+                                    </div>
+                                </td>
                             </tr>
-                        </thead>
-                        <tbody id="caseTableBody">
-                            <?php foreach ($cases as $case): ?>
-                                <tr>
-                                    <td>
-                                        <a class="case-link" href="show.php?id=<?= (int) $case['complaint_id'] ?>">
-                                            <?= h($case['case_number']) ?>
-                                        </a>
-                                    </td>
-                                    <td><?= h($case['complainant_name']) ?></td>
-                                    <td><?= h($case['complainant_gender'] ?: 'Not provided') ?></td>
-                                    <td><?= h($case['case_classification']) ?></td>
-                                    <td><span class="status"><?= h($case['status']) ?></span></td>
-                                    <td><?= h(date('M d, Y h:i A', strtotime($case['submitted_at']))) ?></td>
-                                    <td>
-                                        <div class="row-actions">
-                                            <a class="btn btn-primary" href="show.php?id=<?= (int) $case['complaint_id'] ?>"><i class="bi bi-eye"></i> View Details</a>
-                                        </div>
-                                    </td>
-                                </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
             </section>
         </main>
         </div>
@@ -130,18 +165,15 @@ function role_key($role) {
             const tableBody = document.getElementById('caseTableBody');
             const emptyState = document.getElementById('caseEmptyState');
             const clearButton = document.getElementById('clearFilters');
-            const textInputs = [form.elements.case_number, form.elements.student_name];
-            const selects = [form.elements.status, form.elements.classification];
+            const textInputs = [form.elements.case_number, form.elements.complainant_name, form.elements.year];
+            const selects = [form.elements.status, form.elements.classification, form.elements.college];
             let debounceTimer;
             let activeRequest;
 
             const formatDate = (value) => {
                 const date = new Date(String(value).replace(' ', 'T'));
                 if (Number.isNaN(date.getTime())) return value || '';
-                return new Intl.DateTimeFormat('en-US', {
-                    month: 'short', day: '2-digit', year: 'numeric',
-                    hour: '2-digit', minute: '2-digit'
-                }).format(date);
+                return new Intl.DateTimeFormat('en-US', { month: 'short', day: '2-digit', year: 'numeric' }).format(date);
             };
 
             const appendCell = (row, text) => {
@@ -164,23 +196,29 @@ function role_key($role) {
                     numberCell.appendChild(link);
                     row.appendChild(numberCell);
                     appendCell(row, item.complainant_name);
-                    appendCell(row, item.complainant_gender || 'Not provided');
                     appendCell(row, item.case_classification);
+                    appendCell(row, formatDate(item.original_case_date || item.submitted_at));
                     const statusCell = document.createElement('td');
                     const status = document.createElement('span');
                     status.className = 'status';
                     status.textContent = item.status;
                     statusCell.appendChild(status);
                     row.appendChild(statusCell);
-                    appendCell(row, formatDate(item.submitted_at));
                     const actionsCell = document.createElement('td');
                     const actionsDiv = document.createElement('div');
                     actionsDiv.className = 'row-actions';
                     const viewLink = document.createElement('a');
                     viewLink.className = 'btn btn-primary';
                     viewLink.href = `show.php?id=${encodeURIComponent(item.complaint_id)}`;
-                    viewLink.innerHTML = '<i class="bi bi-eye"></i> View Details';
+                    viewLink.innerHTML = '<i class="bi bi-eye"></i> View';
                     actionsDiv.appendChild(viewLink);
+                    <?php if ($canEdit): ?>
+                    const editLink = document.createElement('a');
+                    editLink.className = 'btn btn-secondary';
+                    editLink.href = `edit.php?id=${encodeURIComponent(item.complaint_id)}`;
+                    editLink.innerHTML = '<i class="bi bi-pencil"></i> Edit';
+                    actionsDiv.appendChild(editLink);
+                    <?php endif; ?>
                     actionsCell.appendChild(actionsDiv);
                     row.appendChild(actionsCell);
                     tableBody.appendChild(row);
@@ -189,7 +227,7 @@ function role_key($role) {
                 const hasCases = cases.length > 0;
                 table.hidden = !hasCases;
                 emptyState.hidden = hasCases;
-                emptyState.textContent = 'No complaints found.';
+                emptyState.textContent = 'No legacy cases found.';
             };
 
             const updateCases = async () => {
@@ -215,7 +253,7 @@ function role_key($role) {
                     if (error.name !== 'AbortError') {
                         table.hidden = true;
                         emptyState.hidden = false;
-                        emptyState.textContent = 'Unable to filter cases. Please try again.';
+                        emptyState.textContent = 'Unable to filter legacy cases. Please try again.';
                     }
                 } finally {
                     form.removeAttribute('aria-busy');
