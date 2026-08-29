@@ -84,7 +84,7 @@ class CaseController {
         $messageReceiver = Message::defaultCounterpartForCase($case, $this->user);
 
         if ($messageReceiver) {
-            Message::markPairMessagesRead($complaintId, (int) $this->user['account_id'], (int) $messageReceiver['account_id']);
+            Message::markPairMessagesRead((int) $this->user['account_id'], (int) $messageReceiver['account_id']);
         }
 
         return [
@@ -98,7 +98,7 @@ class CaseController {
             'resubmission' => CaseRecord::getLatestRevisionSubmission($complaintId),
             'hearings' => Hearing::forComplaint($complaintId),
             'messages' => $messageReceiver
-                ? Message::forPair($complaintId, (int) $this->user['account_id'], (int) $messageReceiver['account_id'])
+                ? Message::forPair((int) $this->user['account_id'], (int) $messageReceiver['account_id'])
                 : [],
             'messageReceiver' => $messageReceiver,
             'message' => $_SESSION['case_message'] ?? null,
@@ -190,11 +190,11 @@ class CaseController {
                 ], fn($accountId) => $accountId > 0 && $accountId !== $actorAccountId));
 
                 foreach ($closureRecipients as $recipientId) {
-                    Message::createMessage($complaintId, $actorAccountId, $recipientId, $closureMessage);
+                    Message::createMessage($actorAccountId, $recipientId, $closureMessage);
                     Notification::notifyNewMessage(
                         $recipientId,
                         $actorName,
-                        'web/views/messages/index.php?conversation_id=' . $complaintId
+                        'web/views/messages/index.php?conversation_id=' . $actorAccountId
                     );
                 }
 
