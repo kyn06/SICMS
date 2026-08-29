@@ -361,6 +361,12 @@ tbody tr:hover {
     color: var(--sicms-danger) !important;
 }
 
+.alert-warning {
+    background: #fff8e6 !important;
+    border-color: #f2cf7a !important;
+    color: #8a5a00 !important;
+}
+
 .empty,
 .empty-state {
     background: #fbfdf9;

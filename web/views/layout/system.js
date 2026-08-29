@@ -146,7 +146,8 @@
         if (submitter.name && !data.has(submitter.name)) data.append(submitter.name, submitter.value);
         submitter.disabled = true;
         try {
-            const response = await fetch(form.dataset.markAllUrl || form.action, {
+            const markAllUrl = form.dataset.markAllUrl || form.getAttribute('action') || window.location.href;
+            const response = await fetch(markAllUrl, {
                 method: 'POST',
                 body: data,
                 headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
@@ -179,7 +180,9 @@
         form.classList.add('sicms-ajax-loading');
 
         try {
-            let requestUrl = form.action || window.location.href;
+            let requestUrl = window.location.href;
+            const rawAction = form.getAttribute('action');
+            if (rawAction) requestUrl = new URL(rawAction, window.location.href).toString();
             const options = { headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json, text/html' } };
             if (method === 'post') {
                 options.method = 'POST';
@@ -201,7 +204,14 @@
             }
 
             const html = await response.text();
-            if (!response.ok) throw new Error('The request could not be completed.');
+            if (!response.ok) {
+                let message = 'The request could not be completed';
+                if (response.status === 403) message = 'Your session expired or this page is outdated. Please refresh and try again.';
+                else if (response.status === 404) message = 'The requested page was not found (' + requestUrl + '). Please refresh and try again.';
+                else message = message + ' (HTTP ' + response.status + ').';
+                console.error('AJAX form failure', requestUrl, response.status, html.slice(0, 500));
+                throw new Error(message);
+            }
             renderAjaxDocument(html, response.url);
         } catch (error) {
             showAjaxNotice(error.message || 'The request could not be completed.', 'error');

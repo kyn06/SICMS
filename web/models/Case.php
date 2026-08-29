@@ -120,7 +120,7 @@ class CaseRecord extends Model {
     }
 
     public static function findEvidence($evidenceId) {
-        $sql = "SELECT e.*, c.submitted_by_account_id, c.assigned_coordinator_account_id, c.case_number
+        $sql = "SELECT e.*, c.submitted_by_account_id, c.assigned_coordinator_account_id, c.case_number, c.case_source
                 FROM complaint_evidence e
                 INNER JOIN complaints c ON c.complaint_id = e.complaint_id
                 WHERE e.evidence_id = ? LIMIT 1";
@@ -154,6 +154,248 @@ class CaseRecord extends Model {
         $result = $stmt->get_result();
 
         return $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
+    }
+
+    /*
+     * ------------------------------------------------------------------
+     * Legacy Cases (digitized historical cases)
+     * ------------------------------------------------------------------
+     * Legacy cases live in the same `complaints` table as online cases,
+     * flagged via `case_source = 'Legacy'` and dated by
+     * `original_case_date` so reports group them by their ORIGINAL case
+     * date rather than the date staff digitized them.
+     * ------------------------------------------------------------------
+     */
+
+    public static function listLegacyCases(array $filters = []) {
+        $sql = "SELECT c.*, a.first_name AS submitted_by_first_name, a.last_name AS submitted_by_last_name
+                FROM complaints c
+                LEFT JOIN accounts a ON c.submitted_by_account_id = a.account_id
+                WHERE c.case_source = 'Legacy'";
+        $params = [];
+        $types = '';
+
+        if (!empty($filters['status'])) {
+            $sql .= " AND c.status = ?";
+            $params[] = $filters['status'];
+            $types .= 's';
+        }
+
+        if (!empty($filters['classification'])) {
+            $sql .= " AND c.case_classification = ?";
+            $params[] = $filters['classification'];
+            $types .= 's';
+        }
+
+        if (!empty($filters['college'])) {
+            $sql .= " AND c.complainant_college LIKE ?";
+            $params[] = '%' . $filters['college'] . '%';
+            $types .= 's';
+        }
+
+        if (!empty($filters['year'])) {
+            $sql .= " AND YEAR(COALESCE(c.original_case_date, c.submitted_at)) = ?";
+            $params[] = (int) $filters['year'];
+            $types .= 'i';
+        }
+
+        if (!empty($filters['case_number'])) {
+            $sql .= " AND c.case_number LIKE ?";
+            $params[] = '%' . $filters['case_number'] . '%';
+            $types .= 's';
+        }
+
+        if (!empty($filters['complainant_name'])) {
+            $sql .= " AND c.complainant_name LIKE ?";
+            $params[] = '%' . $filters['complainant_name'] . '%';
+            $types .= 's';
+        }
+
+        $sql .= " ORDER BY COALESCE(c.original_case_date, c.submitted_at) DESC, c.complaint_id DESC";
+
+        $stmt = self::$conn->prepare($sql);
+
+        if (!$stmt) {
+            throw new Exception("Error preparing statement: " . self::$conn->error);
+        }
+
+        if (!empty($params)) {
+            $stmt->bind_param($types, ...$params);
+        }
+
+        $stmt->execute();
+        $result = $stmt->get_result();
+
+        return $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
+    }
+
+    public static function findLegacyCase($complaintId) {
+        $sql = "SELECT c.*, a.first_name AS submitted_by_first_name, a.last_name AS submitted_by_last_name
+                FROM complaints c
+                LEFT JOIN accounts a ON c.submitted_by_account_id = a.account_id
+                WHERE c.complaint_id = ? AND c.case_source = 'Legacy'
+                LIMIT 1";
+        $stmt = self::$conn->prepare($sql);
+        $stmt->bind_param("i", $complaintId);
+        $stmt->execute();
+        $result = $stmt->get_result();
+
+        return $result ? $result->fetch_assoc() : null;
+    }
+
+    public static function legacyClassifications() {
+        $stmt = self::$conn->prepare("SELECT DISTINCT case_classification FROM complaints WHERE case_source = 'Legacy' ORDER BY case_classification");
+        if (!$stmt) return [];
+        $stmt->execute();
+        $result = $stmt->get_result();
+        return $result ? array_column($result->fetch_all(MYSQLI_ASSOC), 'case_classification') : [];
+    }
+
+    public static function createLegacyCase(array $complaint, array $respondents, array $witnesses, array $evidenceFiles, array $hearings, $actorAccountId) {
+        self::$conn->begin_transaction();
+
+        try {
+            $complaint['case_source'] = 'Legacy';
+            $complaint['created_at'] = date('Y-m-d H:i:s');
+            $complaint['updated_at'] = date('Y-m-d H:i:s');
+            self::insertRelated('complaints', $complaint);
+            $complaintId = (int) self::$conn->insert_id;
+
+            foreach ($respondents as $respondent) {
+                self::insertRelated('complaint_respondents', array_merge($respondent, ['complaint_id' => $complaintId, 'created_at' => date('Y-m-d H:i:s')]));
+            }
+            foreach ($witnesses as $witness) {
+                self::insertRelated('complaint_witnesses', array_merge($witness, ['complaint_id' => $complaintId, 'created_at' => date('Y-m-d H:i:s')]));
+            }
+            foreach ($evidenceFiles as $file) {
+                self::insertRelated('complaint_evidence', array_merge($file, ['complaint_id' => $complaintId, 'uploaded_at' => date('Y-m-d H:i:s')]));
+            }
+            foreach ($hearings as $hearing) {
+                self::insertRelated('hearings', array_merge($hearing, ['complaint_id' => $complaintId, 'created_at' => date('Y-m-d H:i:s'), 'updated_at' => date('Y-m-d H:i:s')]));
+            }
+
+            self::createHistory([
+                'complaint_id' => $complaintId,
+                'action' => 'Legacy Case Digitized',
+                'previous_status' => null,
+                'new_status' => $complaint['status'] ?? null,
+                'remarks' => 'Legacy case digitized into the system by staff.',
+                'assigned_coordinator_account_id' => null,
+                'created_by_account_id' => $actorAccountId,
+                'created_at' => date('Y-m-d H:i:s'),
+            ]);
+
+            self::$conn->commit();
+            return self::find($complaintId);
+        } catch (Throwable $exception) {
+            self::$conn->rollback();
+            throw $exception;
+        }
+    }
+
+    public static function updateLegacyCase($complaintId, array $complaint, array $respondents, array $witnesses, array $evidenceFiles, array $removeEvidenceIds, array $hearings, $actorAccountId) {
+        $previousStatus = $complaint['legacy_previous_status'] ?? null;
+        $updateRemarks = trim((string) ($complaint['legacy_update_remarks'] ?? '')) ?: null;
+        unset($complaint['legacy_previous_status'], $complaint['legacy_update_remarks']);
+
+        self::$conn->begin_transaction();
+
+        try {
+            $complaint['updated_at'] = date('Y-m-d H:i:s');
+            $set = implode(', ', array_map(fn($column) => "$column = ?", array_keys($complaint)));
+            $values = array_values($complaint);
+            $types = str_repeat('s', count($values)) . 'i';
+            $values[] = $complaintId;
+            $stmt = self::$conn->prepare("UPDATE complaints SET $set WHERE complaint_id = ? AND case_source = 'Legacy'");
+            $stmt->bind_param($types, ...$values);
+            $stmt->execute();
+
+            if ($respondents !== null) {
+                self::replaceLegacyPeople('complaint_respondents', 'respondent_id', $complaintId, $respondents);
+            }
+            if ($witnesses !== null) {
+                self::replaceLegacyPeople('complaint_witnesses', 'witness_id', $complaintId, $witnesses);
+            }
+
+            $removedPaths = [];
+            if ($removeEvidenceIds) {
+                $placeholders = implode(',', array_fill(0, count($removeEvidenceIds), '?'));
+                $params = array_merge([$complaintId], array_map('intval', $removeEvidenceIds));
+                $types = 'i' . str_repeat('i', count($removeEvidenceIds));
+                $stmt = self::$conn->prepare("SELECT evidence_id, file_path FROM complaint_evidence WHERE complaint_id = ? AND evidence_id IN ($placeholders)");
+                $stmt->bind_param($types, ...$params);
+                $stmt->execute();
+                $removedPaths = array_column($stmt->get_result()->fetch_all(MYSQLI_ASSOC), 'file_path');
+                $stmt = self::$conn->prepare("DELETE FROM complaint_evidence WHERE complaint_id = ? AND evidence_id IN ($placeholders)");
+                $stmt->bind_param($types, ...$params);
+                $stmt->execute();
+            }
+
+            foreach ($evidenceFiles as $file) {
+                self::insertRelated('complaint_evidence', array_merge($file, ['complaint_id' => $complaintId, 'uploaded_at' => date('Y-m-d H:i:s')]));
+            }
+
+            if ($hearings !== null) {
+                $stmt = self::$conn->prepare("DELETE FROM hearings WHERE complaint_id = ?");
+                $stmt->bind_param('i', $complaintId);
+                $stmt->execute();
+                foreach ($hearings as $hearing) {
+                    self::insertRelated('hearings', array_merge($hearing, ['complaint_id' => $complaintId, 'created_at' => date('Y-m-d H:i:s'), 'updated_at' => date('Y-m-d H:i:s')]));
+                }
+            }
+
+            self::createHistory([
+                'complaint_id' => $complaintId,
+                'action' => 'Legacy Case Updated',
+                'previous_status' => $previousStatus,
+                'new_status' => $complaint['status'] ?? null,
+                'remarks' => $updateRemarks,
+                'assigned_coordinator_account_id' => null,
+                'created_by_account_id' => $actorAccountId,
+                'created_at' => date('Y-m-d H:i:s'),
+            ]);
+
+            self::$conn->commit();
+            return $removedPaths;
+        } catch (Throwable $exception) {
+            self::$conn->rollback();
+            throw $exception;
+        }
+    }
+
+    private static function insertRelated($table, array $data) {
+        $columns = implode(", ", array_keys($data));
+        $placeholders = implode(", ", array_fill(0, count($data), '?'));
+        $sql = "INSERT INTO $table ($columns) VALUES ($placeholders)";
+        $stmt = self::$conn->prepare($sql);
+
+        if (!$stmt) {
+            throw new Exception("Error preparing statement: " . self::$conn->error);
+        }
+
+        $types = '';
+        $values = [];
+        foreach ($data as $value) {
+            if (is_int($value)) $types .= 'i';
+            elseif (is_float($value)) $types .= 'd';
+            else $types .= 's';
+            $values[] = $value;
+        }
+        $stmt->bind_param($types, ...$values);
+        if (!$stmt->execute()) {
+            throw new Exception("Error executing statement: " . self::$conn->error);
+        }
+    }
+
+    private static function replaceLegacyPeople($table, $primaryKey, $complaintId, array $rows) {
+        $stmt = self::$conn->prepare("DELETE FROM $table WHERE complaint_id = ?");
+        $stmt->bind_param('i', $complaintId);
+        $stmt->execute();
+
+        foreach ($rows as $row) {
+            $row = array_diff_key($row, array_flip([$primaryKey, 'complaint_id', 'created_at']));
+            self::insertRelated($table, array_merge($row, ['complaint_id' => $complaintId, 'created_at' => date('Y-m-d H:i:s')]));
+        }
     }
 
     public static function updateStatus($complaintId, $newStatus, $remarks, $actorAccountId, array $revisionFields = []) {

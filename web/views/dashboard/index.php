@@ -11,6 +11,7 @@ require_once __DIR__ . '/../../models/AuditLog.php';
 require_once __DIR__ . '/../../models/Complaint.php';
 require_once __DIR__ . '/../../models/Message.php';
 require_once __DIR__ . '/../../../routes.php';
+require_once __DIR__ . '/../../helpers/ProfileCompletion.php';
 
 if (!isset($_SESSION['email'])) {
     header('Location: web/views/auth/login.php');
@@ -87,6 +88,9 @@ $displayName = $fullName ?: $user['email'];
 $role = $user['role'];
 $roleKey = role_key($role);
 $isCoordinator = $roleKey === 'coordinator';
+$isStudent = $roleKey === 'student';
+$profileIncomplete = $isStudent && !ProfileCompletion::isComplete($user);
+$profileMissingFields = $isStudent ? ProfileCompletion::missingFields($user) : [];
 $roleLabel = ucwords(str_replace(['-', '_'], ' ', $role));
 $initials = strtoupper(substr($user['first_name'] ?? $user['email'], 0, 1) . substr($user['last_name'] ?? '', 0, 1));
 $initials = trim($initials) ?: 'U';
@@ -131,7 +135,6 @@ $chartData = [
     'casesByClassification' => chart_payload($reportData['casesByClassification']),
     'casesByCollege' => chart_payload($reportData['casesByCollege']),
     'hearingsByMonth' => chart_payload($reportData['hearingsByMonth']),
-    'sexDistribution' => chart_payload($reportData['casesBySex'] ?? []),
 ];
 
 $rows = $reportData['rows'];
@@ -763,10 +766,27 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
                 </div>
             </section>
 
+            <?php if ($profileIncomplete): ?>
+            <section class="student-panel student-profile-reminder">
+                <div class="student-profile-reminder-icon"><i class="bi bi-person-exclamation"></i></div>
+                <div class="student-profile-reminder-body">
+                    <div class="student-profile-reminder-title">Complete your account settings first</div>
+                    <div class="student-profile-reminder-text">Finish filling in your student information in Account
+                        Settings so you can submit and track your complaints.</div>
+                    <a class="btn btn-primary" href="<?= h(app_route('settings.index')) ?>"><i class="bi bi-gear"></i>
+                        Go to Account Settings</a>
+                </div>
+                <div class="student-profile-reminder-missing"><strong>Still missing:</strong>
+                    <?= h(implode(', ', array_slice($profileMissingFields, 0, 5)) . (count($profileMissingFields) > 5 ? ', …' : '')) ?>
+                </div>
+            </section>
+            <?php endif; ?>
+
             <section class="student-actions student-actions-compact" aria-label="Student quick actions">
                 <?php foreach ($quickActions as $action): ?>
                 <?php if (allowed_for_role($action, $roleKey)): ?>
-                <a class="student-action" href="<?= h($action['href']) ?>">
+                <?php $gated = $profileIncomplete && in_array($action['label'], ['Submit Complaint', 'My Cases'], true); ?>
+                <a class="student-action<?= $gated ? ' sicms-gate-trigger' : '' ?>" href="<?= h($action['href']) ?>"<?= $gated ? ' aria-disabled="true"' : '' ?>>
                     <i class="bi <?= h($action['icon']) ?>"></i>
                     <?= h($action['label']) ?>
                 </a>
@@ -1118,11 +1138,6 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
                         <div class="section-title"><i class="bi bi-building"></i> Cases per College</div>
                         <div class="chart-box"><canvas id="casesByCollege"></canvas></div>
                     </article>
-                    <article class="panel">
-                        <div class="section-title"><i class="bi bi-gender-ambiguous"></i> Sex Distribution</div>
-                        <div class="chart-box"><canvas id="casesBySex"></canvas></div>
-                        <div class="section-subtitle">Based on the linked student account records.</div>
-                    </article>
                     <article class="panel chart-wide">
                         <div class="section-title"><i class="bi bi-calendar-range"></i> Hearings per Month</div>
                         <div class="section-subtitle">Scheduled hearings, last 12 months</div>
@@ -1210,6 +1225,13 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
                 </aside>
             </section>
             <?php endif; ?>
+
+            <?php
+            $profileGateMode = 'popup';
+            $blurTarget = '.main-panel';
+            $profileGateSettingsUrl = app_route('settings.index');
+            require __DIR__ . '/../layout/profile_gate.php';
+            ?>
         </main>
     </div>
 
@@ -1462,9 +1484,6 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
         showValues: true
     });
     makeChart('hearingsByMonth', 'line');
-    makeChart('casesBySex', 'doughnut', {
-        centerLabel: 'COMPLAINANTS'
-    });
 
     const dashboardFilters = document.getElementById('dashboardFilters');
     const dashboardFilterStatus = document.getElementById('dashboardFilterStatus');
@@ -1640,9 +1659,6 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
                 showValues: true
             });
             makeChart('hearingsByMonth', 'line');
-            makeChart('casesBySex', 'doughnut', {
-                centerLabel: 'COMPLAINANTS'
-            });
             params.delete('ajax');
             const query = params.toString();
             history.replaceState({}, '', query ? `${dashboardFilters.action}?${query}` : dashboardFilters.action);
