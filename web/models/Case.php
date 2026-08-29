@@ -13,6 +13,8 @@ class CaseRecord extends Model {
             'Verified',
             'Returned for Revision',
             'Rejected',
+            'Resolved',
+            'Archived',
         ];
     }
 
@@ -117,6 +119,15 @@ class CaseRecord extends Model {
         return self::fetchRelated("SELECT * FROM complaint_evidence WHERE complaint_id = ? ORDER BY uploaded_at DESC", $complaintId);
     }
 
+    public static function findEvidence($evidenceId) {
+        $sql = "SELECT e.*, c.submitted_by_account_id, c.assigned_coordinator_account_id, c.case_number
+                FROM complaint_evidence e
+                INNER JOIN complaints c ON c.complaint_id = e.complaint_id
+                WHERE e.evidence_id = ? LIMIT 1";
+        $rows = self::fetchRelated($sql, $evidenceId);
+        return $rows[0] ?? null;
+    }
+
     public static function getHistory($complaintId) {
         $sql = "SELECT h.*, actor.first_name AS actor_first_name, actor.last_name AS actor_last_name,
                        coordinator.first_name AS coordinator_first_name,
@@ -145,7 +156,7 @@ class CaseRecord extends Model {
         return $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
     }
 
-    public static function updateStatus($complaintId, $newStatus, $remarks, $actorAccountId) {
+    public static function updateStatus($complaintId, $newStatus, $remarks, $actorAccountId, array $revisionFields = []) {
         $case = self::findCase($complaintId);
 
         if (!$case) {
@@ -166,6 +177,7 @@ class CaseRecord extends Model {
                 'previous_status' => $case['status'],
                 'new_status' => $newStatus,
                 'remarks' => $remarks,
+                'revision_fields' => $revisionFields ? json_encode(array_values($revisionFields)) : null,
                 'assigned_coordinator_account_id' => null,
                 'created_by_account_id' => $actorAccountId,
                 'created_at' => $now,
@@ -179,6 +191,43 @@ class CaseRecord extends Model {
             self::$conn->rollback();
             throw $exception;
         }
+    }
+
+    public static function getLatestRevisionRequest($complaintId) {
+        $sql = "SELECT h.*, actor.first_name AS actor_first_name, actor.last_name AS actor_last_name,
+                       actor.role AS actor_role
+                FROM case_history h
+                LEFT JOIN accounts actor ON h.created_by_account_id = actor.account_id
+                WHERE h.complaint_id = ? AND h.new_status = 'Returned for Revision'
+                ORDER BY h.created_at DESC, h.history_id DESC
+                LIMIT 1";
+        $rows = self::fetchRelated($sql, $complaintId);
+        $request = $rows[0] ?? null;
+
+        if ($request) {
+            $decoded = json_decode((string) ($request['revision_fields'] ?? ''), true);
+            $request['revision_fields'] = is_array($decoded) ? $decoded : [];
+        }
+
+        return $request;
+    }
+
+    public static function getLatestRevisionSubmission($complaintId) {
+        $sql = "SELECT h.*, actor.first_name AS actor_first_name, actor.last_name AS actor_last_name
+                FROM case_history h
+                LEFT JOIN accounts actor ON h.created_by_account_id = actor.account_id
+                WHERE h.complaint_id = ? AND h.action = 'Submitted Revised Complaint'
+                ORDER BY h.created_at DESC, h.history_id DESC
+                LIMIT 1";
+        $rows = self::fetchRelated($sql, $complaintId);
+        $submission = $rows[0] ?? null;
+
+        if ($submission) {
+            $decoded = json_decode((string) ($submission['revision_fields'] ?? ''), true);
+            $submission['revision_fields'] = is_array($decoded) ? $decoded : [];
+        }
+
+        return $submission;
     }
 
     public static function assignCoordinator($complaintId, $coordinatorAccountId, $remarks, $actorAccountId) {
@@ -286,7 +335,7 @@ class CaseRecord extends Model {
             $type,
             $title,
             'Case ' . $case['case_number'] . ' is now ' . $newStatus . '.',
-            'web/views/cases/show.php?id=' . $case['complaint_id']
+            'web/views/complaints/case_details.php?id=' . $case['complaint_id']
         );
     }
 }

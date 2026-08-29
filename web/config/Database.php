@@ -1,23 +1,31 @@
 <?php
 
+date_default_timezone_set('Asia/Manila');
+
 class Database{
     
-    private $host = "localhost:3307";
+    private $host = "127.0.0.1";
+    private $port = 3307;
     private $username= "root";
     private $password = "";
     private $database = "sicms";
     private $conn;
 
     public function __construct(){
-        $this->conn = mysqli_connect(
+        $this->conn = mysqli_init();
+        mysqli_options($this->conn, MYSQLI_OPT_CONNECT_TIMEOUT, 3);
+
+        $connected = mysqli_real_connect(
+            $this->conn,
             $this->host,
             $this->username,
             $this->password,
-            $this->database
+            $this->database,
+            $this->port
         );
 
-        if(!$this->conn){
-            die("Connection failed: " . mysqli_connect_error());
+        if(!$connected){
+            die("Connection failed: " . mysqli_connect_error() . ". Please check MySQL, database name, username, password, and port.");
         }
     }
 
@@ -34,6 +42,8 @@ class Database{
     }
 
     public function __destruct(){
-        mysqli_close($this->conn);
+        if ($this->isConnected()) {
+            mysqli_close($this->conn);
+        }
     }
 }

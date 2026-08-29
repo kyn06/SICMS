@@ -6,45 +6,75 @@ class AuditLog extends Model {
     protected static $table = 'audit_logs';
     protected static $primaryKey = 'audit_log_id';
 
-    public static function record($user, $action, $description) {
-        try {
-            $accountId = null;
-            $userName = 'System';
-            $userRole = 'System';
+public static function record($user, $action, $description) {
+    try {
+        $accountId = null;
+        $userName = 'System';
+        $userRole = 'System';
 
-            if (is_object($user)) {
-                $user = get_object_vars($user);
-            }
+        if (is_object($user)) {
+            $user = get_object_vars($user);
+        }
 
-            if (is_array($user)) {
-                $accountId = isset($user['account_id']) ? (int) $user['account_id'] : null;
-                $userName = trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? '')) ?: ($user['email'] ?? 'User');
-                $userRole = $user['role'] ?? 'User';
-            }
+        if (is_array($user)) {
+            $accountId = isset($user['account_id']) ? (int) $user['account_id'] : null;
+            $userName = trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? '')) ?: ($user['email'] ?? 'User');
+            $userRole = $user['role'] ?? 'User';
 
-            $sql = "INSERT INTO audit_logs
-                        (account_id, user_name, user_role, action, description, ip_address, user_agent, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
-            $stmt = self::$conn->prepare($sql);
+            $roleKey = strtolower(str_replace(['_', ' '], '-', trim($userRole)));
 
-            if (!$stmt) {
+            $allowedRoles = [
+                'super-admin',
+                'admin',
+                'sdru-staff',
+                'coordinator',
+                'head-of-sdru',
+                'sdru-head',
+            ];
+
+            $isStudentScreenshot = $roleKey === 'student' && $action === 'Screenshot Attempt';
+
+            if (!in_array($roleKey, $allowedRoles, true) && !$isStudentScreenshot) {
                 return null;
             }
+        }
 
-            $ipAddress = self::ipAddress();
-            $userAgent = substr($_SERVER['HTTP_USER_AGENT'] ?? '', 0, 255);
-            $createdAt = date('Y-m-d H:i:s');
-            $stmt->bind_param("isssssss", $accountId, $userName, $userRole, $action, $description, $ipAddress, $userAgent, $createdAt);
+        $sql = "INSERT INTO audit_logs
+                    (account_id, user_name, user_role, action, description, ip_address, user_agent, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
 
-            if (!$stmt->execute()) {
-                return null;
-            }
+        $stmt = self::$conn->prepare($sql);
 
-            return self::find(mysqli_insert_id(self::$conn));
-        } catch (Throwable $exception) {
+        if (!$stmt) {
             return null;
         }
+
+        $ipAddress = self::ipAddress();
+        $userAgent = substr($_SERVER['HTTP_USER_AGENT'] ?? '', 0, 255);
+        $createdAt = date('Y-m-d H:i:s');
+
+        $stmt->bind_param(
+            "isssssss",
+            $accountId,
+            $userName,
+            $userRole,
+            $action,
+            $description,
+            $ipAddress,
+            $userAgent,
+            $createdAt
+        );
+
+        if (!$stmt->execute()) {
+            return null;
+        }
+
+        return self::find(mysqli_insert_id(self::$conn));
+
+    } catch (Throwable $exception) {
+        return null;
     }
+}
 
     public static function filters(array $input) {
         return [
@@ -182,6 +212,10 @@ class AuditLog extends Model {
         }
 
         return $values;
+    }
+
+    private static function isStudentRole($role) {
+        return strtolower(str_replace(['_', ' '], '-', (string) $role)) === 'student';
     }
 
     private static function dateValue($value) {

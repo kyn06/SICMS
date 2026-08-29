@@ -7,6 +7,7 @@ class Message extends Model {
     protected static $primaryKey = 'message_id';
 
     private static $staffRoles = ['super-admin', 'admin', 'sdr staff', 'sdr-staff', 'sdru-staff', 'coordinator', 'head-of-sdru', 'sdru-head', 'head of sdru'];
+    private static $headRoles = ['head-of-sdru', 'sdru-head', 'head of sdru'];
     private static $columnCache = [];
 
     public static function forCase($complaintId) {
@@ -72,6 +73,11 @@ class Message extends Model {
 
         $createdMessage = parent::create($data);
 
+        if ($createdMessage) {
+            self::ensureParticipants((int) $complaintId, (int) $senderAccountId, (int) $receiverAccountId);
+            self::markPairVisible((int) $complaintId, (int) $senderAccountId, (int) $receiverAccountId);
+        }
+
         return $createdMessage ? self::findWithNames((int) $createdMessage['message_id']) : null;
     }
 
@@ -89,15 +95,277 @@ class Message extends Model {
     public static function conversationsForUser(array $user) {
         try {
             $accountId = (int) $user['account_id'];
-            $whereClause = "(c.submitted_by_account_id = ?
-                             OR c.assigned_coordinator_account_id = ?
-                             OR EXISTS (
-                                SELECT 1
-                                FROM case_messages participant_messages
-                                WHERE participant_messages.complaint_id = c.complaint_id
-                                  AND (participant_messages.sender_account_id = ? OR participant_messages.receiver_account_id = ?)
-                             ))";
+            $threads = [];
 
+            foreach (self::accessibleCases($accountId) as $case) {
+                $covered = [];
+                $counterparts = self::counterpartsForCase($case, $user);
+
+                foreach ($counterparts as $counterpart) {
+                    $covered[] = (int) $counterpart['account_id'];
+                }
+
+                foreach (self::explicitCounterparts((int) $case['complaint_id'], $accountId) as $explicit) {
+                    if (in_array((int) $explicit['account_id'], $covered, true)) {
+                        continue;
+                    }
+
+                    $counterparts[] = $explicit;
+                }
+
+                foreach ($counterparts as $counterpart) {
+                    if (self::isPairHidden((int) $case['complaint_id'], $accountId, (int) $counterpart['account_id'])) {
+                        continue;
+                    }
+
+                    $summary = self::pairSummary((int) $case['complaint_id'], $accountId, (int) $counterpart['account_id']);
+
+                    $threads[] = array_merge($case, [
+                        'counterpart_account_id' => (int) $counterpart['account_id'],
+                        'counterpart_first_name' => $counterpart['first_name'],
+                        'counterpart_last_name' => $counterpart['last_name'],
+                        'counterpart_role' => $counterpart['role'],
+                        'latest_message' => $summary['latest_message'],
+                        'latest_message_at' => $summary['latest_message_at'],
+                        'unread_total' => $summary['unread_total'],
+                    ]);
+                }
+            }
+
+            usort($threads, function ($left, $right) {
+                $leftTime = $left['latest_message_at'] ?: $left['submitted_at'];
+                $rightTime = $right['latest_message_at'] ?: $right['submitted_at'];
+
+                if ($leftTime === $rightTime) {
+                    return (int) $right['complaint_id'] - (int) $left['complaint_id'];
+                }
+
+                return strcmp((string) $rightTime, (string) $leftTime);
+            });
+
+            return $threads;
+        } catch (Throwable $exception) {
+            return [];
+        }
+    }
+
+    public static function newConversationCandidates(array $user) {
+        try {
+            $accountId = (int) $user['account_id'];
+            $candidates = [];
+
+            foreach (self::candidateCases($user) as $case) {
+                foreach (self::connectedPeopleForCase($case, $user) as $person) {
+                    if ((int) $person['account_id'] === $accountId) {
+                        continue;
+                    }
+
+                    if (self::isThreadVisible((int) $case['complaint_id'], $accountId, (int) $person['account_id'], $case, $user)) {
+                        continue;
+                    }
+
+                    $candidates[] = array_merge($case, [
+                        'counterpart_account_id' => (int) $person['account_id'],
+                        'counterpart_first_name' => $person['first_name'],
+                        'counterpart_last_name' => $person['last_name'],
+                        'counterpart_role' => $person['role'],
+                        'latest_message' => null,
+                        'latest_message_at' => null,
+                        'unread_total' => 0,
+                    ]);
+                }
+            }
+
+            return $candidates;
+        } catch (Throwable $exception) {
+            return [];
+        }
+    }
+
+    public static function isValidNewConversationCandidate(array $case, array $currentUser, $counterpartAccountId) {
+        $counterpartAccountId = (int) $counterpartAccountId;
+
+        foreach (self::connectedPeopleForCase($case, $currentUser) as $person) {
+            if ((int) $person['account_id'] === $counterpartAccountId) {
+                return !self::isThreadVisible((int) $case['complaint_id'], (int) $currentUser['account_id'], $counterpartAccountId, $case, $currentUser);
+            }
+        }
+
+        return false;
+    }
+
+    public static function openPair($complaintId, $accountId, $counterpartAccountId) {
+        self::ensureParticipants((int) $complaintId, (int) $accountId, (int) $counterpartAccountId);
+        self::markPairVisible((int) $complaintId, (int) $accountId, (int) $counterpartAccountId);
+    }
+
+    public static function forPair($complaintId, $firstAccountId, $secondAccountId) {
+        try {
+            $sql = "SELECT m.*, sender.first_name AS sender_first_name, sender.last_name AS sender_last_name,
+                           receiver.first_name AS receiver_first_name, receiver.last_name AS receiver_last_name
+                    FROM case_messages m
+                    INNER JOIN accounts sender ON m.sender_account_id = sender.account_id
+                    INNER JOIN accounts receiver ON m.receiver_account_id = receiver.account_id
+                    WHERE m.complaint_id = ?
+                      AND ((m.sender_account_id = ? AND m.receiver_account_id = ?)
+                        OR (m.sender_account_id = ? AND m.receiver_account_id = ?))
+                      AND NOT EXISTS (
+                          SELECT 1 FROM hidden_conversations hc
+                          WHERE hc.complaint_id = m.complaint_id
+                            AND hc.account_id = ?
+                            AND hc.counterpart_account_id = ?
+                            AND m.created_at < hc.hidden_at
+                      )
+                    ORDER BY m.created_at ASC, m.message_id ASC";
+            $stmt = self::$conn->prepare($sql);
+            $complaintId = (int) $complaintId;
+            $firstAccountId = (int) $firstAccountId;
+            $secondAccountId = (int) $secondAccountId;
+            $stmt->bind_param("iiiiiii", $complaintId, $firstAccountId, $secondAccountId, $secondAccountId, $firstAccountId, $firstAccountId, $secondAccountId);
+            $stmt->execute();
+            $result = $stmt->get_result();
+
+            return $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
+        } catch (Throwable $exception) {
+            return [];
+        }
+    }
+
+    public static function markPairMessagesRead($complaintId, $receiverAccountId, $senderAccountId) {
+        try {
+            $now = date('Y-m-d H:i:s');
+            $stmt = self::$conn->prepare("UPDATE case_messages SET is_read = 1, read_at = ? WHERE complaint_id = ? AND receiver_account_id = ? AND sender_account_id = ? AND is_read = 0");
+            $stmt->bind_param("siii", $now, $complaintId, $receiverAccountId, $senderAccountId);
+            return $stmt->execute();
+        } catch (Throwable $exception) {
+            return false;
+        }
+    }
+
+    public static function hidePair($complaintId, $accountId, $counterpartAccountId) {
+        try {
+            $stmt = self::$conn->prepare("INSERT IGNORE INTO hidden_conversations (complaint_id, account_id, counterpart_account_id) VALUES (?, ?, ?)");
+            $stmt->bind_param("iii", $complaintId, $accountId, $counterpartAccountId);
+            $stmt->execute();
+
+            $stmt = self::$conn->prepare("UPDATE hidden_conversations SET visible = 0, hidden_at = ? WHERE complaint_id = ? AND account_id = ? AND counterpart_account_id = ?");
+            $hiddenAt = date('Y-m-d H:i:s');
+            $stmt->bind_param("siii", $hiddenAt, $complaintId, $accountId, $counterpartAccountId);
+
+            return $stmt->execute();
+        } catch (Throwable $exception) {
+            return false;
+        }
+    }
+
+    private static function ensureParticipants($complaintId, $firstAccountId, $secondAccountId) {
+        try {
+            $stmt = self::$conn->prepare("INSERT IGNORE INTO conversation_participants (complaint_id, account_id, counterpart_account_id) VALUES (?, ?, ?), (?, ?, ?)");
+            $stmt->bind_param("iiiiii", $complaintId, $firstAccountId, $secondAccountId, $complaintId, $secondAccountId, $firstAccountId);
+
+            return $stmt->execute();
+        } catch (Throwable $exception) {
+            return false;
+        }
+    }
+
+    private static function markPairVisible($complaintId, $firstAccountId, $secondAccountId) {
+        try {
+            $stmt = self::$conn->prepare("INSERT IGNORE INTO hidden_conversations (complaint_id, account_id, counterpart_account_id, hidden_at) VALUES (?, ?, ?, '1000-01-01 00:00:00'), (?, ?, ?, '1000-01-01 00:00:00')");
+            $stmt->bind_param("iiiiii", $complaintId, $firstAccountId, $secondAccountId, $complaintId, $secondAccountId, $firstAccountId);
+            $stmt->execute();
+
+            $stmt = self::$conn->prepare("UPDATE hidden_conversations SET visible = 1 WHERE complaint_id = ? AND ((account_id = ? AND counterpart_account_id = ?) OR (account_id = ? AND counterpart_account_id = ?))");
+            $stmt->bind_param("iiiii", $complaintId, $firstAccountId, $secondAccountId, $secondAccountId, $firstAccountId);
+
+            return $stmt->execute();
+        } catch (Throwable $exception) {
+            return false;
+        }
+    }
+
+    private static function isPairHidden($complaintId, $accountId, $counterpartAccountId) {
+        try {
+            $stmt = self::$conn->prepare("SELECT hidden_id FROM hidden_conversations WHERE complaint_id = ? AND account_id = ? AND counterpart_account_id = ? AND visible = 0 LIMIT 1");
+            $stmt->bind_param("iii", $complaintId, $accountId, $counterpartAccountId);
+            $stmt->execute();
+            $result = $stmt->get_result();
+
+            return $result && $result->num_rows > 0;
+        } catch (Throwable $exception) {
+            return false;
+        }
+    }
+
+    public static function counterpartsForCase(array $case, array $currentUser) {
+        $currentAccountId = (int) $currentUser['account_id'];
+        $complaintId = (int) $case['complaint_id'];
+        $counterparts = [];
+
+        if (self::isHeadRole($currentUser['role'])) {
+            return $counterparts;
+        }
+
+        if ($currentAccountId === (int) $case['submitted_by_account_id']) {
+            if (!empty($case['assigned_coordinator_account_id']) && (int) $case['assigned_coordinator_account_id'] !== $currentAccountId) {
+                $coordinator = self::findAccount((int) $case['assigned_coordinator_account_id']);
+
+                if ($coordinator) {
+                    $counterparts[] = $coordinator;
+                }
+            }
+
+            foreach (self::staffWithHistoryOnCase($complaintId, $currentAccountId) as $staff) {
+                $counterparts[] = $staff;
+            }
+
+            if (empty($counterparts)) {
+                foreach (self::getStaffAccounts() as $staff) {
+                    if ((int) $staff['account_id'] !== $currentAccountId) {
+                        $counterparts[] = $staff;
+                        break;
+                    }
+                }
+            }
+
+            return self::uniqueRecipients($counterparts);
+        }
+
+        $student = self::findAccount((int) $case['submitted_by_account_id']);
+
+        if ($student) {
+            $counterparts[] = $student;
+        }
+
+        if (!empty($case['assigned_coordinator_account_id']) && (int) $case['assigned_coordinator_account_id'] !== $currentAccountId) {
+            $coordinator = self::findAccount((int) $case['assigned_coordinator_account_id']);
+
+            if ($coordinator) {
+                $counterparts[] = $coordinator;
+            }
+        }
+
+        return self::uniqueRecipients($counterparts);
+    }
+
+    public static function defaultCounterpartForCase(array $case, array $currentUser) {
+        $counterparts = self::counterpartsForCase($case, $currentUser);
+
+        if (!empty($counterparts)) {
+            return $counterparts[0];
+        }
+
+        foreach (self::connectedPeopleForCase($case, $currentUser) as $person) {
+            if ((int) $person['account_id'] !== (int) $currentUser['account_id']) {
+                return $person;
+            }
+        }
+
+        return null;
+    }
+
+    private static function accessibleCases($accountId) {
+        try {
             $sql = "SELECT c.complaint_id, c.case_number, c.complainant_name, c.case_classification,
                            c.status, c.submitted_at, c.submitted_by_account_id,
                            c.assigned_coordinator_account_id,
@@ -106,42 +374,99 @@ class Message extends Model {
                            submitter.role AS submitter_role,
                            coordinator.first_name AS coordinator_first_name,
                            coordinator.last_name AS coordinator_last_name,
-                           coordinator.role AS coordinator_role,
-                           latest.message AS latest_message,
-                           latest.created_at AS latest_message_at,
-                           latest.sender_account_id AS latest_sender_account_id,
-                           COALESCE(unread.unread_total, 0) AS unread_total
+                           coordinator.role AS coordinator_role
                     FROM complaints c
                     LEFT JOIN accounts submitter ON c.submitted_by_account_id = submitter.account_id
                     LEFT JOIN accounts coordinator ON c.assigned_coordinator_account_id = coordinator.account_id
-                    LEFT JOIN (
-                        SELECT cm.*
-                        FROM case_messages cm
-                        INNER JOIN (
-                            SELECT complaint_id, MAX(message_id) AS latest_message_id
-                            FROM case_messages
-                            WHERE sender_account_id = ? OR receiver_account_id = ?
-                            GROUP BY complaint_id
-                        ) lm ON lm.latest_message_id = cm.message_id
-                    ) latest ON latest.complaint_id = c.complaint_id
-                    LEFT JOIN (
-                        SELECT complaint_id, COUNT(*) AS unread_total
-                        FROM case_messages
-                        WHERE receiver_account_id = ? AND is_read = 0
-                        GROUP BY complaint_id
-                    ) unread ON unread.complaint_id = c.complaint_id
-                    WHERE $whereClause
-                    ORDER BY COALESCE(latest.created_at, c.submitted_at) DESC, c.complaint_id DESC";
-
+                    WHERE (c.submitted_by_account_id = ?
+                       OR c.assigned_coordinator_account_id = ?
+                       OR EXISTS (
+                          SELECT 1
+                          FROM case_messages participant_messages
+                          WHERE participant_messages.complaint_id = c.complaint_id
+                            AND (participant_messages.sender_account_id = ? OR participant_messages.receiver_account_id = ?)
+                       )
+                       OR EXISTS (
+                          SELECT 1
+                          FROM conversation_participants cp
+                          WHERE cp.complaint_id = c.complaint_id
+                            AND cp.account_id = ?
+                       ))
+                    ORDER BY c.complaint_id DESC";
             $stmt = self::$conn->prepare($sql);
-            $stmt->bind_param("iiiiiii", $accountId, $accountId, $accountId, $accountId, $accountId, $accountId, $accountId);
-
+            $stmt->bind_param("iiiii", $accountId, $accountId, $accountId, $accountId, $accountId);
             $stmt->execute();
             $result = $stmt->get_result();
 
             return $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
         } catch (Throwable $exception) {
             return [];
+        }
+    }
+
+    private static function staffWithHistoryOnCase($complaintId, $accountId) {
+        try {
+            $sql = "SELECT DISTINCT other.account_id, other.first_name, other.last_name, other.role
+                    FROM case_messages cm
+                    INNER JOIN accounts other
+                        ON other.account_id = CASE WHEN cm.sender_account_id = ? THEN cm.receiver_account_id ELSE cm.sender_account_id END
+                    WHERE cm.complaint_id = ?
+                      AND (cm.sender_account_id = ? OR cm.receiver_account_id = ?)
+                      AND other.account_id <> ?";
+            $stmt = self::$conn->prepare($sql);
+            $stmt->bind_param("iiiii", $accountId, $complaintId, $accountId, $accountId, $accountId);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            $others = $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
+
+            return array_values(array_filter($others, fn($account) => self::isStaffRole($account['role'])));
+        } catch (Throwable $exception) {
+            return [];
+        }
+    }
+
+    private static function pairSummary($complaintId, $accountId, $otherAccountId) {
+        try {
+            $sql = "SELECT m.message AS latest_message, m.created_at AS latest_message_at,
+                           (SELECT COUNT(*)
+                            FROM case_messages unread_messages
+                            WHERE unread_messages.complaint_id = ?
+                              AND unread_messages.sender_account_id = ?
+                              AND unread_messages.receiver_account_id = ?
+                              AND unread_messages.is_read = 0
+                              AND NOT EXISTS (
+                                  SELECT 1 FROM hidden_conversations hc2
+                                  WHERE hc2.complaint_id = unread_messages.complaint_id
+                                    AND hc2.account_id = ?
+                                    AND hc2.counterpart_account_id = ?
+                                    AND unread_messages.created_at < hc2.hidden_at
+                              )) AS unread_total
+                    FROM case_messages m
+                    WHERE m.complaint_id = ?
+                      AND ((m.sender_account_id = ? AND m.receiver_account_id = ?)
+                        OR (m.sender_account_id = ? AND m.receiver_account_id = ?))
+                      AND NOT EXISTS (
+                          SELECT 1 FROM hidden_conversations hc
+                          WHERE hc.complaint_id = m.complaint_id
+                            AND hc.account_id = ?
+                            AND hc.counterpart_account_id = ?
+                            AND m.created_at < hc.hidden_at
+                      )
+                    ORDER BY m.message_id DESC
+                    LIMIT 1";
+            $stmt = self::$conn->prepare($sql);
+            $stmt->bind_param("iiiiiiiiiiii", $complaintId, $otherAccountId, $accountId, $accountId, $otherAccountId, $complaintId, $accountId, $otherAccountId, $otherAccountId, $accountId, $accountId, $otherAccountId);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            $row = $result ? $result->fetch_assoc() : null;
+
+            return [
+                'latest_message' => $row['latest_message'] ?? null,
+                'latest_message_at' => $row['latest_message_at'] ?? null,
+                'unread_total' => (int) ($row['unread_total'] ?? 0),
+            ];
+        } catch (Throwable $exception) {
+            return ['latest_message' => null, 'latest_message_at' => null, 'unread_total' => 0];
         }
     }
 
@@ -170,24 +495,7 @@ class Message extends Model {
     }
 
     public static function getRecipientsForCase(array $case, array $currentUser) {
-        $recipients = [];
-        $currentAccountId = (int) $currentUser['account_id'];
-
-        if ($currentAccountId !== (int) $case['submitted_by_account_id']) {
-            $student = self::findAccount((int) $case['submitted_by_account_id']);
-
-            if ($student) {
-                $recipients[] = $student;
-            }
-        }
-
-        foreach (self::getStaffAccounts() as $staff) {
-            if ((int) $staff['account_id'] !== $currentAccountId) {
-                $recipients[] = $staff;
-            }
-        }
-
-        return self::uniqueRecipients($recipients);
+        return self::counterpartsForCase($case, $currentUser);
     }
 
     public static function canAccessCaseMessages(array $case, array $user) {
@@ -209,6 +517,14 @@ class Message extends Model {
             return true;
         }
 
+        if (self::isHeadRole($user['role'])) {
+            return true;
+        }
+
+        if (self::hasParticipantRow((int) $case['complaint_id'], $accountId)) {
+            return true;
+        }
+
         return self::hasMessageParticipation((int) $case['complaint_id'], $accountId);
     }
 
@@ -221,13 +537,15 @@ class Message extends Model {
     }
 
     public static function isValidRecipientForCase(array $case, array $sender, $receiverAccountId) {
+        $receiverAccountId = (int) $receiverAccountId;
+
         foreach (self::getRecipientsForCase($case, $sender) as $recipient) {
-            if ((int) $recipient['account_id'] === (int) $receiverAccountId) {
+            if ((int) $recipient['account_id'] === $receiverAccountId) {
                 return true;
             }
         }
 
-        return false;
+        return self::hasParticipantRow((int) $case['complaint_id'], (int) $sender['account_id'], $receiverAccountId);
     }
 
     public static function accountName($accountId) {
@@ -238,6 +556,10 @@ class Message extends Model {
         }
 
         return trim($account['first_name'] . ' ' . $account['last_name']);
+    }
+
+    public static function counterpartAccount($accountId) {
+        return self::findAccount((int) $accountId);
     }
 
     private static function findAccount($accountId) {
@@ -283,6 +605,169 @@ class Message extends Model {
 
         foreach (self::$staffRoles as $staffRole) {
             if ($roleKey === strtolower(str_replace(['_', ' '], '-', $staffRole))) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static function isHeadRole($role) {
+        $roleKey = strtolower(str_replace(['_', ' '], '-', $role));
+
+        foreach (self::$headRoles as $headRole) {
+            if ($roleKey === strtolower(str_replace(['_', ' '], '-', $headRole))) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static function candidateCases(array $user) {
+        if (self::isHeadRole($user['role'])) {
+            return self::allCases();
+        }
+
+        return self::accessibleCases((int) $user['account_id']);
+    }
+
+    private static function allCases() {
+        try {
+            $sql = "SELECT c.complaint_id, c.case_number, c.complainant_name, c.case_classification,
+                           c.status, c.submitted_at, c.submitted_by_account_id,
+                           c.assigned_coordinator_account_id,
+                           submitter.first_name AS submitter_first_name,
+                           submitter.last_name AS submitter_last_name,
+                           submitter.role AS submitter_role,
+                           coordinator.first_name AS coordinator_first_name,
+                           coordinator.last_name AS coordinator_last_name,
+                           coordinator.role AS coordinator_role
+                    FROM complaints c
+                    LEFT JOIN accounts submitter ON c.submitted_by_account_id = submitter.account_id
+                    LEFT JOIN accounts coordinator ON c.assigned_coordinator_account_id = coordinator.account_id
+                    ORDER BY c.complaint_id DESC";
+            $result = self::$conn->query($sql);
+
+            return $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
+        } catch (Throwable $exception) {
+            return [];
+        }
+    }
+
+    private static function explicitCounterparts($complaintId, $accountId) {
+        try {
+            $sql = "SELECT DISTINCT other.account_id, other.first_name, other.last_name, other.role
+                    FROM conversation_participants cp
+                    INNER JOIN accounts other ON other.account_id = cp.counterpart_account_id
+                    WHERE cp.complaint_id = ? AND cp.account_id = ? AND other.account_id <> ?";
+            $stmt = self::$conn->prepare($sql);
+            $stmt->bind_param("iii", $complaintId, $accountId, $accountId);
+            $stmt->execute();
+            $result = $stmt->get_result();
+
+            return $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
+        } catch (Throwable $exception) {
+            return [];
+        }
+    }
+
+    private static function connectedPeopleForCase(array $case, array $currentUser) {
+        $people = [];
+
+        $student = self::findAccount((int) $case['submitted_by_account_id']);
+
+        if ($student) {
+            $people[] = $student;
+        }
+
+        if (!empty($case['assigned_coordinator_account_id'])) {
+            $coordinator = self::findAccount((int) $case['assigned_coordinator_account_id']);
+
+            if ($coordinator) {
+                $people[] = $coordinator;
+            }
+        }
+
+        foreach (self::getHeadAccounts() as $head) {
+            $people[] = $head;
+        }
+
+        foreach (self::caseParticipants((int) $case['complaint_id']) as $participant) {
+            $people[] = $participant;
+        }
+
+        return self::uniqueRecipients($people);
+    }
+
+    private static function getHeadAccounts() {
+        try {
+            $normalizedRoles = array_map(fn($role) => strtolower(str_replace(['_', ' '], '-', $role)), self::$headRoles);
+            $placeholders = implode(', ', array_fill(0, count($normalizedRoles), '?'));
+            $sql = "SELECT account_id, first_name, last_name, email, role
+                    FROM accounts
+                    WHERE status = 'active' AND LOWER(REPLACE(REPLACE(role, '_', '-'), ' ', '-')) IN ($placeholders)";
+            $stmt = self::$conn->prepare($sql);
+            $types = str_repeat('s', count($normalizedRoles));
+            $stmt->bind_param($types, ...$normalizedRoles);
+            $stmt->execute();
+            $result = $stmt->get_result();
+
+            return $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
+        } catch (Throwable $exception) {
+            return [];
+        }
+    }
+
+    private static function caseParticipants($complaintId) {
+        try {
+            $sql = "SELECT DISTINCT other.account_id, other.first_name, other.last_name, other.role
+                    FROM conversation_participants cp
+                    INNER JOIN accounts other ON other.account_id = cp.counterpart_account_id
+                    WHERE cp.complaint_id = ?";
+            $stmt = self::$conn->prepare($sql);
+            $stmt->bind_param("i", $complaintId);
+            $stmt->execute();
+            $result = $stmt->get_result();
+
+            return $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
+        } catch (Throwable $exception) {
+            return [];
+        }
+    }
+
+    private static function hasParticipantRow($complaintId, $accountId, $counterpartAccountId = null) {
+        try {
+            if ($counterpartAccountId === null) {
+                $stmt = self::$conn->prepare("SELECT participant_id FROM conversation_participants WHERE complaint_id = ? AND account_id = ? LIMIT 1");
+                $stmt->bind_param("ii", $complaintId, $accountId);
+            } else {
+                $stmt = self::$conn->prepare("SELECT participant_id FROM conversation_participants WHERE complaint_id = ? AND ((account_id = ? AND counterpart_account_id = ?) OR (account_id = ? AND counterpart_account_id = ?)) LIMIT 1");
+                $stmt->bind_param("iiiii", $complaintId, $accountId, $counterpartAccountId, $counterpartAccountId, $accountId);
+            }
+
+            $stmt->execute();
+            $result = $stmt->get_result();
+
+            return $result && $result->num_rows > 0;
+        } catch (Throwable $exception) {
+            return false;
+        }
+    }
+
+    private static function isThreadVisible($complaintId, $accountId, $counterpartAccountId, array $case, array $user) {
+        if (self::isPairHidden($complaintId, $accountId, $counterpartAccountId)) {
+            return false;
+        }
+
+        foreach (self::counterpartsForCase($case, $user) as $counterpart) {
+            if ((int) $counterpart['account_id'] === $counterpartAccountId) {
+                return true;
+            }
+        }
+
+        foreach (self::explicitCounterparts($complaintId, $accountId) as $explicit) {
+            if ((int) $explicit['account_id'] === $counterpartAccountId) {
                 return true;
             }
         }

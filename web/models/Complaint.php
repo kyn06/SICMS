@@ -6,18 +6,23 @@ class Complaint extends Model {
     protected static $table = 'complaints';
     protected static $primaryKey = 'complaint_id';
 
-    public static function generateCaseNumber() {
-        $prefix = 'SDRU-' . date('Y') . '-';
+    private static function nextDailyCaseNumber($dateKey) {
+        $prefix = 'SDRU-' . $dateKey . '-';
+        $like = $prefix . '%';
+        $stmt = self::$conn->prepare(
+            "SELECT COALESCE(MAX(CAST(RIGHT(case_number, 4) AS UNSIGNED)), 0) AS last_sequence
+             FROM complaints
+             WHERE case_number LIKE ? AND case_number REGEXP '^SDRU-[0-9]{8}-[0-9]{4}$'"
+        );
+        $stmt->bind_param('s', $like);
+        $stmt->execute();
+        $lastSequence = (int) ($stmt->get_result()->fetch_assoc()['last_sequence'] ?? 0);
 
-        do {
-            $caseNumber = $prefix . strtoupper(bin2hex(random_bytes(3)));
-            $stmt = self::$conn->prepare("SELECT complaint_id FROM complaints WHERE case_number = ? LIMIT 1");
-            $stmt->bind_param("s", $caseNumber);
-            $stmt->execute();
-            $result = $stmt->get_result();
-        } while ($result && $result->num_rows > 0);
+        if ($lastSequence >= 9999) {
+            throw new RuntimeException('The daily case number limit has been reached.');
+        }
 
-        return $caseNumber;
+        return $prefix . str_pad((string) ($lastSequence + 1), 4, '0', STR_PAD_LEFT);
     }
 
     public static function forStudent($accountId, $limit = 5, array $filters = [], $offset = 0) {
@@ -174,9 +179,21 @@ class Complaint extends Model {
     }
 
     public static function createComplaint(array $complaint, array $respondents, array $witnesses, array $evidenceFiles) {
+        $dateKey = date('Ymd');
+        $lockName = 'sicms_case_number_' . $dateKey;
+        $lockStmt = self::$conn->prepare('SELECT GET_LOCK(?, 10) AS acquired');
+        $lockStmt->bind_param('s', $lockName);
+        $lockStmt->execute();
+        $lockAcquired = (int) ($lockStmt->get_result()->fetch_assoc()['acquired'] ?? 0) === 1;
+
+        if (!$lockAcquired) {
+            throw new RuntimeException('Unable to allocate a case number. Please try again.');
+        }
+
         self::$conn->begin_transaction();
 
         try {
+            $complaint['case_number'] = self::nextDailyCaseNumber($dateKey);
             $createdComplaint = parent::create($complaint);
             $complaintId = $createdComplaint['complaint_id'];
 
@@ -221,7 +238,180 @@ class Complaint extends Model {
         } catch (Throwable $exception) {
             self::$conn->rollback();
             throw $exception;
+        } finally {
+            $releaseStmt = self::$conn->prepare('SELECT RELEASE_LOCK(?)');
+            $releaseStmt->bind_param('s', $lockName);
+            $releaseStmt->execute();
         }
+    }
+
+    public static function submitRevision($complaintId, $accountId, array $updates, ?array $respondents, ?array $witnesses, array $evidenceFiles, array $removeEvidenceIds) {
+        self::$conn->begin_transaction();
+
+        try {
+            $stmt = self::$conn->prepare("SELECT * FROM complaints WHERE complaint_id = ? AND submitted_by_account_id = ? FOR UPDATE");
+            $stmt->bind_param('ii', $complaintId, $accountId);
+            $stmt->execute();
+            $case = $stmt->get_result()->fetch_assoc();
+
+            if (!$case || $case['status'] !== 'Returned for Revision') {
+                throw new RuntimeException('This complaint is not available for revision.');
+            }
+
+            $revisedFields = [];
+            try {
+                $revisionRequest = CaseRecord::getLatestRevisionRequest($complaintId);
+                $requestedFields = (array) ($revisionRequest['revision_fields'] ?? []);
+            } catch (Throwable $revisionLookupException) {
+                $requestedFields = [];
+            }
+
+            if ($requestedFields) {
+                foreach (['complaint_title', 'complaint_details', 'incident_location'] as $field) {
+                    if (in_array($field, $requestedFields, true)
+                        && array_key_exists($field, $updates)
+                        && trim((string) $updates[$field]) !== trim((string) ($case[$field] ?? ''))) {
+                        $revisedFields[] = $field;
+                    }
+                }
+
+                $oldTimestamp = strtotime((string) ($case['incident_datetime'] ?? ''));
+                $newTimestamp = strtotime((string) ($updates['incident_datetime'] ?? $case['incident_datetime'] ?? ''));
+                if (in_array('incident_date', $requestedFields, true)
+                    && date('Y-m-d', (int) $newTimestamp) !== date('Y-m-d', (int) $oldTimestamp)) {
+                    $revisedFields[] = 'incident_date';
+                }
+                if (in_array('incident_time', $requestedFields, true)
+                    && date('H:i', (int) $newTimestamp) !== date('H:i', (int) $oldTimestamp)) {
+                    $revisedFields[] = 'incident_time';
+                }
+
+                if ($respondents !== null && in_array('respondents', $requestedFields, true)) {
+                    $storedRespondents = array_map(static function (array $row): array {
+                        return [
+                            'full_name' => trim((string) ($row['full_name'] ?? '')),
+                            'student_no' => trim((string) ($row['student_no'] ?? '')),
+                            'college' => trim((string) ($row['college'] ?? '')),
+                            'course_year' => trim((string) ($row['course_year'] ?? '')),
+                            'contact_info' => trim((string) ($row['contact_info'] ?? '')),
+                            'details' => trim((string) ($row['details'] ?? '')),
+                        ];
+                    }, CaseRecord::getRespondents($complaintId));
+                    if (self::peopleChanged($respondents, $storedRespondents)) $revisedFields[] = 'respondents';
+                }
+
+                if ($witnesses !== null && in_array('witnesses', $requestedFields, true)) {
+                    $storedWitnesses = array_map(static function (array $row): array {
+                        return [
+                            'full_name' => trim((string) ($row['full_name'] ?? '')),
+                            'student_no' => trim((string) ($row['student_no'] ?? '')),
+                            'contact_info' => trim((string) ($row['contact_info'] ?? '')),
+                            'statement' => trim((string) ($row['statement'] ?? '')),
+                        ];
+                    }, CaseRecord::getWitnesses($complaintId));
+                    if (self::peopleChanged($witnesses, $storedWitnesses)) $revisedFields[] = 'witnesses';
+                }
+
+                if (in_array('evidence', $requestedFields, true) && ($removeEvidenceIds || $evidenceFiles)) {
+                    $revisedFields[] = 'evidence';
+                }
+            }
+
+            $revisedFieldList = array_values(array_unique($revisedFields));
+
+            $updates['status'] = 'Submitted';
+            $updates['updated_at'] = date('Y-m-d H:i:s');
+            $set = implode(', ', array_map(fn($column) => "$column = ?", array_keys($updates)));
+            $values = array_values($updates);
+            $types = str_repeat('s', count($values)) . 'ii';
+            $values[] = $complaintId;
+            $values[] = $accountId;
+            $stmt = self::$conn->prepare("UPDATE complaints SET $set WHERE complaint_id = ? AND submitted_by_account_id = ? AND status = 'Returned for Revision'");
+            $stmt->bind_param($types, ...$values);
+            $stmt->execute();
+
+            if ($respondents !== null) {
+                self::replacePeople('complaint_respondents', 'respondent_id', $complaintId, $respondents, [
+                    'full_name', 'student_no', 'college', 'course_year', 'contact_info', 'details',
+                ]);
+            }
+
+            if ($witnesses !== null) {
+                self::replacePeople('complaint_witnesses', 'witness_id', $complaintId, $witnesses, [
+                    'full_name', 'student_no', 'contact_info', 'statement',
+                ]);
+            }
+
+            $removedPaths = [];
+            if ($removeEvidenceIds) {
+                $placeholders = implode(',', array_fill(0, count($removeEvidenceIds), '?'));
+                $params = array_merge([$complaintId], array_map('intval', $removeEvidenceIds));
+                $types = 'i' . str_repeat('i', count($removeEvidenceIds));
+                $stmt = self::$conn->prepare("SELECT evidence_id, file_path FROM complaint_evidence WHERE complaint_id = ? AND evidence_id IN ($placeholders)");
+                $stmt->bind_param($types, ...$params);
+                $stmt->execute();
+                $removedPaths = array_column($stmt->get_result()->fetch_all(MYSQLI_ASSOC), 'file_path');
+                $stmt = self::$conn->prepare("DELETE FROM complaint_evidence WHERE complaint_id = ? AND evidence_id IN ($placeholders)");
+                $stmt->bind_param($types, ...$params);
+                $stmt->execute();
+            }
+
+            foreach ($evidenceFiles as $file) {
+                self::createRelatedRecord('complaint_evidence', [
+                    'complaint_id' => $complaintId,
+                    'original_filename' => $file['original_filename'],
+                    'stored_filename' => $file['stored_filename'],
+                    'file_path' => $file['file_path'],
+                    'mime_type' => $file['mime_type'],
+                    'file_size' => $file['file_size'],
+                    'uploaded_at' => date('Y-m-d H:i:s'),
+                ]);
+            }
+
+            self::createRelatedRecord('case_history', [
+                'complaint_id' => $complaintId,
+                'action' => 'Submitted Revised Complaint',
+                'previous_status' => 'Returned for Revision',
+                'new_status' => 'Submitted',
+                'remarks' => 'Student submitted the requested revisions.',
+                'revision_fields' => $revisedFieldList ? json_encode($revisedFieldList) : null,
+                'assigned_coordinator_account_id' => null,
+                'created_by_account_id' => $accountId,
+                'created_at' => date('Y-m-d H:i:s'),
+            ]);
+
+            self::$conn->commit();
+            return $removedPaths;
+        } catch (Throwable $exception) {
+            self::$conn->rollback();
+            throw $exception;
+        }
+    }
+
+    private static function replacePeople($table, $primaryKey, $complaintId, array $rows, array $columns) {
+        $stmt = self::$conn->prepare("DELETE FROM $table WHERE complaint_id = ?");
+        $stmt->bind_param('i', $complaintId);
+        $stmt->execute();
+
+        foreach ($rows as $row) {
+            $data = ['complaint_id' => $complaintId];
+            foreach ($columns as $column) $data[$column] = $row[$column] ?? '';
+            $data['created_at'] = date('Y-m-d H:i:s');
+            self::createRelatedRecord($table, $data);
+        }
+    }
+
+    private static function peopleChanged(array $newRows, array $oldRows): bool {
+        $normalize = static function (array $rows): array {
+            $normalized = [];
+            foreach ($rows as $row) {
+                ksort($row);
+                $normalized[] = $row;
+            }
+            usort($normalized, static fn($a, $b) => strcmp((string) json_encode($a), (string) json_encode($b)));
+            return $normalized;
+        };
+        return $normalize($newRows) !== $normalize($oldRows);
     }
 
     private static function createRelatedRecord($table, array $data) {

@@ -43,6 +43,10 @@ class User extends Model {
             : null;
     }
 
+    public static function findRow($id) {
+        return parent::find((int) $id);
+    }
+
     public static function findByEmail($email) {
         $query = "SELECT * FROM accounts WHERE email = ?";
         $stmt = self::$conn->prepare($query);
@@ -71,6 +75,71 @@ class User extends Model {
 
         $_SESSION['error'] = "Invalid email or password.";
         return false;
+    }
+
+    public static function loginWithGoogle(array $profile) {
+        $email = strtolower(trim((string) ($profile['email'] ?? '')));
+
+        if ($email === '') {
+            $_SESSION['error'] = 'Your Google account did not provide an email address.';
+            return false;
+        }
+
+        $allowedDomains = ['clsu2.edu.ph', 'sicms.local'];
+        $emailDomain = substr($email, strpos($email, '@') + 1);
+        if (!in_array($emailDomain, $allowedDomains, true)) {
+            $_SESSION['error'] = 'Only @clsu2.edu.ph and @sicms.local email addresses are allowed.';
+            return false;
+        }
+
+        $userData = self::findByEmail($email);
+
+        if ($userData) {
+            if ($userData['status'] == 'inactive') {
+                $_SESSION['error'] = "Your account is deactivated. Please contact the super-admin.";
+                return false;
+            }
+
+            if (($userData['auth_provider'] ?? null) !== 'google') {
+                self::updateById((int) $userData['account_id'], [
+                    'auth_provider' => 'google',
+                    'updated_at'    => date('Y-m-d H:i:s'),
+                ]);
+            }
+        } else {
+            $created = self::create([
+                'first_name'    => (string) ($profile['first_name'] ?? '-'),
+                'last_name'     => (string) ($profile['last_name'] ?? '-'),
+                'email'         => $email,
+                'password_hash' => null,
+                'auth_provider' => 'google',
+                'role'          => 'student',
+                'status'        => 'active',
+                'phone_number'  => '',
+                'gender'        => '',
+                'address'       => '',
+            ]);
+
+            if (!$created) {
+                $_SESSION['error'] = 'Could not create your account. Please try again.';
+                return false;
+            }
+
+            $userData = self::findByEmail($email);
+        }
+
+        if (!$userData || $userData['status'] != 'active') {
+            $_SESSION['error'] = 'Could not sign you in with Google. Please try again.';
+            return false;
+        }
+
+        session_regenerate_id(true);
+        $_SESSION['email'] = $userData['email'];
+        $_SESSION['role']  = $userData['role'];
+
+        AuditLog::record($userData, 'User Login', 'User logged in with Google.');
+
+        return true;
     }
 
     public static function create(array $data) {
@@ -175,9 +244,10 @@ class User extends Model {
     }
 
     public static function listAccounts(array $filters = []) {
+        $group = ($filters['group'] ?? '') === 'complainants' ? 'complainants' : 'staff';
         $sql = "SELECT account_id, first_name, last_name, email, role, status, created_at, updated_at
                 FROM accounts
-                WHERE 1 = 1";
+                WHERE role " . ($group === 'complainants' ? "= 'student'" : "!= 'student'");
         $params = [];
         $types = '';
 

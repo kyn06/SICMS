@@ -1,0 +1,165 @@
+<?php
+require_once __DIR__ . '/../../controllers/ComplaintController.php';
+$controller = new ComplaintController();
+$viewData = $controller->handleStudentCaseDetails((int) ($_GET['id'] ?? 0));
+$user = $viewData['user'];
+$case = $viewData['case'];
+$evidence = $viewData['evidence'];
+$history = $viewData['history'];
+$hearings = $viewData['hearings'];
+
+function h($value) { return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8'); }
+function progress_steps($status) {
+    if ($status === 'Returned for Revision') return ['Submitted', 'Returned for Revision'];
+    if ($status === 'Rejected') return ['Submitted', 'Rejected'];
+    return ['Submitted', 'Under Investigation', 'Resolved'];
+}
+function stage_done($status, $stage) {
+    $order = ['Submitted' => 0, 'Under Investigation' => 1, 'Resolved' => 2, 'Archived' => 3];
+    if (in_array($status, ['Returned for Revision', 'Rejected'], true)) return $stage === 'Submitted' || $stage === $status;
+    return isset($order[$stage], $order[$status]) && $order[$stage] <= $order[$status];
+}
+$officialStatuses = ['Submitted', 'Under Investigation', 'Returned for Revision', 'Rejected', 'Resolved', 'Archived'];
+$studentRemarks = array_values(array_filter($history, fn($item) =>
+    trim((string) ($item['remarks'] ?? '')) !== ''
+    && in_array(($item['new_status'] ?? ''), $officialStatuses, true)
+));
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Case Details | SICMS</title>
+    <link rel="stylesheet" href="../layout/style.css">
+    <link rel="stylesheet" href="../layout/system.css?v=2">
+    <link rel="stylesheet" href="../layout/sidebar.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        body { align-items: stretch; display: block; justify-content: flex-start; padding: 0; }
+        .wrap { max-width: 1120px; margin: 0 auto; padding: 24px; }
+        .case-heading { align-items: center; display: flex; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+        .case-heading h1 { color: #172017; font-size: 23px; margin: 0 0 4px; }
+        .case-heading p { color: #657164; font-size: 13px; margin: 0; }
+        .status-pill { background: #eaf5e8; border-radius: 999px; color: #176f22; font-size: 12px; font-weight: 800; padding: 7px 10px; }
+        .detail-grid { display: grid; gap: 16px; grid-template-columns: minmax(0, 1.25fr) minmax(290px, .75fr); }
+        .panel { background: #fff; border: 1px solid #dce5da; border-radius: 8px; box-shadow: 0 4px 14px rgba(18,60,27,.06); margin-bottom: 16px; padding: 18px; }
+        .panel h2 { color: #19311c; font-size: 16px; margin: 0 0 14px; }
+        .info-grid { display: grid; gap: 14px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .label { color: #657164; font-size: 11px; font-weight: 800; text-transform: uppercase; }
+        .value { color: #253024; font-size: 14px; line-height: 1.55; margin-top: 4px; overflow-wrap: anywhere; }
+        .description { border-top: 1px solid #e5ebe3; margin-top: 16px; padding-top: 16px; }
+        .timeline, .mini-list { display: grid; gap: 10px; }
+        .timeline-step { align-items: center; display: grid; gap: 10px; grid-template-columns: 30px minmax(0, 1fr); padding: 8px; }
+        .timeline-step.current { background: #f0f8ee; border: 1px solid #b8d8b3; border-radius: 8px; }
+        .timeline-dot { align-items: center; background: #edf1ec; border-radius: 50%; color: #728071; display: flex; height: 30px; justify-content: center; width: 30px; }
+        .timeline-step.done .timeline-dot { background: #1a8c2b; color: #fff; }
+        .timeline-title { color: #273526; font-size: 13px; font-weight: 800; }
+        .timeline-note { color: #6a7768; font-size: 11px; margin-top: 2px; }
+        .mini-item { background: #f9fbf8; border: 1px solid #e0e8de; border-radius: 8px; padding: 12px; }
+        .remarks, .hearing-item { border-left: 4px solid #1a8c2b; }
+        .empty-state { color: #6a7768; font-size: 13px; padding: 16px; text-align: center; }
+        .back-row { margin-top: 4px; }
+        @media (max-width: 820px) { .detail-grid, .info-grid { grid-template-columns: 1fr; } .case-heading { align-items: flex-start; flex-direction: column; } }
+    </style>
+</head>
+<body>
+<div class="dashboard-shell">
+    <?php require __DIR__ . '/../layout/sidebar.php'; ?>
+    <div class="app-content">
+        <?php $pageTitle = 'Case Details'; require __DIR__ . '/../layout/topbar.php'; ?>
+        <main class="wrap">
+            <div class="back-row" style="margin-bottom:14px"><a class="btn btn-secondary" href="my_cases.php"><i class="bi bi-arrow-left"></i> Back to My Complaints</a></div>
+            <header class="case-heading"><div><h1><?= h($case['complaint_title'] ?? $case['case_classification']) ?></h1><p><?= h($case['case_number']) ?></p></div><span class="status-pill"><?= h($case['status']) ?></span></header>
+            <section class="detail-grid">
+                <div>
+                    <section class="panel">
+                        <h2>Complaint Information</h2>
+                        <div class="info-grid">
+                            <div><div class="label">Case Number</div><div class="value"><?= h($case['case_number']) ?></div></div>
+                            <div><div class="label">Complaint Title</div><div class="value"><?= h($case['complaint_title'] ?? $case['case_classification']) ?></div></div>
+                            <div><div class="label">Classification</div><div class="value"><?= h($case['case_classification']) ?></div></div>
+                            <div><div class="label">Date Submitted</div><div class="value"><?= h(date('M d, Y', strtotime($case['submitted_at']))) ?></div></div>
+                            <div><div class="label">Current Status</div><div class="value"><?= h($case['status']) ?></div></div>
+                            <div><div class="label">Complainant Type</div><div class="value"><?= h($case['complainant_type'] ?? 'Student') ?></div></div>
+                            <div><div class="label">Complainant</div><div class="value"><?= h($case['complainant_name']) ?></div></div>
+                            <?php if (($case['complainant_type'] ?? 'Student') === 'Student'): ?>
+                                <div><div class="label">Student Number</div><div class="value"><?= h($case['complainant_student_no']) ?></div></div>
+                                <div><div class="label">Academic Information</div><div class="value"><?= h(trim(($case['complainant_college'] ?? '') . ' | ' . ($case['complainant_course'] ?? '') . ' | ' . ($case['complainant_year_level'] ?? '') . ' | ' . ($case['complainant_section'] ?? ''), ' |') ?: $case['complainant_course_year']) ?></div></div>
+                            <?php elseif (($case['complainant_type'] ?? '') === 'Employee'): ?>
+                                <div><div class="label">Employee Number</div><div class="value"><?= h($case['complainant_employee_no']) ?></div></div>
+                                <div><div class="label">Department</div><div class="value"><?= h($case['complainant_department']) ?></div></div>
+                                <div><div class="label">Position</div><div class="value"><?= h($case['complainant_position']) ?></div></div>
+                            <?php elseif (($case['complainant_type'] ?? '') === 'Private Individual' && !empty($case['complainant_relationship'])): ?>
+                                <div><div class="label">Relationship to CLSU</div><div class="value"><?= h($case['complainant_relationship']) ?></div></div>
+                            <?php elseif (($case['complainant_type'] ?? '') === 'Others'): ?>
+                                <?php if (!empty($case['complainant_affiliation'])): ?><div><div class="label">Affiliation / Organization</div><div class="value"><?= h($case['complainant_affiliation']) ?></div></div><?php endif; ?>
+                                <?php if (!empty($case['complainant_purpose'])): ?><div><div class="label">Relationship or Purpose</div><div class="value"><?= h($case['complainant_purpose']) ?></div></div><?php endif; ?>
+                            <?php endif; ?>
+                        </div>
+                        <div class="description"><div class="label">Complaint Description</div><div class="value"><?= nl2br(h($case['complaint_details'])) ?></div></div>
+                    </section>
+                    <section class="panel" id="sdru-remarks">
+                        <h2>SDRU Remarks</h2>
+                        <div class="mini-list">
+                            <?php if (empty($studentRemarks)): ?><div class="empty-state">No SDRU remarks available.</div><?php endif; ?>
+                            <?php foreach ($studentRemarks as $item): ?><div class="mini-item remarks"><strong><?= h($item['new_status'] ?? $item['action']) ?></strong><div class="value"><?= nl2br(h($item['remarks'])) ?></div><div class="timeline-note"><?= h(date('M d, Y h:i A', strtotime($item['created_at']))) ?></div></div><?php endforeach; ?>
+                        </div>
+                    </section>
+                    <section class="panel" id="hearing-schedule">
+                        <?php
+                        $scheduledHearings = array_values(array_filter($hearings, fn($hearing) => ($hearing['status'] ?? '') === 'Scheduled'));
+                        $pastHearings = array_values(array_filter($hearings, fn($hearing) => in_array(($hearing['status'] ?? ''), ['Completed', 'Cancelled'], true)));
+                        ?>
+                        <h2>Hearing Schedule</h2>
+                        <div class="mini-list">
+                            <?php if (empty($scheduledHearings)): ?>
+                                <div class="empty-state">No hearing is currently scheduled for this case.</div>
+                            <?php else: ?>
+                                <?php foreach ($scheduledHearings as $hearing): ?>
+                                    <div class="mini-item hearing-item">
+                                        <strong><i class="bi bi-calendar-event"></i> <?= h(date('M d, Y - h:i A', strtotime($hearing['hearing_datetime']))) ?></strong>
+                                        <div class="value"><span class="label">Venue</span><br><?= h($hearing['venue']) ?></div>
+                                        <?php if (!empty($hearing['google_meet_link'])): ?><div class="value"><a href="<?= h($hearing['google_meet_link']) ?>" target="_blank" rel="noopener"><i class="bi bi-camera-video"></i> Join Google Meet</a></div><?php endif; ?>
+                                        <?php if (!empty($hearing['remarks'])): ?><div class="timeline-note"><?= nl2br(h($hearing['remarks'])) ?></div><?php endif; ?>
+                                    </div>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                            <?php if (!empty($pastHearings)): ?>
+                                <div class="label" style="margin-top:6px">Previous Hearings</div>
+                                <?php foreach ($pastHearings as $hearing): ?>
+                                    <div class="mini-item">
+                                        <strong><?= h(date('M d, Y - h:i A', strtotime($hearing['hearing_datetime']))) ?></strong>
+                                        <div class="timeline-note"><?= h($hearing['status']) ?> · <?= h($hearing['venue']) ?></div>
+                                    </div>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </div>
+                    </section>
+                </div>
+                <aside>
+                    <section class="panel">
+                        <h2>Case Progress</h2>
+                        <div class="timeline">
+                            <?php foreach (progress_steps($case['status']) as $stage): ?>
+                                <div class="timeline-step <?= stage_done($case['status'], $stage) ? 'done' : '' ?> <?= $case['status'] === $stage ? 'current' : '' ?>">
+                                    <div class="timeline-dot"><?php if (stage_done($case['status'], $stage)): ?><i class="bi bi-check-lg"></i><?php endif; ?></div>
+                                    <div><div class="timeline-title"><?= h($stage) ?></div><div class="timeline-note"><?= $case['status'] === $stage ? 'Current status' : (stage_done($case['status'], $stage) ? 'Completed' : 'Pending') ?></div></div>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                    </section>
+                    <section class="panel">
+                        <h2>Uploaded Evidence</h2>
+                        <div class="mini-list">
+                            <?php if (empty($evidence)): ?><div class="empty-state">No evidence files recorded.</div><?php endif; ?>
+                            <?php foreach ($evidence as $file): ?><div class="mini-item"><strong><i class="bi bi-paperclip"></i> <?= h($file['original_filename']) ?></strong><div class="timeline-note"><?= h($file['mime_type']) ?> · <?= h(number_format((int) $file['file_size'] / 1024, 1)) ?> KB · <?= h(date('M d, Y', strtotime($file['uploaded_at']))) ?></div><div style="display:flex;gap:7px;margin-top:9px"><a class="btn btn-secondary" target="_blank" href="attachment.php?id=<?= (int) $file['evidence_id'] ?>&amp;mode=view">View</a><a class="btn btn-secondary" href="attachment.php?id=<?= (int) $file['evidence_id'] ?>&amp;mode=download">Download</a></div></div><?php endforeach; ?>
+                        </div>
+                    </section>
+                </aside>
+            </section>
+        </main>
+    </div>
+</div>
+</body>
+</html>
