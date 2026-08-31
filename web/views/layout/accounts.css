@@ -448,12 +448,18 @@ body {
 }
 
 .chart-box {
-    height: 180px;
+    height: 260px;
     position: relative;
 }
 
 .chart-wide {
     grid-column: span 2;
+}
+
+.sex-charts-grid {
+    display: grid;
+    gap: 14px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .empty-state {
@@ -804,6 +810,7 @@ body {
 
     .dashboard-grid,
     .charts-grid,
+    .sex-charts-grid,
     .student-dashboard-grid,
     .student-actions {
         grid-template-columns: 1fr;

@@ -103,7 +103,8 @@ body {
 
 .panel+.panel,
 .form-section+.form-section,
-.filter-panel+.table-panel {
+.filter-panel+.table-panel,
+.table-panel+.table-panel {
     margin-top: var(--sicms-space-5) !important;
 }
 

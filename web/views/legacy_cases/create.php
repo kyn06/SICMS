@@ -68,6 +68,14 @@ $respondentTemplate = function () {
                 <label>Full Name <span class="required">*</span></label>
                 <input name="respondent_name[]" value="" required>
             </div>
+            <div class="field">
+                <label>Gender</label>
+                <select name="respondent_gender[]">
+                    <option value="">Select Gender</option>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                </select>
+            </div>
             <div class="field" data-types="Student">
                 <label>Student No.</label>
                 <input name="respondent_student_no[]" value="">
@@ -242,7 +250,7 @@ $hearingTemplate = function () {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Digitize Legacy Case | SICMS</title>
+    <title>Digitize Migrated Case | SICMS</title>
     <link rel="stylesheet" href="../layout/style.css">
     <link rel="stylesheet" href="../layout/sidebar.css">
     <link rel="stylesheet" href="../layout/cases.css">
@@ -256,7 +264,7 @@ $hearingTemplate = function () {
     <div class="dashboard-shell">
         <?php require __DIR__ . '/../layout/sidebar.php'; ?>
         <div class="case-shell app-content">
-            <?php $pageTitle = 'Digitize Legacy Case'; require __DIR__ . '/../layout/topbar.php'; ?>
+            <?php $pageTitle = 'Digitize Migrated Case'; require __DIR__ . '/../layout/topbar.php'; ?>
 
         <main class="case-wrap">
             <?php if ($errors): ?>
@@ -493,8 +501,8 @@ $hearingTemplate = function () {
                 </section>
 
                 <div class="form-actions">
-                    <a class="btn btn-secondary" href="index.php">Cancel</a>
-                    <button class="btn btn-primary" type="submit">Save Legacy Case</button>
+                    <a class="btn btn-secondary" href="<?= h(app_route('cases.index')) ?>">Cancel</a>
+                    <button class="btn btn-primary" type="submit">Save Migrated Case</button>
                 </div>
             </form>
         </main>
@@ -542,6 +550,11 @@ $hearingTemplate = function () {
             });
             item.querySelector('.remove-item')?.addEventListener('click', () => item.remove());
         }
+
+        document.addEventListener('click', (e) => {
+            const btn = e.target.closest('.remove-item');
+            if (btn) btn.closest('.dynamic-item')?.remove();
+        });
 
         function findTypeSelect(item) {
             return item.querySelector('select[name="respondent_type[]"], select[name="witness_type[]"]');

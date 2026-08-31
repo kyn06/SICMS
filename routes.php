@@ -10,7 +10,7 @@ $routes = [
     'complaints.revise' => 'web/views/complaints/revise.php',
     'complaints.attachment' => 'web/views/complaints/attachment.php',
     'cases.index' => 'web/views/cases/index.php',
-    'legacy_cases.index' => 'web/views/legacy_cases/index.php',
+    'archived_cases.index' => 'web/views/archived_cases/index.php',
     'legacy_cases.create' => 'web/views/legacy_cases/create.php',
     'legacy_cases.edit' => 'web/views/legacy_cases/edit.php',
     'legacy_cases.show' => 'web/views/legacy_cases/show.php',
@@ -58,11 +58,12 @@ function app_current_route() {
     }
 
     if (str_starts_with($path, 'web/views/cases/')) return 'cases.index';
+    if (str_starts_with($path, 'web/views/archived_cases/')) return 'archived_cases.index';
     if (str_starts_with($path, 'web/views/legacy_cases/')) {
         if (str_ends_with($path, '/create.php')) return 'legacy_cases.create';
         if (str_ends_with($path, '/edit.php')) return 'legacy_cases.edit';
         if (str_contains($path, '/show.php')) return 'legacy_cases.show';
-        return 'legacy_cases.index';
+        return 'cases.index';
     }
     if (str_starts_with($path, 'web/views/hearings/')) return 'hearings.index';
     if ($path === 'web/views/complaints/create.php') return 'complaints.create';

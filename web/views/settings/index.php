@@ -247,6 +247,11 @@ unset($_SESSION['cal_message'], $_SESSION['cal_error']);
                         </div>
                     <?php endif; ?>
 
+                    <div class="settings-group">
+                        <div class="settings-group-header">
+                            <h3 class="settings-group-title"><i class="bi bi-person"></i> Personal Information</h3>
+                            <p class="settings-group-desc">Update your personal details and contact information.</p>
+                        </div>
                     <form method="POST" action="<?= h(app_url('web/views/settings/index.php')) ?>" class="settings-form">
                         <?= Security::csrfField() ?>
 
@@ -357,7 +362,17 @@ unset($_SESSION['cal_message'], $_SESSION['cal_error']);
                             <button type="submit" class="btn btn-primary"><i class="bi bi-check2"></i> Save Changes</button>
                         </div>
                     </form>
+                    </div>
 
+                    <div class="settings-group">
+                        <div class="settings-group-header">
+                            <h3 class="settings-group-title"><i class="bi bi-shield-lock"></i> Change Password</h3>
+                            <p class="settings-group-desc">
+                                <?= $hasPassword
+                                    ? 'Use your current password to set a new one.'
+                                    : 'Your account was created with Google. Set a password to also log in with your email.' ?>
+                            </p>
+                        </div>
                     <?php if (!$hasPassword && $user['auth_provider'] === 'google'): ?>
                         <div class="alert alert-warning">
                             <i class="bi bi-key"></i>
@@ -368,15 +383,6 @@ unset($_SESSION['cal_message'], $_SESSION['cal_error']);
                     <form method="POST" action="<?= h(app_url('web/views/settings/index.php')) ?>" class="settings-form settings-password-form">
                         <?= Security::csrfField() ?>
                         <input type="hidden" name="action" value="change_password">
-
-                        <div class="settings-section-header">
-                            <h3 class="settings-section-title"><i class="bi bi-shield-lock"></i> Change Password</h3>
-                            <p class="settings-section-description">
-                                <?= $hasPassword
-                                    ? 'Use your current password to set a new one.'
-                                    : 'Your account was created with Google. Set a password to also log in with your email.' ?>
-                            </p>
-                        </div>
 
                         <?php if ($pwSuccess): ?>
                             <div class="alert alert-success"><?= h($pwSuccess) ?></div>
@@ -454,13 +460,19 @@ unset($_SESSION['cal_message'], $_SESSION['cal_error']);
                             <button type="submit" class="btn btn-primary"><i class="bi bi-check2"></i> Confirm</button>
                         </div>
                     </form>
+                    </div>
 
                     <?php if (!$isStudent): ?>
-                    <form method="POST" action="<?= h(app_url('web/views/settings/index.php')) ?>" class="settings-form settings-password-form" data-confirm="<?= $calConnected ? 'Disconnect Google Calendar? Existing calendar events will not be removed.' : '' ?>">
+                    <div class="settings-group">
+                        <div class="settings-group-header">
+                            <h3 class="settings-group-title"><i class="bi bi-plug"></i> Integrations &amp; Data</h3>
+                            <p class="settings-group-desc">Connect your Google Calendar so hearings are scheduled automatically, and access archived case records.</p>
+                        </div>
+                        <form method="POST" action="<?= h(app_url('web/views/settings/index.php')) ?>" class="settings-form settings-password-form settings-group-form" data-confirm="<?= $calConnected ? 'Disconnect Google Calendar? Existing calendar events will not be removed.' : '' ?>">
                         <?= Security::csrfField() ?>
                         <input type="hidden" name="action" value="disconnect_calendar">
 
-                        <div class="settings-section-header">
+                        <div class="settings-section-header settings-subsection">
                             <h3 class="settings-section-title"><i class="bi bi-google"></i> Google Calendar</h3>
                             <p class="settings-section-description">
                                 Connect the office Google Calendar so scheduled hearings are created automatically.
@@ -510,6 +522,17 @@ unset($_SESSION['cal_message'], $_SESSION['cal_error']);
                             </div>
                         </div>
                     </form>
+
+                <div class="settings-section-header settings-subsection settings-archive-section">
+                    <h3 class="settings-section-title"><i class="bi bi-archive-fill"></i> Archived Cases</h3>
+                    <p class="settings-section-description">
+                        View cases that have been archived. Archived cases are still counted in statistics and reports.
+                    </p>
+                    <div class="settings-archive-action">
+                        <a class="btn btn-primary" href="<?= h(app_route('archived_cases.index')) ?>"><i class="bi bi-archive-fill"></i> Open Archived Cases</a>
+                    </div>
+                </div>
+                </div>
                 <?php endif; ?>
                 </div> 
             </section>
