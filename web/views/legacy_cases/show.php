@@ -41,7 +41,7 @@ if (!function_exists('person_name')) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Legacy Case Details | SICMS</title>
+    <title>Migrated Case Details | SICMS</title>
     <link rel="stylesheet" href="../layout/style.css">
     <link rel="stylesheet" href="../layout/sidebar.css">
     <link rel="stylesheet" href="../layout/cases.css">
@@ -224,13 +224,13 @@ if (!function_exists('person_name')) {
     <div class="dashboard-shell">
         <?php require __DIR__ . '/../layout/sidebar.php'; ?>
         <div class="legacy-show-page app-content">
-            <?php $pageTitle = 'Legacy Case ' . $case['case_number']; require __DIR__ . '/../layout/topbar.php'; ?>
+            <?php $pageTitle = 'Migrated Case ' . $case['case_number']; require __DIR__ . '/../layout/topbar.php'; ?>
 
             <main class="case-wrap">
                 <div style="margin-bottom:14px">
-                    <a class="btn btn-secondary" href="<?= h(app_route('legacy_cases.index')) ?>"><i class="bi bi-arrow-left"></i> Back to Legacy Cases</a>
+                    <a class="btn btn-secondary" href="<?= h(app_route('cases.index')) ?>"><i class="bi bi-arrow-left"></i> Back to Case Management</a>
                     <?php if ($canEdit): ?>
-                        <a class="btn btn-primary" href="edit.php?id=<?= (int) $case['complaint_id'] ?>"><i class="bi bi-pencil"></i> Edit Legacy Case</a>
+                        <a class="btn btn-primary" href="edit.php?id=<?= (int) $case['complaint_id'] ?>"><i class="bi bi-pencil"></i> Edit Migrated Case</a>
                     <?php endif; ?>
                 </div>
 
@@ -248,7 +248,7 @@ if (!function_exists('person_name')) {
                 <div class="grid">
                     <div>
                         <section class="panel">
-                            <h2>Legacy Case Information</h2>
+                            <h2>Migrated Case Information</h2>
                             <div class="details-grid">
                                 <div class="detail">
                                     <div class="label">Original Case Number</div>
@@ -474,7 +474,7 @@ if (!function_exists('person_name')) {
                         <section class="panel">
                             <h2>Staff Actions</h2>
                             <?php if (!$canEdit): ?>
-                                <p class="muted">Legacy cases can only be modified by SDRU staff.</p>
+                                <p class="muted">Migrated cases can only be modified by SDRU staff.</p>
                             <?php else: ?>
                                 <form class="action-form" method="POST" action="show.php?id=<?= (int) $case['complaint_id'] ?>">
                                     <?= Security::csrfField() ?>

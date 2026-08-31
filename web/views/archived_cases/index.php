@@ -5,25 +5,17 @@ require_once __DIR__ . '/../../../routes.php';
 $controller = new CaseController();
 
 if (($_GET['ajax'] ?? '') === '1') {
-    $controller->search();
+    $controller->archivedSearch();
 }
 
-$viewData = $controller->index();
+$viewData = $controller->archivedIndex();
 
 $user = $viewData['user'];
 $cases = $viewData['cases'];
 $filters = $viewData['filters'];
-$statuses = $viewData['statuses'];
-$classifications = $viewData['classifications'];
-$migratedCases = $viewData['migratedCases'];
-$canEditMigrated = $viewData['canEditMigrated'];
 
 function h($value) {
     return htmlspecialchars((string) $value);
-}
-
-function role_key($role) {
-    return strtolower(str_replace(['_', ' '], '-', (string) $role));
 }
 
 ?>
@@ -33,7 +25,7 @@ function role_key($role) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Case Management | SICMS</title>
+    <title>Archived Cases | SICMS</title>
     <link rel="stylesheet" href="../layout/style.css">
     <link rel="stylesheet" href="../layout/sidebar.css">
     <link rel="stylesheet" href="../layout/cases.css">
@@ -45,30 +37,12 @@ function role_key($role) {
     <div class="dashboard-shell">
         <?php require __DIR__ . '/../layout/sidebar.php'; ?>
         <div class="case-shell app-content">
-            <?php $pageTitle = 'Case Management'; require __DIR__ . '/../layout/topbar.php'; ?>
+            <?php $pageTitle = 'Archived Cases'; require __DIR__ . '/../layout/topbar.php'; ?>
 
         <main class="case-wrap">
             <section class="filter-panel">
                 <form id="caseFilters" method="GET" action="index.php">
                     <div class="filter-grid">
-                        <div class="field">
-                            <label for="status">Status</label>
-                            <select id="status" name="status">
-                                <option value="">All statuses</option>
-                                <?php foreach ($statuses as $status): ?>
-                                    <option value="<?= h($status) ?>" <?= $filters['status'] === $status ? 'selected' : '' ?>><?= h($status) ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                        <div class="field">
-                            <label for="classification">Classification</label>
-                            <select id="classification" name="classification">
-                                <option value="">All classifications</option>
-                                <?php foreach ($classifications as $classification): ?>
-                                    <option value="<?= h($classification) ?>" <?= $filters['classification'] === $classification ? 'selected' : '' ?>><?= h($classification) ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
                         <div class="field">
                             <label for="case_number">Case Number</label>
                             <input id="case_number" name="case_number" value="<?= h($filters['case_number']) ?>">
@@ -86,16 +60,15 @@ function role_key($role) {
             </section>
 
             <section class="table-panel">
-                    <div class="empty-state" id="caseEmptyState" <?= empty($cases) ? '' : 'hidden' ?>>No complaints found.</div>
+                    <div class="empty-state" id="caseEmptyState" <?= empty($cases) ? '' : 'hidden' ?>>No archived cases found.</div>
                     <table id="caseTable" <?= empty($cases) ? 'hidden' : '' ?>>
                         <thead>
                             <tr>
                                 <th>Case Number</th>
                                 <th>Complainant Name</th>
-                                <th>Gender</th>
                                 <th>Classification</th>
                                 <th>Status</th>
-                                <th>Date Submitted</th>
+                                <th>Date Archived</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
@@ -103,66 +76,23 @@ function role_key($role) {
                             <?php foreach ($cases as $case): ?>
                                 <tr>
                                     <td>
-                                        <a class="case-link" href="show.php?id=<?= (int) $case['complaint_id'] ?>">
+                                        <a class="case-link" href="../cases/show.php?id=<?= (int) $case['complaint_id'] ?>">
                                             <?= h($case['case_number']) ?>
                                         </a>
                                     </td>
                                     <td><?= h($case['complainant_name']) ?></td>
-                                    <td><?= h($case['complainant_gender'] ?: 'Not provided') ?></td>
                                     <td><?= h($case['case_classification']) ?></td>
                                     <td><span class="status"><?= h($case['status']) ?></span></td>
-                                    <td><?= h(date('M d, Y h:i A', strtotime($case['submitted_at']))) ?></td>
+                                    <td><?= h(date('M d, Y h:i A', strtotime($case['updated_at']))) ?></td>
                                     <td>
                                         <div class="row-actions">
-                                            <a class="btn btn-primary" href="show.php?id=<?= (int) $case['complaint_id'] ?>"><i class="bi bi-eye"></i> View Details</a>
+                                            <a class="btn btn-primary" href="../cases/show.php?id=<?= (int) $case['complaint_id'] ?>"><i class="bi bi-eye"></i> View Details</a>
                                         </div>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>
                         </tbody>
                     </table>
-            </section>
-
-            <section class="table-panel">
-                <div class="table-heading table-heading-row">
-                    <h2><i class="bi bi-archive"></i> Migrated Cases</h2>
-                    <?php if ($canEditMigrated): ?>
-                        <a class="btn btn-primary" href="../legacy_cases/create.php"><i class="bi bi-plus-lg"></i> Digitize Migrated Case</a>
-                    <?php endif; ?>
-                </div>
-                <div class="empty-state" id="migratedEmptyState" <?= empty($migratedCases) ? '' : 'hidden' ?>>No migrated cases found.</div>
-                <table id="migratedCaseTable" <?= empty($migratedCases) ? 'hidden' : '' ?>>
-                    <thead>
-                        <tr>
-                            <th>Original Case No.</th>
-                            <th>Complainant</th>
-                            <th>Classification</th>
-                            <th>Original Case Date</th>
-                            <th>Status</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($migratedCases as $case): ?>
-                            <tr>
-                                <td>
-                                    <a class="case-link" href="../legacy_cases/show.php?id=<?= (int) $case['complaint_id'] ?>">
-                                        <?= h($case['case_number']) ?>
-                                    </a>
-                                </td>
-                                <td><?= h($case['complainant_name']) ?></td>
-                                <td><?= h($case['case_classification']) ?></td>
-                                <td><?= h(date('M d, Y', strtotime($case['original_case_date'] ?: $case['submitted_at']))) ?></td>
-                                <td><span class="status"><?= h($case['status']) ?></span></td>
-                                <td>
-                                    <div class="row-actions">
-                                        <a class="btn btn-primary" href="../legacy_cases/show.php?id=<?= (int) $case['complaint_id'] ?>"><i class="bi bi-eye"></i> View</a>
-                                    </div>
-                                </td>
-                            </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
             </section>
         </main>
         </div>
@@ -175,7 +105,6 @@ function role_key($role) {
             const emptyState = document.getElementById('caseEmptyState');
             const clearButton = document.getElementById('clearFilters');
             const textInputs = [form.elements.case_number, form.elements.student_name];
-            const selects = [form.elements.status, form.elements.classification];
             let debounceTimer;
             let activeRequest;
 
@@ -203,12 +132,11 @@ function role_key($role) {
                     const numberCell = document.createElement('td');
                     const link = document.createElement('a');
                     link.className = 'case-link';
-                    link.href = `show.php?id=${encodeURIComponent(item.complaint_id)}`;
+                    link.href = `../cases/show.php?id=${encodeURIComponent(item.complaint_id)}`;
                     link.textContent = item.case_number;
                     numberCell.appendChild(link);
                     row.appendChild(numberCell);
                     appendCell(row, item.complainant_name);
-                    appendCell(row, item.complainant_gender || 'Not provided');
                     appendCell(row, item.case_classification);
                     const statusCell = document.createElement('td');
                     const status = document.createElement('span');
@@ -216,13 +144,13 @@ function role_key($role) {
                     status.textContent = item.status;
                     statusCell.appendChild(status);
                     row.appendChild(statusCell);
-                    appendCell(row, formatDate(item.submitted_at));
+                    appendCell(row, formatDate(item.updated_at));
                     const actionsCell = document.createElement('td');
                     const actionsDiv = document.createElement('div');
                     actionsDiv.className = 'row-actions';
                     const viewLink = document.createElement('a');
                     viewLink.className = 'btn btn-primary';
-                    viewLink.href = `show.php?id=${encodeURIComponent(item.complaint_id)}`;
+                    viewLink.href = `../cases/show.php?id=${encodeURIComponent(item.complaint_id)}`;
                     viewLink.innerHTML = '<i class="bi bi-eye"></i> View Details';
                     actionsDiv.appendChild(viewLink);
                     actionsCell.appendChild(actionsDiv);
@@ -233,7 +161,7 @@ function role_key($role) {
                 const hasCases = cases.length > 0;
                 table.hidden = !hasCases;
                 emptyState.hidden = hasCases;
-                emptyState.textContent = 'No complaints found.';
+                emptyState.textContent = 'No archived cases found.';
             };
 
             const updateCases = async () => {
@@ -259,7 +187,7 @@ function role_key($role) {
                     if (error.name !== 'AbortError') {
                         table.hidden = true;
                         emptyState.hidden = false;
-                        emptyState.textContent = 'Unable to filter cases. Please try again.';
+                        emptyState.textContent = 'Unable to filter archived cases. Please try again.';
                     }
                 } finally {
                     form.removeAttribute('aria-busy');
@@ -272,7 +200,6 @@ function role_key($role) {
             };
 
             textInputs.forEach((input) => input.addEventListener('input', debounceSearch));
-            selects.forEach((select) => select.addEventListener('change', updateCases));
             form.addEventListener('submit', (event) => {
                 event.preventDefault();
                 clearTimeout(debounceTimer);
@@ -280,7 +207,7 @@ function role_key($role) {
             });
             clearButton.addEventListener('click', () => {
                 clearTimeout(debounceTimer);
-                [...textInputs, ...selects].forEach((control) => control.value = '');
+                textInputs.forEach((control) => control.value = '');
                 updateCases();
             });
         })();

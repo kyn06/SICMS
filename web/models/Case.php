@@ -59,7 +59,58 @@ class CaseRecord extends Model {
             $types .= 'i';
         }
 
+        if (empty($filters['include_archived'])) {
+            $sql .= " AND c.status != 'Archived'";
+        }
+
         $sql .= " ORDER BY c.submitted_at DESC";
+
+        $stmt = self::$conn->prepare($sql);
+
+        if (!$stmt) {
+            throw new Exception("Error preparing statement: " . self::$conn->error);
+        }
+
+        if (!empty($params)) {
+            $stmt->bind_param($types, ...$params);
+        }
+
+        $stmt->execute();
+        $result = $stmt->get_result();
+
+        return $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
+    }
+
+    public static function listArchivedCases(array $filters = []) {
+        $sql = "SELECT c.*, a.first_name AS submitted_by_first_name, a.last_name AS submitted_by_last_name,
+                       coordinator.first_name AS coordinator_first_name,
+                       coordinator.last_name AS coordinator_last_name
+                FROM complaints c
+                LEFT JOIN accounts a ON c.submitted_by_account_id = a.account_id
+                LEFT JOIN accounts coordinator ON c.assigned_coordinator_account_id = coordinator.account_id
+                WHERE c.status = 'Archived'";
+        $params = [];
+        $types = '';
+
+        if (!empty($filters['case_number'])) {
+            $sql .= " AND c.case_number LIKE ?";
+            $params[] = '%' . $filters['case_number'] . '%';
+            $types .= 's';
+        }
+
+        if (!empty($filters['student_name'])) {
+            $sql .= " AND c.complainant_name LIKE ?";
+            $params[] = '%' . $filters['student_name'] . '%';
+            $types .= 's';
+        }
+
+        if (!empty($filters['assigned_coordinator_account_id'])) {
+            $sql .= " AND c.assigned_coordinator_account_id = ?";
+            $params[] = (int) $filters['assigned_coordinator_account_id'];
+            $types .= 'i';
+        }
+
+        $sql .= " ORDER BY c.updated_at DESC";
 
         $stmt = self::$conn->prepare($sql);
 
@@ -426,6 +477,47 @@ class CaseRecord extends Model {
             ]);
 
             self::notifyCaseStatusChanged($case, $newStatus);
+
+            self::$conn->commit();
+            return true;
+        } catch (Throwable $exception) {
+            self::$conn->rollback();
+            throw $exception;
+        }
+    }
+
+    public static function resolveCase($complaintId, $remarks, $outcome, $actorAccountId) {
+        $complaintId = (int) $complaintId;
+        $case = self::findCase($complaintId);
+
+        if (!$case) {
+            return false;
+        }
+
+        self::$conn->begin_transaction();
+
+        try {
+            $now = date('Y-m-d H:i:s');
+            $stmt = self::$conn->prepare("UPDATE complaints SET status = 'Resolved', outcome = ?, updated_at = ? WHERE complaint_id = ?");
+            $outcome = $outcome !== '' ? $outcome : null;
+            $stmt->bind_param("ssi", $outcome, $now, $complaintId);
+            $stmt->execute();
+
+            $historyRemarks = $outcome ? trim($remarks . ($remarks ? "\n\n" : '') . 'Outcome: ' . $outcome) : $remarks;
+
+            self::createHistory([
+                'complaint_id' => $complaintId,
+                'action' => 'Resolved',
+                'previous_status' => $case['status'],
+                'new_status' => 'Resolved',
+                'remarks' => $historyRemarks,
+                'revision_fields' => null,
+                'assigned_coordinator_account_id' => null,
+                'created_by_account_id' => $actorAccountId,
+                'created_at' => $now,
+            ]);
+
+            self::notifyCaseStatusChanged($case, 'Resolved');
 
             self::$conn->commit();
             return true;

@@ -61,6 +61,18 @@
      margin-bottom: 18px;
  }
 
+ .table-heading-row {
+     align-items: center;
+     display: flex;
+     justify-content: space-between;
+     gap: 12px;
+     margin-bottom: 12px;
+ }
+
+ .table-heading-row .btn {
+     white-space: nowrap;
+ }
+
  .filter-grid {
      display: grid;
      grid-template-columns: repeat(4, minmax(0, 1fr));

@@ -49,6 +49,7 @@ function h($value) {
     <link rel="stylesheet" href="../layout/style.css">
     <link rel="stylesheet" href="../layout/sidebar.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <link rel="stylesheet" href="../layout/system.css?v=2">
     <link rel="stylesheet" href="../layout/hearings.css">
     <style>
@@ -219,10 +220,10 @@ function h($value) {
                                                     <input type="hidden" name="hearing_id" value="<?= (int) $hearing['hearing_id'] ?>">
                                                     <button class="btn btn-cancel" type="submit" name="hearing_action" value="cancel"><i class="bi bi-x-circle"></i> Cancel</button>
                                                 </form>
-                                                <form method="POST" action="index.php" data-confirm="Mark this hearing as completed?">
+                                                <form method="POST" action="index.php">
                                                     <?= Security::csrfField() ?>
                                                     <input type="hidden" name="hearing_id" value="<?= (int) $hearing['hearing_id'] ?>">
-                                                    <button class="btn btn-complete" type="submit" name="hearing_action" value="complete"><i class="bi bi-check2-circle"></i> Complete</button>
+                                                    <button class="btn btn-complete" type="submit" data-swal-hearing-complete name="hearing_action" value="complete"><i class="bi bi-check2-circle"></i> Complete</button>
                                                 </form>
                                             <?php endif; ?>
                                         </div>
@@ -238,7 +239,26 @@ function h($value) {
         </div>
     </div>
     <script>
-    (()=>{const form=document.getElementById('hearingFilters'),body=document.getElementById('hearingTableBody');if(!form||!body)return;const csrf='<?= h(Security::csrfToken()) ?>',esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));let timer,request;async function load(){if(request)request.abort();request=new AbortController();const p=new URLSearchParams(new FormData(form));p.set('ajax','1');const r=await fetch(`index.php?${p}`,{headers:{'X-Requested-With':'XMLHttpRequest'},signal:request.signal});const d=await r.json();if(!d.success)throw Error(d.message);body.innerHTML=d.hearings.length?d.hearings.map(h=>{const actions=h.status==='Scheduled'?`<form method="POST" action="index.php" data-confirm="Cancel this scheduled hearing?"><input type="hidden" name="csrf_token" value="${csrf}"><input type="hidden" name="hearing_id" value="${+h.hearing_id}"><button class="btn btn-cancel" name="hearing_action" value="cancel">Cancel</button></form><form method="POST" action="index.php" data-confirm="Mark this hearing as completed?"><input type="hidden" name="csrf_token" value="${csrf}"><input type="hidden" name="hearing_id" value="${+h.hearing_id}"><button class="btn btn-complete" name="hearing_action" value="complete">Complete</button></form>`:'';return `<tr><td><a class="hearing-case-link" href="../cases/show.php?id=${+h.complaint_id}">${esc(h.case_number)}</a></td><td><strong>${esc(h.complainant_name)}</strong></td><td>${esc(new Date(h.hearing_datetime.replace(' ','T')).toLocaleString())}</td><td>${esc(h.venue)}</td><td><span class="status">${esc(h.status)}</span></td><td><div class="row-actions"><a class="btn btn-edit" href="edit.php?id=${+h.hearing_id}"><i class="bi bi-pencil"></i> Edit</a>${actions}</div></td></tr>`}).join(''):'<tr><td colspan="6" class="empty">No hearings found.</td></tr>';Object.entries(d.summary).forEach(([k,v])=>{const n=document.querySelector(`[data-hearing-summary="${k}"]`);if(n)n.textContent=v});p.delete('ajax');history.replaceState(null,'',p.toString()?`index.php?${p}`:'index.php')}form.addEventListener('submit',e=>{e.preventDefault();load().catch(()=>{})});form.querySelectorAll('select').forEach(x=>x.addEventListener('change',load));form.elements.search.addEventListener('input',()=>{clearTimeout(timer);timer=setTimeout(load,400)});document.getElementById('resetHearingFilters').addEventListener('click',()=>{form.reset();load()})})();
+    (()=>{const form=document.getElementById('hearingFilters'),body=document.getElementById('hearingTableBody');if(!form||!body)return;const csrf='<?= h(Security::csrfToken()) ?>',esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));let timer,request;async function load(){if(request)request.abort();request=new AbortController();const p=new URLSearchParams(new FormData(form));p.set('ajax','1');const r=await fetch(`index.php?${p}`,{headers:{'X-Requested-With':'XMLHttpRequest'},signal:request.signal});const d=await r.json();if(!d.success)throw Error(d.message);body.innerHTML=d.hearings.length?d.hearings.map(h=>{const actions=h.status==='Scheduled'?`<form method="POST" action="index.php" data-confirm="Cancel this scheduled hearing?"><input type="hidden" name="csrf_token" value="${csrf}"><input type="hidden" name="hearing_id" value="${+h.hearing_id}"><button class="btn btn-cancel" name="hearing_action" value="cancel">Cancel</button></form><form method="POST" action="index.php"><input type="hidden" name="csrf_token" value="${csrf}"><input type="hidden" name="hearing_id" value="${+h.hearing_id}"><button class="btn btn-complete" data-swal-hearing-complete name="hearing_action" value="complete">Complete</button></form>`:'';return `<tr><td><a class="hearing-case-link" href="../cases/show.php?id=${+h.complaint_id}">${esc(h.case_number)}</a></td><td><strong>${esc(h.complainant_name)}</strong></td><td>${esc(new Date(h.hearing_datetime.replace(' ','T')).toLocaleString())}</td><td>${esc(h.venue)}</td><td><span class="status">${esc(h.status)}</span></td><td><div class="row-actions"><a class="btn btn-edit" href="edit.php?id=${+h.hearing_id}"><i class="bi bi-pencil"></i> Edit</a>${actions}</div></td></tr>`}).join(''):'<tr><td colspan="6" class="empty">No hearings found.</td></tr>';Object.entries(d.summary).forEach(([k,v])=>{const n=document.querySelector(`[data-hearing-summary="${k}"]`);if(n)n.textContent=v});p.delete('ajax');history.replaceState(null,'',p.toString()?`index.php?${p}`:'index.php')}form.addEventListener('submit',e=>{e.preventDefault();load().catch(()=>{})});form.querySelectorAll('select').forEach(x=>x.addEventListener('change',load));form.elements.search.addEventListener('input',()=>{clearTimeout(timer);timer=setTimeout(load,400)});document.getElementById('resetHearingFilters').addEventListener('click',()=>{form.reset();load()})})();
+    </script>
+    <script>
+        document.addEventListener('click', (event) => {
+            const button = event.target.closest('button[data-swal-hearing-complete]');
+            if (!button) return;
+            event.preventDefault();
+            Swal.fire({
+                icon: 'question',
+                title: 'Mark this hearing as completed?',
+                text: 'This action will mark the scheduled hearing as Completed.',
+                showCancelButton: true,
+                confirmButtonText: 'Yes, complete',
+                confirmButtonColor: '#1A9D00',
+                cancelButtonText: 'Cancel',
+                reverseButtons: true
+            }).then((result) => {
+                if (result.isConfirmed) button.form.requestSubmit(button);
+            });
+        });
     </script>
 </body>
 

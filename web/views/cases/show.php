@@ -18,6 +18,7 @@ $messageReceiver = $viewData['messageReceiver'];
 $message = $viewData['message'];
 $errors = $viewData['errors'];
 $resubmission = $viewData['resubmission'];
+$caseStatus = $case['status'] ?? '';
 
 $controller->clearFlash();
 
@@ -47,6 +48,7 @@ function person_name($first, $last) {
     <link rel="stylesheet" href="../layout/style.css">
     <link rel="stylesheet" href="../layout/sidebar.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <style>
     body {
         align-items: stretch;
@@ -272,6 +274,10 @@ function person_name($first, $last) {
         gap: 8px;
     }
 
+    .button-row.two {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
     .btn {
         border: 0;
         border-radius: 8px;
@@ -310,6 +316,20 @@ function person_name($first, $last) {
         background: #1c6dd0;
     }
 
+    .btn-secondary {
+        background: #eef1ee;
+        color: #3f4c3e;
+    }
+
+    .btn-secondary:hover {
+        background: #e2e7df;
+    }
+
+    .staff-actions-extra .btn {
+        text-align: center;
+        width: 100%;
+    }
+
     .btn:disabled,
     .revision-fieldset:disabled .btn {
         cursor: not-allowed;
@@ -317,123 +337,184 @@ function person_name($first, $last) {
         opacity: 0.45;
     }
 
-    .action-banner {
-        align-items: center;
+    .case-outcome-panel {
+        background: #fbfdf9;
+        border: 1px solid #cfe6ca;
+        border-left: 4px solid #1a9d00;
         border-radius: 8px;
+        padding: 16px 18px;
+        margin-top: 8px;
+    }
+
+    .case-outcome-panel h2 {
+        align-items: center;
+        color: #145c00;
         display: flex;
-        gap: 12px;
-        margin-bottom: 12px;
-        padding: 12px 14px;
+        font-size: 15px;
+        gap: 8px;
+        margin: 0 0 10px;
     }
 
-    .action-banner.hidden {
-        display: none;
-    }
-
-    .action-banner.banner-resolve {
-        animation: banner-slide 0.25s ease;
-        background: #eaf7e8;
-        border: 1px solid #1a9d00;
-    }
-
-    .action-banner.banner-archive {
-        animation: banner-slide 0.25s ease;
-        background: #fff8e6;
-        border: 1px solid #d99a06;
-    }
-
-    .action-banner.banner-reopen {
-        animation: banner-slide 0.25s ease;
-        background: #e8f1fc;
-        border: 1px solid #1c6dd0;
-    }
-
-    .action-banner-icon {
-        font-size: 20px;
-    }
-
-    .banner-resolve .action-banner-icon {
-        color: #157000;
-    }
-
-    .banner-archive .action-banner-icon {
-        color: #b27400;
-    }
-
-    .banner-reopen .action-banner-icon {
-        color: #155fae;
-    }
-
-    .action-banner-text {
-        display: flex;
-        flex-direction: column;
-        flex: 1;
-        font-size: 13px;
-    }
-
-    .action-banner-text strong {
-        color: #172017;
-        font-size: 14px;
-    }
-
-    .action-banner-text span {
+    .case-outcome-meta {
         color: #5c6a59;
         font-size: 12px;
+        margin-bottom: 8px;
     }
 
-    .action-banner-buttons {
-        display: flex;
-        gap: 8px;
+    .case-outcome-text {
+        color: #172017;
+        font-size: 14px;
+        line-height: 1.6;
+        white-space: pre-wrap;
     }
 
-    .banner-cancel,
-    .banner-confirm {
-        border: 0;
-        border-radius: 6px;
-        cursor: pointer;
-        font-family: inherit;
+    .outcome-field {
+        margin-bottom: 12px;
+    }
+
+    .outcome-field label {
+        display: block;
         font-size: 12px;
         font-weight: 700;
-        padding: 7px 12px;
+        margin-bottom: 5px;
     }
 
-    .banner-cancel {
+    .outcome-field textarea {
+        border: 1px solid #b9c7b7;
+        border-radius: 8px;
+        font-family: inherit;
+        font-size: 14px;
+        min-height: 70px;
+        padding: 10px 12px;
+        width: 100%;
+        resize: vertical;
+    }
+
+    .case-action-group {
+        margin-top: 16px;
+        padding-top: 14px;
+        border-top: 1px solid #eef1ed;
+    }
+
+    .case-action-group:first-of-type {
+        border-top: 0;
+        margin-top: 0;
+        padding-top: 0;
+    }
+
+    .case-action-label {
+        color: #5c6a59;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        margin: 0 0 8px;
+        text-transform: uppercase;
+    }
+
+    .case-modal-overlay {
+        -webkit-backdrop-filter: blur(2px);
+        align-items: center;
+        backdrop-filter: blur(2px);
+        background: rgba(15, 24, 16, 0.55);
+        display: none;
+        inset: 0;
+        justify-content: center;
+        padding: 20px;
+        position: fixed;
+        z-index: 3000;
+    }
+
+    .case-modal-overlay.open {
+        display: flex;
+    }
+
+    .case-modal {
+        animation: sicmsModalIn 0.18s ease;
         background: #fff;
-        border: 1px solid #c9d4c6;
-        color: #3f4c3e;
+        border-radius: 10px;
+        box-shadow: 0 18px 50px rgba(0, 0, 0, 0.28);
+        max-height: calc(100vh - 40px);
+        overflow: auto;
+        padding: 22px;
+        width: min(520px, 100%);
     }
 
-    .banner-confirm {
-        background: #123c1b;
-        color: #fff;
-    }
-
-    .banner-archive .banner-confirm {
-        background: #8a5c00;
-    }
-
-    .banner-reopen .banner-confirm {
-        background: #155fae;
-    }
-
-    .banner-cancel:hover {
-        background: #f2f5f0;
-    }
-
-    .banner-confirm:hover {
-        filter: brightness(1.15);
-    }
-
-    @keyframes banner-slide {
+    @keyframes sicmsModalIn {
         from {
             opacity: 0;
-            transform: translateY(-6px);
+            transform: translateY(10px);
         }
+    }
 
-        to {
-            opacity: 1;
-            transform: translateY(0);
-        }
+    .case-modal-header {
+        align-items: flex-start;
+        display: flex;
+        gap: 12px;
+        justify-content: space-between;
+        margin-bottom: 14px;
+    }
+
+    .case-modal-header h3 {
+        color: #123c1b;
+        font-size: 17px;
+        margin: 0 0 3px;
+    }
+
+    .case-modal-header h3 .bi {
+        color: #1a9d00;
+    }
+
+    .case-modal-header p {
+        color: #5c6a59;
+        font-size: 12.5px;
+        margin: 0;
+    }
+
+    .case-modal-close {
+        background: #eef1ee;
+        border: none;
+        border-radius: 8px;
+        color: #435241;
+        cursor: pointer;
+        flex: 0 0 30px;
+        font-size: 15px;
+        height: 30px;
+        line-height: 1;
+    }
+
+    .case-modal-body {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .case-modal-body textarea,
+    .case-modal-body select {
+        border: 1px solid #b9c7b7;
+        border-radius: 8px;
+        font-family: inherit;
+        font-size: 14px;
+        padding: 10px 12px;
+        width: 100%;
+        resize: vertical;
+    }
+
+    .case-modal-body textarea {
+        min-height: 80px;
+    }
+
+    .case-modal-label {
+        display: block;
+        font-size: 12px;
+        font-weight: 700;
+        margin-bottom: 2px;
+    }
+
+    .case-modal-actions {
+        display: flex;
+        gap: 10px;
+        justify-content: flex-end;
+        margin-top: 16px;
     }
 
     .btn-resolve:disabled,
@@ -884,84 +965,82 @@ function person_name($first, $last) {
                                 </div>
                             </form>
                         </section>
+
+                        <?php
+                        $outcomeText = trim((string) ($case['outcome'] ?? ''));
+                        if ($outcomeText !== '' && in_array($caseStatus, ['Resolved', 'Archived'], true)):
+                            $resolutionMeta = null;
+                            foreach ($history as $historyItem) {
+                                if (($historyItem['new_status'] ?? '') === 'Resolved') {
+                                    $resolutionMeta = $historyItem;
+                                    break;
+                                }
+                            }
+                        ?>
+                        <section class="panel case-outcome-panel">
+                            <h2><i class="bi bi-check2-circle"></i> Outcome / Resolution</h2>
+                            <?php if ($resolutionMeta): ?>
+                                <div class="case-outcome-meta">
+                                    Resolved by
+                                    <?= h(person_name($resolutionMeta['actor_first_name'], $resolutionMeta['actor_last_name'])) ?>
+                                    &middot; <?= h(date('M d, Y h:i A', strtotime($resolutionMeta['created_at']))) ?>
+                                </div>
+                            <?php endif; ?>
+                            <div class="case-outcome-text"><?= nl2br(h($outcomeText)) ?></div>
+                        </section>
+                        <?php endif; ?>
                     </div>
 
                     <aside>
                         <?php $caseStatus = $case['status'] ?? ''; $caseLocked = in_array($caseStatus, ['Resolved', 'Archived'], true); ?>
                         <section class="panel">
-                            <h2>Staff Actions</h2>
+                            <h2>Case Actions</h2>
                             <?php if ($caseLocked): ?><p class="muted" style="margin-bottom:10px"><i
                                     class="bi bi-lock-fill"></i> This case is closed. Only archiving remains available.
                             </p><?php endif; ?>
-                            <form class="action-form" method="POST"
-                                action="show.php?id=<?= (int) $case['complaint_id'] ?>">
-                                <?= Security::csrfField() ?>
-                                <textarea name="remarks" placeholder="Remarks"></textarea>
-                                <div class="action-banner hidden" id="actionConfirmBanner" role="alert">
-                                    <i class="bi bi-exclamation-circle-fill action-banner-icon"></i>
-                                    <div class="action-banner-text">
-                                        <strong id="actionBannerTitle"></strong>
-                                        <span>This action will be recorded in the case timeline.</span>
-                                    </div>
-                                    <div class="action-banner-buttons">
-                                        <button type="button" class="banner-cancel"
-                                            id="actionBannerCancel">Cancel</button>
-                                        <button type="button" class="banner-confirm" id="actionBannerConfirm">Yes,
-                                            continue</button>
-                                    </div>
-                                </div>
-                                <div class="button-row">
-                                    <button class="btn btn-verify" type="submit" name="case_action" value="verify"
-                                        <?= $caseLocked ? 'disabled title="This case is closed."' : '' ?>>Verify</button>
-                                    <button class="btn btn-reject" type="submit" name="case_action" value="reject"
-                                        <?= $caseLocked ? 'disabled title="This case is closed."' : '' ?>
-                                        data-confirm="Reject this complaint? This action changes its workflow status.">Reject</button>
-                                    <button class="btn btn-resolve" type="submit" name="case_action" value="<?= $caseStatus === 'Resolved' ? 'reopen' : 'resolve' ?>"
-                                        <?= ($caseStatus === 'Verified') ? 'data-confirm-banner="Mark this case as resolved?"' : (($caseStatus === 'Resolved') ? 'data-confirm-banner="Unresolve this case? Its status will return to Verified."' : 'disabled title="Available once the case is Verified."') ?>><i class="bi <?= $caseStatus === 'Resolved' ? 'bi-arrow-counterclockwise' : 'bi-check-lg' ?>"></i> <?= $caseStatus === 'Resolved' ? 'Unresolve' : 'Resolve' ?></button>
-                                    <button class="btn btn-archive" type="submit" name="case_action" value="archive"
-                                        <?= ($caseStatus === 'Resolved') ? 'data-confirm-banner="Archive this case?"' : 'disabled title="Available once the case is Resolved."' ?>>Archive</button>
-                                </div>
-                            </form>
 
-                            <fieldset class="revision-fieldset" <?= $caseLocked ? 'disabled' : '' ?>>
-                                <form class="action-form revision-form" method="POST"
-                                    action="show.php?id=<?= (int) $case['complaint_id'] ?>">
-                                    <?= Security::csrfField() ?>
-                                    <h3>Return for Revision</h3>
-                                    <p>Explain the correction and select every section the student may update.</p>
-                                    <textarea name="remarks" placeholder="Revision reason and instructions"
-                                        required></textarea>
-<div class="revision-fields">
-                                        <?php foreach ($revisionFieldLabels as $field => $label): ?>
-                                        <label class="revision-field"><input type="checkbox" name="revision_fields[]"
-                                                value="<?= h($field) ?>"> <span><?= h($label) ?></span></label>
-                                        <?php endforeach; ?>
-                                    </div>
-                                    <button class="btn btn-return" type="submit" name="case_action" value="return"
-                                        data-confirm="Return this complaint with the selected revision requirements?">Return
-                                        for Revision</button>
-                                </form>
-                            </fieldset>
-
-                            <fieldset class="revision-fieldset" <?= $caseLocked ? 'disabled' : '' ?>>
+                            <div class="case-action-group">
+                                <h3 class="case-action-label">Staff Review</h3>
                                 <form class="action-form" method="POST"
                                     action="show.php?id=<?= (int) $case['complaint_id'] ?>">
                                     <?= Security::csrfField() ?>
-                                    <select name="coordinator_account_id" required>
-                                        <option value="">Select coordinator</option>
-                                        <?php foreach ($coordinators as $coordinator): ?>
-                                        <option value="<?= (int) $coordinator['account_id'] ?>"
-                                            <?= ((int) $case['assigned_coordinator_account_id'] === (int) $coordinator['account_id']) ? 'selected' : '' ?>>
-                                            <?= h(trim($coordinator['first_name'] . ' ' . $coordinator['last_name'])) ?>
-                                            (<?= h($coordinator['role']) ?>)
-                                        </option>
-                                        <?php endforeach; ?>
-                                    </select>
-                                    <textarea name="remarks" placeholder="Assignment remarks"></textarea>
-                                    <button class="btn btn-assign" type="submit" name="case_action"
-                                        value="assign">Assign Coordinator</button>
+                                    <textarea name="remarks" placeholder="Remarks / notes..."></textarea>
+                                    <div class="button-row two">
+                                        <button class="btn btn-verify" type="submit" name="case_action" value="verify"
+                                            <?= $caseLocked ? 'disabled title="This case is closed."' : '' ?>>Verify</button>
+                                        <button class="btn btn-reject" type="submit" name="case_action" value="reject"
+                                            <?= $caseLocked ? 'disabled title="This case is closed."' : '' ?>
+                                            data-swal-confirm="Reject this complaint? This action changes its workflow status.">Reject</button>
+                                    </div>
                                 </form>
-                            </fieldset>
+                            </div>
+
+                            <div class="case-action-group">
+                                <h3 class="case-action-label">Case Workflow</h3>
+                                <div class="button-row two">
+                                    <button type="button" class="btn btn-return" id="openReturnModal"
+                                        <?= $caseLocked ? 'disabled title="This case is closed."' : '' ?>><i class="bi bi-arrow-return-left"></i> Return for Revision</button>
+                                    <button type="button" class="btn btn-assign" id="openAssignModal"
+                                        <?= $caseLocked ? 'disabled title="This case is closed."' : '' ?>><i class="bi bi-person-plus"></i> Assign Coordinator</button>
+                                </div>
+                            </div>
+
+                            <div class="case-action-group">
+                                <h3 class="case-action-label">Case Outcome</h3>
+                                <form class="action-form" method="POST"
+                                    action="show.php?id=<?= (int) $case['complaint_id'] ?>">
+                                    <?= Security::csrfField() ?>
+                                    <div class="outcome-field">
+                                        <textarea name="outcome" id="caseOutcome" placeholder="Record the final outcome/resolution of this case (required for Resolve)."></textarea>
+                                    </div>
+                                    <div class="button-row two">
+                                        <button class="btn btn-resolve" type="submit" name="case_action" value="<?= $caseStatus === 'Resolved' ? 'reopen' : 'resolve' ?>"
+                                            <?= ($caseStatus === 'Verified') ? 'data-swal-confirm="Mark this case as resolved?"' : (($caseStatus === 'Resolved') ? 'data-swal-confirm="Unresolve this case? Its status will return to Verified."' : 'disabled title="Available once the case is Verified."') ?>><i class="bi <?= $caseStatus === 'Resolved' ? 'bi-arrow-counterclockwise' : 'bi-check-lg' ?>"></i> <?= $caseStatus === 'Resolved' ? 'Unresolve Case' : 'Resolve Case' ?></button>
+                                        <button class="btn btn-archive" type="submit" name="case_action" value="archive"
+                                            <?= ($caseStatus === 'Resolved') ? 'data-swal-confirm="Archive this case? It will be moved to Archived Cases."' : 'disabled title="Available once the case is Resolved."' ?>>Archive Case</button>
+                                    </div>
+                                </form>
+                            </div>
                         </section>
 
                         <section class="panel">
@@ -998,6 +1077,74 @@ function person_name($first, $last) {
             </main>
         </div>
     </div>
+
+    <div class="case-modal-overlay" id="returnModalOverlay">
+        <div class="case-modal" role="dialog" aria-modal="true" aria-labelledby="returnModalTitle">
+            <div class="case-modal-header">
+                <div>
+                    <h3 id="returnModalTitle"><i class="bi bi-arrow-return-left"></i> Return for Revision</h3>
+                    <p>Explain the correction and select every section the student may update.</p>
+                </div>
+                <button class="case-modal-close" type="button" data-close-modal aria-label="Close">&times;</button>
+            </div>
+            <form class="action-form revision-form" method="POST"
+                action="show.php?id=<?= (int) $case['complaint_id'] ?>">
+                <?= Security::csrfField() ?>
+                <div class="case-modal-body">
+                    <textarea name="remarks" placeholder="Revision reason and instructions"
+                        required></textarea>
+                    <div class="revision-fields">
+                        <?php foreach ($revisionFieldLabels as $field => $label): ?>
+                        <label class="revision-field"><input type="checkbox" name="revision_fields[]"
+                                value="<?= h($field) ?>"> <span><?= h($label) ?></span></label>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+                <div class="case-modal-actions">
+                    <button type="button" class="btn btn-secondary" data-close-modal>Cancel</button>
+                    <button class="btn btn-return" type="submit" name="case_action" value="return"
+                        data-swal-confirm="Return this complaint with the selected revision requirements?">Return for Revision</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="case-modal-overlay" id="assignModalOverlay">
+        <div class="case-modal" role="dialog" aria-modal="true" aria-labelledby="assignModalTitle">
+            <div class="case-modal-header">
+                <div>
+                    <h3 id="assignModalTitle"><i class="bi bi-person-plus"></i> Assign Coordinator</h3>
+                    <p>Assign a coordinator to handle this case.</p>
+                </div>
+                <button class="case-modal-close" type="button" data-close-modal aria-label="Close">&times;</button>
+            </div>
+            <form class="action-form" method="POST"
+                action="show.php?id=<?= (int) $case['complaint_id'] ?>">
+                <?= Security::csrfField() ?>
+                <div class="case-modal-body">
+                    <label class="case-modal-label" for="coordinatorSelect">Coordinator</label>
+                    <select id="coordinatorSelect" name="coordinator_account_id" required>
+                        <option value="">Select coordinator</option>
+                        <?php foreach ($coordinators as $coordinator): ?>
+                        <option value="<?= (int) $coordinator['account_id'] ?>"
+                            <?= ((int) $case['assigned_coordinator_account_id'] === (int) $coordinator['account_id']) ? 'selected' : '' ?>>
+                            <?= h(trim($coordinator['first_name'] . ' ' . $coordinator['last_name'])) ?>
+                            (<?= h($coordinator['role']) ?>)
+                        </option>
+                        <?php endforeach; ?>
+                    </select>
+                    <label class="case-modal-label" for="assignRemarks">Assignment remarks</label>
+                    <textarea id="assignRemarks" name="remarks" placeholder="Assignment remarks"></textarea>
+                </div>
+                <div class="case-modal-actions">
+                    <button type="button" class="btn btn-secondary" data-close-modal>Cancel</button>
+                    <button class="btn btn-assign" type="submit" name="case_action"
+                        value="assign" data-swal-confirm="Assign this coordinator to the case?">Assign Coordinator</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <script>
     const caseConversation = document.getElementById('caseConversation');
 
@@ -1006,42 +1153,100 @@ function person_name($first, $last) {
     }
 
     (() => {
-        const banner = document.getElementById('actionConfirmBanner');
-        const bannerTitle = document.getElementById('actionBannerTitle');
-        const confirmButton = document.getElementById('actionBannerConfirm');
-        const cancelButton = document.getElementById('actionBannerCancel');
-        let pendingAction = null;
+        const archivedUrl = <?= json_encode(app_route('archived_cases.index')) ?>;
 
-        if (!banner) return;
-
-        const hideBanner = () => {
-            pendingAction = null;
-            banner.classList.add('hidden');
-        };
-
-        document.querySelectorAll('[data-confirm-banner]').forEach(button => {
+        document.querySelectorAll('[data-swal-confirm]').forEach(button => {
             button.addEventListener('click', event => {
                 event.preventDefault();
-                pendingAction = button;
-                bannerTitle.textContent = button.dataset.confirmBanner;
-                const variants = ['banner-resolve', 'banner-archive', 'banner-reopen'];
-                banner.classList.remove('hidden', ...variants);
-                banner.classList.add(`banner-${button.value}`);
-                banner.scrollIntoView({
-                    behavior: 'smooth',
-                    block: 'nearest'
+                const action = button.value;
+                let config = {
+                    icon: 'question',
+                    title: button.dataset.swalConfirm,
+                    showCancelButton: true,
+                    confirmButtonText: 'Yes, continue',
+                    cancelButtonText: 'Cancel',
+                    reverseButtons: true
+                };
+
+                if (action === 'reject') {
+                    const remarksField = button.form?.querySelector('[name="remarks"]');
+                    const remarks = (remarksField?.value || '').trim();
+                    if (!remarks) {
+                        Swal.fire({
+                            icon: 'warning',
+                            title: 'Rejection note required',
+                            text: 'Please enter a note in the Remarks field explaining why this complaint is being rejected.',
+                            confirmButtonText: 'Okay',
+                            confirmButtonColor: '#c0392b'
+                        });
+                        remarksField?.focus();
+                        return;
+                    }
+                    config.icon = 'warning';
+                    config.confirmButtonText = 'Yes, reject';
+                    config.confirmButtonColor = '#c0392b';
+                } else if (action === 'archive') {
+                    config.icon = 'warning';
+                    config.confirmButtonText = 'Yes, archive';
+                    config.confirmButtonColor = '#9a6b00';
+                } else if (action === 'reopen') {
+                    config.icon = 'warning';
+                    config.confirmButtonText = 'Yes, unresolve';
+                } else if (action === 'reject') {
+                    config.icon = 'warning';
+                    config.confirmButtonText = 'Yes, reject';
+                    config.confirmButtonColor = '#c0392b';
+                } else if (action === 'return') {
+                    config.icon = 'warning';
+                    config.confirmButtonText = 'Yes, return';
+                    config.confirmButtonColor = '#b8860b';
+                } else if (action === 'assign') {
+                    config.confirmButtonText = 'Yes, assign';
+                } else if (action === 'resolve') {
+                    config.confirmButtonText = 'Yes, resolve';
+                    config.confirmButtonColor = '#157000';
+                }
+
+                Swal.fire(config).then(result => {
+                    if (!result.isConfirmed) return;
+
+                    if (action === 'archive') {
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Case archived',
+                            text: 'This case has been moved to Archived Cases. You can find all archived cases under Settings > Archived Cases.',
+                            showCancelButton: true,
+                            confirmButtonText: 'Open Archived Cases',
+                            cancelButtonText: 'Close',
+                            confirmButtonColor: '#1a9d00',
+                            reverseButtons: true
+                        }).then(next => {
+                            if (next.isConfirmed) {
+                                window.location.href = archivedUrl;
+                            } else {
+                                button.form.requestSubmit(button);
+                            }
+                        });
+                    } else {
+                        button.form.requestSubmit(button);
+                    }
                 });
             });
         });
 
-        confirmButton.addEventListener('click', () => {
-            if (!pendingAction) return;
-            const button = pendingAction;
-            hideBanner();
-            button.form.requestSubmit(button);
-        });
+        const bindModal = (openSelector, overlayId) => {
+            const openBtn = document.getElementById(openSelector);
+            const overlay = document.getElementById(overlayId);
+            if (!openBtn || !overlay) return;
+            const setOpen = open => overlay.classList.toggle('open', open);
+            openBtn.addEventListener('click', () => setOpen(true));
+            overlay.querySelectorAll('[data-close-modal]').forEach(btn => btn.addEventListener('click', () => setOpen(false)));
+            overlay.addEventListener('mousedown', e => { if (e.target === overlay) setOpen(false); });
+            document.addEventListener('keydown', e => { if (e.key === 'Escape') setOpen(false); });
+        };
 
-        cancelButton.addEventListener('click', hideBanner);
+        bindModal('openReturnModal', 'returnModalOverlay');
+        bindModal('openAssignModal', 'assignModalOverlay');
     })();
     </script>
 </body>

@@ -54,7 +54,7 @@ $complainantType = ov($old, 'complainant_type', $case['complainant_type'] ?? 'St
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Edit Legacy Case | SICMS</title>
+    <title>Edit Migrated Case | SICMS</title>
     <link rel="stylesheet" href="../layout/style.css">
     <link rel="stylesheet" href="../layout/sidebar.css">
     <link rel="stylesheet" href="../layout/cases.css">
@@ -68,7 +68,7 @@ $complainantType = ov($old, 'complainant_type', $case['complainant_type'] ?? 'St
     <div class="dashboard-shell">
         <?php require __DIR__ . '/../layout/sidebar.php'; ?>
         <div class="case-shell app-content">
-            <?php $pageTitle = 'Edit Legacy Case ' . $case['case_number']; require __DIR__ . '/../layout/topbar.php'; ?>
+            <?php $pageTitle = 'Edit Migrated Case ' . $case['case_number']; require __DIR__ . '/../layout/topbar.php'; ?>
 
         <main class="case-wrap">
             <?php if ($errors): ?>
@@ -244,6 +244,7 @@ $complainantType = ov($old, 'complainant_type', $case['complainant_type'] ?? 'St
                                         </select>
                                     </div>
                                     <div class="field"><label>Full Name <span class="required">*</span></label><input name="respondent_name[]" value="<?= h($respondent['full_name']) ?>" required></div>
+                                    <div class="field"><label>Gender</label><select name="respondent_gender[]"><option value="">Select Gender</option><option value="Male" <?= selected_if($respondent['gender'], 'Male') ?>>Male</option><option value="Female" <?= selected_if($respondent['gender'], 'Female') ?>>Female</option></select></div>
                                     <div class="field" data-types="Student"><label>Student No.</label><input name="respondent_student_no[]" value="<?= h($respondent['student_no']) ?>"></div>
                                     <div class="field" data-types="Student">
                                         <label>College</label>
@@ -396,6 +397,7 @@ $complainantType = ov($old, 'complainant_type', $case['complainant_type'] ?? 'St
             div.innerHTML = `<div class="form-grid">
                 <div class="field"><label>Respondent Type *</label><select name="respondent_type[]"><option value="">Select Type</option><option value="Student">Student</option><option value="Employee">Employee</option><option value="Private Individual">Private Individual</option><option value="Other">Other</option></select></div>
                 <div class="field"><label>Full Name *</label><input name="respondent_name[]" required></div>
+                <div class="field"><label>Gender</label><select name="respondent_gender[]"><option value="">Select Gender</option><option value="Male">Male</option><option value="Female">Female</option></select></div>
                 <div class="field"><label>Contact</label><input name="respondent_contact[]"></div>
                 <div class="field full"><label>Details</label><textarea name="respondent_details[]"></textarea></div>
             </div><button type="button" class="btn btn-danger btn-sm remove-item">Remove</button>`;

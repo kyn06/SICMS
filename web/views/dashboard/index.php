@@ -110,12 +110,17 @@ $reportData = $canViewAnalytics ? Report::getDashboardData($filters) : [
     'casesByStatus' => [],
     'casesByCollege' => [],
     'hearingsByMonth' => [],
+    'casesBySex' => [],
+    'respondentsBySex' => [],
     'rows' => [],
     'options' => [
         'statuses' => [],
         'classifications' => [],
         'colleges' => [],
         'coordinators' => [],
+        'sexes' => [],
+        'year_levels' => [],
+        'departments' => [],
     ],
 ];
 
@@ -135,6 +140,8 @@ $chartData = [
     'casesByClassification' => chart_payload($reportData['casesByClassification']),
     'casesByCollege' => chart_payload($reportData['casesByCollege']),
     'hearingsByMonth' => chart_payload($reportData['hearingsByMonth']),
+    'casesBySex' => chart_payload($reportData['casesBySex']),
+    'respondentsBySex' => chart_payload($reportData['respondentsBySex']),
 ];
 
 $rows = $reportData['rows'];
@@ -889,21 +896,34 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
                             </select>
                         </div>
                         <div class="field">
-                            <label for="department">Department</label>
-                            <select id="department" disabled>
-                                <option>Not yet tracked</option>
+                            <label for="department">Course</label>
+                            <select id="department" name="department">
+                                <option value="">All Courses</option>
+                                <?php foreach ($options['departments'] as $department): ?>
+                                <option value="<?= h($department) ?>"
+                                    <?= selected($filters['department'], $department) ?>>
+                                    <?= h($department) ?></option>
+                                <?php endforeach; ?>
                             </select>
                         </div>
                         <div class="field">
                             <label for="year_level">Year Level</label>
-                            <select id="year_level" disabled>
-                                <option>Not yet tracked</option>
+                            <select id="year_level" name="year_level">
+                                <option value="">All Year Levels</option>
+                                <?php foreach ($options['year_levels'] as $yearLevel): ?>
+                                <option value="<?= h($yearLevel) ?>" <?= selected($filters['year_level'], $yearLevel) ?>>
+                                    <?= h($yearLevel) ?></option>
+                                <?php endforeach; ?>
                             </select>
                         </div>
                         <div class="field">
                             <label for="sex">Sex</label>
-                            <select id="sex" disabled>
-                                <option>Not yet tracked</option>
+                            <select id="sex" name="sex">
+                                <option value="">All Sexes</option>
+                                <?php foreach ($options['sexes'] as $sex): ?>
+                                <option value="<?= h($sex) ?>" <?= selected($filters['sex'], $sex) ?>>
+                                    <?= h($sex) ?></option>
+                                <?php endforeach; ?>
                             </select>
                         </div>
                         <div class="field">
@@ -1133,6 +1153,18 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
                         <div class="section-title"><i class="bi bi-bar-chart"></i> Cases by Classification</div>
                         <div class="chart-box"><canvas id="casesByClassification"></canvas></div>
                     </article>
+                    <div class="sex-charts-grid chart-wide">
+                        <div class="panel">
+                            <div class="section-title"><i class="bi bi-gender-ambiguous"></i> Complainants by Sex</div>
+                            <div class="section-subtitle">Male / Female complainants</div>
+                            <div class="chart-box"><canvas id="casesBySex"></canvas></div>
+                        </div>
+                        <div class="panel">
+                            <div class="section-title"><i class="bi bi-gender-ambiguous"></i> Respondents by Sex</div>
+                            <div class="section-subtitle">Male / Female respondents</div>
+                            <div class="chart-box"><canvas id="respondentsBySex"></canvas></div>
+                        </div>
+                    </div>
                     <?php if (!$isCoordinator): ?>
                     <article class="panel">
                         <div class="section-title"><i class="bi bi-building"></i> Cases per College</div>
@@ -1441,7 +1473,14 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
                         },
                         border: {
                             display: false
-                        }
+                        },
+                        ticks: options.rotateLabels
+                            ? {
+                                maxRotation: options.rotateLabels,
+                                minRotation: options.rotateLabels,
+                                autoSkip: false
+                            }
+                            : {}
                     },
                     [valueAxisKey]: {
                         beginAtZero: true,
@@ -1478,12 +1517,14 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
         showValues: true
     });
     makeChart('casesByStatus', 'doughnut');
-    makeChart('casesByClassification', 'bar');
+    makeChart('casesByClassification', 'bar', { rotateLabels: 45 });
     makeChart('casesByCollege', 'bar', {
         indexAxis: 'y',
         showValues: true
     });
     makeChart('hearingsByMonth', 'line');
+    makeChart('casesBySex', 'bar', { showValues: true });
+    makeChart('respondentsBySex', 'bar', { showValues: true });
 
     const dashboardFilters = document.getElementById('dashboardFilters');
     const dashboardFilterStatus = document.getElementById('dashboardFilterStatus');
@@ -1653,12 +1694,14 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
                 showValues: true
             });
             makeChart('casesByStatus', 'doughnut');
-            makeChart('casesByClassification', 'bar');
+            makeChart('casesByClassification', 'bar', { rotateLabels: 45 });
             makeChart('casesByCollege', 'bar', {
                 indexAxis: 'y',
                 showValues: true
             });
             makeChart('hearingsByMonth', 'line');
+            makeChart('casesBySex', 'bar', { showValues: true });
+            makeChart('respondentsBySex', 'bar', { showValues: true });
             params.delete('ajax');
             const query = params.toString();
             history.replaceState({}, '', query ? `${dashboardFilters.action}?${query}` : dashboardFilters.action);

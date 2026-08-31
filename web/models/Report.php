@@ -2,6 +2,7 @@
 
 require_once 'Model.php';
 require_once __DIR__ . '/../helpers/Colleges.php';
+require_once __DIR__ . '/../helpers/Courses.php';
 
 class Report extends Model {
     private static $caseStatuses = ['Submitted', 'Verified', 'Returned for Revision', 'Rejected', 'Resolved', 'Archived'];
@@ -78,7 +79,6 @@ class Report extends Model {
             if (isset($statusKeys[$row['status']])) $summary[$statusKeys[$row['status']]]++;
             if (in_array($row['status'], ['Submitted', 'Returned for Revision'], true)) $summary['pending_cases']++;
             if ($row['status'] === 'Verified' || (!empty($row['assigned_coordinator_account_id']) && !in_array($row['status'], ['Resolved', 'Archived'], true))) $summary['ongoing_cases']++;
-            if ($row['status'] === 'Archived') $summary['resolved_cases']++;
             if (($row['complainant_type'] ?? 'Student') === 'Student' && !empty($row['submitted_by_account_id'])) $students[(int) $row['submitted_by_account_id']] = true;
             $summary['scheduled_hearings'] += (int) $row['scheduled_hearing_count'];
             $summary['completed_hearings'] += (int) $row['completed_hearing_count'];
@@ -204,12 +204,15 @@ class Report extends Model {
             'coordinator' => (int) self::inputValue($input, 'coordinator'),
             'college' => substr(self::inputValue($input, 'college'), 0, 255),
             'case_source' => self::caseSource(self::inputValue($input, 'case_source')),
+            'sex' => substr(self::inputValue($input, 'sex'), 0, 20),
+            'year_level' => substr(self::inputValue($input, 'year_level'), 0, 50),
+            'department' => substr(self::inputValue($input, 'department'), 0, 255),
         ];
     }
 
     public static function validateFilters(array $input, array $filters) {
         $errors = [];
-        foreach (['date_from', 'date_to', 'month', 'year', 'status', 'classification', 'coordinator', 'college', 'case_source'] as $key) {
+        foreach (['date_from', 'date_to', 'month', 'year', 'status', 'classification', 'coordinator', 'college', 'case_source', 'sex', 'year_level', 'department'] as $key) {
             if (isset($input[$key]) && !is_scalar($input[$key])) $errors[] = 'Invalid filter input.';
         }
         foreach (['date_from' => 'Date From', 'date_to' => 'Date To'] as $key => $label) {
@@ -224,6 +227,8 @@ class Report extends Model {
         if ($filters['status'] !== '' && !in_array($filters['status'], self::$caseStatuses, true)) $errors[] = 'Please select a valid status.';
         if ($filters['classification'] !== '' && !self::valueExists('case_classification', $filters['classification'])) $errors[] = 'Please select a valid classification.';
         if ($filters['college'] !== '' && !Colleges::contains($filters['college'])) $errors[] = 'Please select a valid college.';
+        if ($filters['sex'] !== '' && !in_array($filters['sex'], ['Male', 'Female', 'Other', 'Unspecified'], true)) $errors[] = 'Please select a valid sex.';
+        if ($filters['year_level'] !== '' && !in_array($filters['year_level'], array_values(Courses::yearOptions()), true)) $errors[] = 'Please select a valid year level.';
         if ($filters['coordinator'] && !self::coordinatorExists($filters['coordinator'])) $errors[] = 'Please select a valid coordinator.';
         return array_values(array_unique($errors));
     }
@@ -385,6 +390,9 @@ class Report extends Model {
             'classifications' => self::singleColumn("SELECT DISTINCT case_classification FROM complaints WHERE case_classification IS NOT NULL AND case_classification <> '' ORDER BY case_classification"),
             'colleges' => Colleges::all(),
             'case_sources' => ['Online Submission', 'Legacy'],
+            'sexes' => ['Male', 'Female', 'Other', 'Unspecified'],
+            'year_levels' => array_values(Courses::yearOptions()),
+            'departments' => self::singleColumn("SELECT DISTINCT complainant_course FROM complaints WHERE complainant_course IS NOT NULL AND TRIM(complainant_course) <> '' ORDER BY complainant_course"),
             'coordinators' => self::fetchAll("SELECT account_id, first_name, last_name, role
                                               FROM accounts
                                               WHERE status = 'active'
@@ -669,6 +677,29 @@ class Report extends Model {
             $params[] = strtolower($aliases[0]);
             $params[] = strtolower($aliases[1] ?? $aliases[0]);
             $types .= 'ss';
+        }
+
+        if (!empty($filters['sex'])) {
+            if ($filters['sex'] === 'Unspecified') {
+                $where[] = "($alias.complainant_gender IS NULL OR TRIM($alias.complainant_gender) = '')";
+            } else {
+                $sexMap = ['Male' => ['male', 'm'], 'Female' => ['female', 'f'], 'Other' => ['other', 'o']];
+                $vals = $sexMap[$filters['sex']] ?? [$filters['sex']];
+                $where[] = 'LOWER(TRIM(' . $alias . '.complainant_gender)) IN (' . implode(',', array_fill(0, count($vals), '?')) . ')';
+                foreach ($vals as $v) { $params[] = strtolower($v); $types .= 's'; }
+            }
+        }
+
+        if (!empty($filters['year_level'])) {
+            $where[] = "$alias.complainant_year_level = ?";
+            $params[] = $filters['year_level'];
+            $types .= 's';
+        }
+
+        if (!empty($filters['department'])) {
+            $where[] = "LOWER(TRIM($alias.complainant_course)) = ?";
+            $params[] = strtolower($filters['department']);
+            $types .= 's';
         }
 
         return ['WHERE ' . implode(' AND ', $where), $params, $types];

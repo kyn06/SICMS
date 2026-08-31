@@ -28,10 +28,16 @@ class CaseController {
         return [
             'user' => $this->user,
             'cases' => CaseRecord::listCases($filters),
+            'migratedCases' => CaseRecord::listLegacyCases([]),
+            'canEditMigrated' => in_array($this->roleKey(), ['sdr-staff', 'sdru-staff'], true),
             'filters' => $filters,
-            'statuses' => CaseRecord::getStatuses(),
+            'statuses' => $this->activeStatuses(),
             'classifications' => CaseRecord::getClassifications(),
         ];
+    }
+
+    private function activeStatuses() {
+        return array_values(array_filter(CaseRecord::getStatuses(), fn($status) => $status !== 'Archived'));
     }
 
     public function search() {
@@ -49,6 +55,35 @@ class CaseController {
             echo json_encode([
                 'success' => false,
                 'message' => 'Unable to filter cases right now.',
+            ]);
+        }
+
+        exit;
+    }
+
+    public function archivedIndex() {
+        return [
+            'user' => $this->user,
+            'cases' => CaseRecord::listArchivedCases($this->archivedFilters($_GET)),
+            'filters' => $this->archivedFilters($_GET),
+        ];
+    }
+
+    public function archivedSearch() {
+        header('Content-Type: application/json; charset=utf-8');
+
+        try {
+            $cases = CaseRecord::listArchivedCases($this->archivedFilters($_GET));
+            echo json_encode([
+                'success' => true,
+                'cases' => $cases,
+                'total' => count($cases),
+            ], JSON_THROW_ON_ERROR);
+        } catch (Throwable $exception) {
+            http_response_code(500);
+            echo json_encode([
+                'success' => false,
+                'message' => 'Unable to filter archived cases right now.',
             ]);
         }
 
@@ -170,6 +205,12 @@ class CaseController {
                 AuditLog::record($this->user, 'Complaint Updates', 'Returned complaint ' . $caseLabel . ' for revision. Fields: ' . implode(', ', $revisionFields) . '.');
                 $_SESSION['case_message'] = 'Complaint returned for revision.';
             } elseif ($action === 'reject') {
+                if ($remarks === '') {
+                    $_SESSION['case_errors'] = ['Please provide a rejection note explaining why the complaint is being rejected.'];
+                    header('Location: show.php?id=' . $complaintId);
+                    exit;
+                }
+
                 CaseRecord::updateStatus($complaintId, 'Rejected', $remarks, $actorAccountId);
                 AuditLog::record($this->user, 'Complaint Updates', 'Rejected complaint ' . $caseLabel . '.');
                 $_SESSION['case_message'] = 'Complaint rejected.';
@@ -180,7 +221,15 @@ class CaseController {
                     exit;
                 }
 
-                CaseRecord::updateStatus($complaintId, 'Resolved', $remarks, $actorAccountId);
+                $outcome = trim((string) ($_POST['outcome'] ?? ''));
+
+                if ($outcome === '') {
+                    $_SESSION['case_errors'] = ['Please provide the outcome/resolution before marking the case as resolved.'];
+                    header('Location: show.php?id=' . $complaintId);
+                    exit;
+                }
+
+                CaseRecord::resolveCase($complaintId, $remarks, $outcome, $actorAccountId);
 
                 $actorName = trim(($this->user['first_name'] ?? '') . ' ' . ($this->user['last_name'] ?? '')) ?: 'SDRU';
                 $closureMessage = 'Case ' . $caseLabel . ' has been resolved and is now closed. Thank you for your cooperation. Please contact the SDRU office if you have further concerns.';
@@ -261,6 +310,19 @@ class CaseController {
         $filters = [
             'status' => substr(trim((string) ($input['status'] ?? '')), 0, 50),
             'classification' => substr(trim((string) ($input['classification'] ?? '')), 0, 100),
+            'case_number' => substr(trim((string) ($input['case_number'] ?? '')), 0, 100),
+            'student_name' => substr(trim((string) ($input['student_name'] ?? '')), 0, 255),
+        ];
+
+        if ($this->roleKey() === 'coordinator') {
+            $filters['assigned_coordinator_account_id'] = (int) $this->user['account_id'];
+        }
+
+        return $filters;
+    }
+
+    private function archivedFilters(array $input) {
+        $filters = [
             'case_number' => substr(trim((string) ($input['case_number'] ?? '')), 0, 100),
             'student_name' => substr(trim((string) ($input['student_name'] ?? '')), 0, 255),
         ];
