@@ -82,7 +82,7 @@ class LegacyCaseController {
     }
 
     public function createPage() {
-        $this->requireCanEdit();
+        $this->requireCanAdd();
         return $this->formData();
     }
 
@@ -209,6 +209,14 @@ class LegacyCaseController {
         }
     }
 
+    private function requireCanAdd() {
+        if (!LegacyCase::canAdd($this->user)) {
+            http_response_code(403);
+            echo 'Access denied. Only SDRU staff can add migrated cases.';
+            exit;
+        }
+    }
+
     private function filters(array $input) {
         return [
             'status' => substr(trim((string) ($input['status'] ?? '')), 0, 50),
@@ -221,12 +229,17 @@ class LegacyCaseController {
     }
 
     private function handleAction() {
+        $action = $_POST['legacy_action'] ?? '';
+
+        if ($action === 'create') {
+            $this->requireCanAdd();
+            $this->store();
+            return;
+        }
+
         $this->requireCanEdit();
 
-        switch ($_POST['legacy_action'] ?? '') {
-            case 'create':
-                $this->store();
-                break;
+        switch ($action) {
             case 'update':
                 $this->update();
                 break;
