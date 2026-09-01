@@ -19,6 +19,20 @@ $message = $viewData['message'];
 $errors = $viewData['errors'];
 $resubmission = $viewData['resubmission'];
 $caseStatus = $case['status'] ?? '';
+$statusMeta = [
+    'Submitted' => ['slug' => 'submitted', 'icon' => 'bi-send'],
+    'Verified' => ['slug' => 'verified', 'icon' => 'bi-shield-check'],
+    'Returned for Revision' => ['slug' => 'returned', 'icon' => 'bi-arrow-return-left'],
+    'Rejected' => ['slug' => 'rejected', 'icon' => 'bi-x-circle'],
+    'Resolved' => ['slug' => 'resolved', 'icon' => 'bi-check2-circle'],
+    'Archived' => ['slug' => 'archived', 'icon' => 'bi-archive'],
+];
+$caseStatusSlug = $statusMeta[$caseStatus]['slug'] ?? 'submitted';
+$caseStatusIcon = $statusMeta[$caseStatus]['icon'] ?? 'bi-tag';
+$caseUpdatedAt = $case['updated_at'] ?? $case['submitted_at'] ?? null;
+$viewerRoleKey = strtolower(str_replace(['_', ' '], '-', $user['role'] ?? ''));
+$canManageCase = $viewerRoleKey !== 'coordinator'
+    || ((int) ($case['assigned_coordinator_account_id'] ?? 0) === (int) ($user['account_id'] ?? 0));
 
 $controller->clearFlash();
 
@@ -127,6 +141,124 @@ function person_name($first, $last) {
         max-width: 1180px;
         margin: 0 auto;
         padding: 24px;
+    }
+
+    .status-banner {
+        --status-color: #5b6b5c;
+        --status-bg: #edf4eb;
+        align-items: center;
+        background: linear-gradient(180deg, #ffffff, #f9fcf8);
+        border: 1px solid #dce5da;
+        border-left: 5px solid var(--status-color);
+        border-radius: 10px;
+        box-shadow: 0 1px 3px rgba(18, 60, 27, 0.07);
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px 16px;
+        justify-content: space-between;
+        margin-bottom: 18px;
+        padding: 14px 18px;
+        transition: border-color 0.3s ease, box-shadow 0.4s ease;
+    }
+
+    .status-banner[data-status="submitted"] {
+        --status-color: #1c6dd0;
+        --status-bg: #eaf3fd;
+    }
+
+    .status-banner[data-status="verified"] {
+        --status-color: #1a9d00;
+        --status-bg: #e9f8e4;
+    }
+
+    .status-banner[data-status="returned"] {
+        --status-color: #936d00;
+        --status-bg: #fbf3dd;
+    }
+
+    .status-banner[data-status="rejected"] {
+        --status-color: #b42318;
+        --status-bg: #fdeceb;
+    }
+
+    .status-banner[data-status="resolved"] {
+        --status-color: #157000;
+        --status-bg: #e6f5e0;
+    }
+
+    .status-banner[data-status="archived"] {
+        --status-color: #59635a;
+        --status-bg: #eef1ee;
+    }
+
+    .status-banner-main {
+        align-items: center;
+        display: flex;
+        gap: 13px;
+        min-width: 0;
+    }
+
+    .status-banner-badge {
+        align-items: center;
+        background: var(--status-bg);
+        border-radius: 50%;
+        color: var(--status-color);
+        display: flex;
+        flex: 0 0 44px;
+        font-size: 20px;
+        height: 44px;
+        justify-content: center;
+        width: 44px;
+    }
+
+    .status-banner-label {
+        color: #536052;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        margin-bottom: 3px;
+        text-transform: uppercase;
+    }
+
+    .status-pill {
+        align-items: center;
+        background: var(--status-bg);
+        border-radius: 999px;
+        color: var(--status-color);
+        display: inline-flex;
+        font-size: 14px;
+        font-weight: 700;
+        gap: 6px;
+        padding: 5px 14px;
+    }
+
+    .status-banner-title {
+        font-size: 14px;
+    }
+
+    .status-banner-side {
+        align-items: center;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px 14px;
+    }
+
+    .status-banner-updated {
+        color: #6b7969;
+        font-size: 12.5px;
+    }
+
+    .status-banner.flash {
+        animation: sicmsStatusFlash 0.8s ease;
+    }
+
+    @keyframes sicmsStatusFlash {
+        0% {
+            box-shadow: 0 0 0 0 var(--status-color);
+        }
+        100% {
+            box-shadow: 0 0 0 16px rgba(18, 60, 27, 0);
+        }
     }
 
     .grid {
@@ -670,6 +802,24 @@ function person_name($first, $last) {
                 <div style="margin-bottom:14px"><a class="btn btn-secondary"
                         href="<?= h(app_route('cases.index')) ?>"><i class="bi bi-arrow-left"></i> Back to Case
                         Management</a></div>
+
+                <div class="status-banner" id="caseStatusBanner" data-status="<?= h($caseStatusSlug) ?>"
+                    data-status-endpoint="<?= h(app_url('web/api/case_status.php')) ?>"
+                    data-case-id="<?= (int) $case['complaint_id'] ?>">
+                    <div class="status-banner-main">
+                        <span class="status-banner-badge"><i class="bi <?= h($caseStatusIcon) ?>"></i></span>
+                        <div>
+                            <div class="status-banner-label">Current Status</div>
+                            <div class="status-banner-title"><span class="status-pill"
+                                    id="caseStatusPill"><?= h($caseStatus) ?></span></div>
+                        </div>
+                    </div>
+                    <div class="status-banner-side">
+                        <span class="status-banner-updated" id="caseStatusUpdated">Updated
+                            <?= $caseUpdatedAt ? h(date('M d, Y h:i A', strtotime($caseUpdatedAt))) : '—' ?></span>
+                    </div>
+                </div>
+
                 <?php if ($message): ?>
                 <div class="alert alert-success"><?= h($message) ?></div>
                 <?php endif; ?>
@@ -950,19 +1100,22 @@ function person_name($first, $last) {
 
                             <form class="message-composer" method="POST" action="../messages/send.php"
                                 data-no-ajax="true">
+                                <?php if ($messageReceiver): ?>
                                 <?= Security::csrfField() ?>
                                 <input type="hidden" name="complaint_id" value="<?= (int) $case['complaint_id'] ?>">
                                 <textarea name="message" placeholder="Write a message" required></textarea>
                                 <div class="message-send-row">
                                     <input type="hidden" name="receiver_account_id"
                                         value="<?= (int) ($messageReceiver['account_id'] ?? 0) ?>">
-                                    <?php if ($messageReceiver): ?>
                                     <span class="muted message-receiver-note">Sending to
                                         <?= h(trim(($messageReceiver['first_name'] ?? '') . ' ' . ($messageReceiver['last_name'] ?? ''))) ?>
                                         (<?= h($messageReceiver['role'] ?? '') ?>)</span>
-                                    <?php endif; ?>
                                     <button class="btn btn-assign" type="submit">Send</button>
                                 </div>
+                                <?php else: ?>
+                                <p class="muted" style="margin:12px 0 0"><i class="bi bi-person-lock"></i> You can only
+                                    chat with students assigned to a case you handle.</p>
+                                <?php endif; ?>
                             </form>
                         </section>
 
@@ -995,6 +1148,12 @@ function person_name($first, $last) {
                         <?php $caseStatus = $case['status'] ?? ''; $caseLocked = in_array($caseStatus, ['Resolved', 'Archived'], true); ?>
                         <section class="panel">
                             <h2>Case Actions</h2>
+                            <?php if (!$canManageCase): ?>
+                            <p class="muted" style="margin-bottom:10px"><i class="bi bi-lock-fill"></i> This case is
+                                not assigned to you. Staff actions are only available on cases assigned to you, but you
+                                can still view all case details.
+                            </p>
+                            <?php else: ?>
                             <?php if ($caseLocked): ?><p class="muted" style="margin-bottom:10px"><i
                                     class="bi bi-lock-fill"></i> This case is closed. Only archiving remains available.
                             </p><?php endif; ?>
@@ -1041,6 +1200,7 @@ function person_name($first, $last) {
                                     </div>
                                 </form>
                             </div>
+                            <?php endif; ?>
                         </section>
 
                         <section class="panel">
@@ -1248,6 +1408,85 @@ function person_name($first, $last) {
         bindModal('openReturnModal', 'returnModalOverlay');
         bindModal('openAssignModal', 'assignModalOverlay');
     })();
+
+    const statusBanner = document.getElementById('caseStatusBanner');
+
+    if (statusBanner) {
+        const statusCaseId = statusBanner.dataset.caseId;
+        const statusEndpoint = statusBanner.dataset.statusEndpoint + '?id=' + statusCaseId;
+        const statusPill = document.getElementById('caseStatusPill');
+        const statusUpdated = document.getElementById('caseStatusUpdated');
+        const statusSlugs = {
+            'Submitted': 'submitted',
+            'Verified': 'verified',
+            'Returned for Revision': 'returned',
+            'Rejected': 'rejected',
+            'Resolved': 'resolved',
+            'Archived': 'archived'
+        };
+        const statusIcons = {
+            'Submitted': 'bi-send',
+            'Verified': 'bi-shield-check',
+            'Returned for Revision': 'bi-arrow-return-left',
+            'Rejected': 'bi-x-circle',
+            'Resolved': 'bi-check2-circle',
+            'Archived': 'bi-archive'
+        };
+        let lastStatus = document.getElementById('caseStatusPill').textContent.trim();
+
+        const formatDbTime = raw => {
+            const match = String(raw || '').match(/^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})$/);
+            if (!match) return '';
+            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            const year = match[1];
+            const month = months[Number(match[2]) - 1];
+            const day = Number(match[3]);
+            let hour = Number(match[4]);
+            const minute = match[5];
+            const suffix = hour >= 12 ? 'PM' : 'AM';
+            hour = hour % 12 || 12;
+            return month + ' ' + String(day).padStart(2, '0') + ', ' + year + ' ' + String(hour).padStart(2, '0') + ':' + minute + ' ' + suffix;
+        };
+
+        const applyStatus = newStatus => {
+            const slug = statusSlugs[newStatus] || 'submitted';
+            statusPill.textContent = newStatus;
+            statusBanner.dataset.status = slug;
+            const icon = statusBanner.querySelector('.status-banner-badge i');
+            if (icon && statusIcons[newStatus]) {
+                icon.className = 'bi ' + statusIcons[newStatus];
+            }
+        };
+
+        const pollStatus = async () => {
+            try {
+                const response = await fetch(statusEndpoint, { credentials: 'same-origin' });
+                if (!response.ok) return;
+                const data = await response.json();
+                if (!data.success) return;
+
+                const newStatus = String(data.status || '').trim();
+                if (newStatus && newStatus !== lastStatus) {
+                    lastStatus = newStatus;
+                    applyStatus(newStatus);
+                    statusBanner.classList.remove('flash');
+                    void statusBanner.offsetWidth;
+                    statusBanner.classList.add('flash');
+                }
+
+                if (data.updated_at) {
+                    const formatted = formatDbTime(data.updated_at);
+                    if (formatted) {
+                        statusUpdated.textContent = 'Updated ' + formatted;
+                    }
+                }
+            } catch (error) {
+                // Ignore transient polling failures; retry on the next tick.
+            }
+        };
+
+        setInterval(pollStatus, 5000);
+    }
     </script>
 </body>
 

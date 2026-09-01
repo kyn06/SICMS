@@ -314,7 +314,7 @@ class HearingController {
         if (empty($post['complaint_id'])) {
             $errors[] = 'Please select a case.';
         } elseif (!Hearing::isSchedulableCase((int) $post['complaint_id'], $this->user)) {
-            $errors[] = 'Selected case must be verified or assigned before scheduling a hearing.';
+            $errors[] = 'Only verified cases can be scheduled for a hearing.';
         }
 
         if (empty(trim($post['hearing_datetime'] ?? ''))) {
