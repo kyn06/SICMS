@@ -532,6 +532,13 @@ tbody tr:hover {
     }
 }
 
+@media (max-width: 620px) {
+    .topbar-date,
+    .datetime-pill {
+        display: none !important;
+    }
+}
+
 @media (prefers-reduced-motion: reduce) {
 
     *,

@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 require_once __DIR__ . '/../../controllers/ReportController.php';
 
 $controller = new ReportController();
@@ -1238,7 +1238,7 @@ function applied_filter_labels(array $filters, array $options) {
                 const selectedYear = yearSelect ? yearSelect.value : '';
                 if (selectedYear) rangeEl.textContent = 'Year ' + selectedYear;
                 else if (yearly.trend.labels && yearly.trend.labels.length) {
-                    rangeEl.textContent = 'All Years · ' + yearly.trend.labels[0] + ' – ' + yearly.trend.labels[yearly.trend.labels.length - 1];
+                    rangeEl.textContent = 'All Years Â· ' + yearly.trend.labels[0] + ' â€“ ' + yearly.trend.labels[yearly.trend.labels.length - 1];
                 } else {
                     rangeEl.textContent = 'No case records';
                 }

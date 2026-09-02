@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 require_once __DIR__ . '/../../helpers/Security.php';
 Security::startSession();
 
@@ -747,6 +747,9 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
 
         <main class="main-panel <?= !$canViewAnalytics ? 'student-main-panel' : '' ?>">
             <header class="topbar">
+                <button class="sidebar-toggle" type="button" aria-label="Toggle navigation" aria-controls="app-sidebar" aria-expanded="false">
+                    <i class="bi bi-list" aria-hidden="true"></i>
+                </button>
                 <div>
                     <div class="welcome-label">Welcome back, <?= h($displayName) ?></div>
                     <h1 class="page-title">
@@ -833,7 +836,7 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
                         Go to Account Settings</a>
                 </div>
                 <div class="student-profile-reminder-missing"><strong>Still missing:</strong>
-                    <?= h(implode(', ', array_slice($profileMissingFields, 0, 5)) . (count($profileMissingFields) > 5 ? ', …' : '')) ?>
+                    <?= h(implode(', ', array_slice($profileMissingFields, 0, 5)) . (count($profileMissingFields) > 5 ? ', â€¦' : '')) ?>
                 </div>
             </section>
             <?php endif; ?>
@@ -863,7 +866,7 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
                             <div>
                                 <a class="student-case-number"
                                     href="web/views/complaints/case_details.php?id=<?= (int) $studentCase['complaint_id'] ?>"><?= h($studentCase['case_classification']) ?></a>
-                                <div class="student-case-meta"><?= h($studentCase['case_number']) ?> · Submitted
+                                <div class="student-case-meta"><?= h($studentCase['case_number']) ?> Â· Submitted
                                     <?= h(date('M d, Y', strtotime($studentCase['submitted_at']))) ?></div>
                             </div>
                             <span class="status-pill"><?= h($studentCase['status']) ?></span>
@@ -1778,6 +1781,12 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
     resetDashboardFilters?.addEventListener('click', event => {
         event.preventDefault();
         applyDashboardFilters(true);
+    });
+    </script>
+    <script>
+    document.querySelector('.sidebar-toggle')?.addEventListener('click', function () {
+        const open = document.body.classList.toggle('sidebar-open');
+        this.setAttribute('aria-expanded', open ? 'true' : 'false');
     });
     </script>
     <script src="<?= h(app_url('web/views/layout/system.js')) ?>" defer></script>

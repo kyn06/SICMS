@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 require_once __DIR__ . '/../../controllers/CaseController.php';
 require_once __DIR__ . '/../../../routes.php';
 
