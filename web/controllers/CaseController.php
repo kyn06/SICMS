@@ -25,14 +25,9 @@ class CaseController {
     public function index() {
         $filters = $this->filters($_GET);
 
-        $assignedCases = $this->roleKey() === 'coordinator'
-            ? CaseRecord::listCases(['assigned_coordinator_account_id' => (int) $this->user['account_id']])
-            : [];
-
         return [
             'user' => $this->user,
             'cases' => CaseRecord::listCases($filters),
-            'assignedCases' => $assignedCases,
             'migratedCases' => CaseRecord::listLegacyCases([]),
             'canEditMigrated' => in_array($this->roleKey(), ['sdr-staff', 'sdru-staff'], true),
             'filters' => $filters,
@@ -49,18 +44,10 @@ class CaseController {
         header('Content-Type: application/json; charset=utf-8');
 
         try {
-            $filters = $this->filters($_GET);
-            $cases = CaseRecord::listCases($filters);
-            $migratedCases = CaseRecord::listLegacyCases($this->legacyFilters($filters));
-            $isCoordinator = $this->roleKey() === 'coordinator';
-            $assignedCases = $isCoordinator
-                ? CaseRecord::listCases(array_merge($filters, ['assigned_coordinator_account_id' => (int) $this->user['account_id']]))
-                : [];
+            $cases = CaseRecord::listCases($this->filters($_GET));
             echo json_encode([
                 'success' => true,
                 'cases' => $cases,
-                'assignedCases' => $assignedCases,
-                'migratedCases' => $migratedCases,
                 'total' => count($cases),
             ], JSON_THROW_ON_ERROR);
         } catch (Throwable $exception) {
@@ -72,15 +59,6 @@ class CaseController {
         }
 
         exit;
-    }
-
-    private function legacyFilters(array $filters) {
-        return [
-            'case_number' => $filters['case_number'] ?? '',
-            'complainant_name' => $filters['student_name'] ?? '',
-            'status' => $filters['status'] ?? '',
-            'classification' => $filters['classification'] ?? '',
-        ];
     }
 
     public function archivedIndex() {
@@ -132,8 +110,7 @@ class CaseController {
             $this->handleAction($complaintId);
         }
 
-        if (!Message::isStaffRole($this->user['role'] ?? '')
-            && !Message::canAccessCaseMessages($case, $this->user)) {
+        if (!Message::canAccessCaseMessages($case, $this->user)) {
             http_response_code(403);
             echo 'Access denied.';
             exit;
@@ -204,13 +181,6 @@ class CaseController {
             $caseLabel = $case['case_number'] ?? ('Case #' . $complaintId);
             $caseStatus = $case['status'] ?? '';
             $isClosed = in_array($caseStatus, ['Resolved', 'Archived'], true);
-
-            if ($this->roleKey() === 'coordinator'
-                && (int) ($case['assigned_coordinator_account_id'] ?? 0) !== (int) $this->user['account_id']) {
-                $_SESSION['case_errors'] = ['You can only manage cases assigned to you.'];
-                header('Location: show.php?id=' . $complaintId);
-                exit;
-            }
 
             if (in_array($action, ['verify', 'reject', 'return', 'assign'], true) && $isClosed) {
                 $_SESSION['case_errors'] = ['This case is already closed and can no longer be modified.'];
@@ -337,22 +307,38 @@ class CaseController {
     }
 
     private function filters(array $input) {
-        return [
+        $filters = [
             'status' => substr(trim((string) ($input['status'] ?? '')), 0, 50),
             'classification' => substr(trim((string) ($input['classification'] ?? '')), 0, 100),
             'case_number' => substr(trim((string) ($input['case_number'] ?? '')), 0, 100),
             'student_name' => substr(trim((string) ($input['student_name'] ?? '')), 0, 255),
         ];
+
+        if ($this->roleKey() === 'coordinator') {
+            $filters['assigned_coordinator_account_id'] = (int) $this->user['account_id'];
+        }
+
+        return $filters;
     }
 
     private function archivedFilters(array $input) {
-        return [
+        $filters = [
             'case_number' => substr(trim((string) ($input['case_number'] ?? '')), 0, 100),
             'student_name' => substr(trim((string) ($input['student_name'] ?? '')), 0, 255),
         ];
+
+        if ($this->roleKey() === 'coordinator') {
+            $filters['assigned_coordinator_account_id'] = (int) $this->user['account_id'];
+        }
+
+        return $filters;
     }
 
     private function canAccessCaseRecord(array $case) {
-        return true;
+        if ($this->roleKey() !== 'coordinator') {
+            return true;
+        }
+
+        return !empty($case['assigned_coordinator_account_id']) && (int) $case['assigned_coordinator_account_id'] === (int) $this->user['account_id'];
     }
 }

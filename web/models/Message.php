@@ -121,12 +121,6 @@ class Message extends Model {
                     continue;
                 }
 
-                if (self::isCoordinatorRole($user['role'])
-                    && strtolower((string) ($counterpart['role'] ?? '')) === 'student'
-                    && !self::studentAssignedToCoordinator($peerId, $accountId)) {
-                    continue;
-                }
-
                 if (self::isPairHidden($accountId, $peerId)) {
                     continue;
                 }
@@ -178,10 +172,6 @@ class Message extends Model {
                 $studentId = (int) $student['account_id'];
 
                 if ($studentId === $accountId || in_array($studentId, $exclude, true)) {
-                    continue;
-                }
-
-                if (self::isCoordinatorRole($user['role']) && !self::studentAssignedToCoordinator($studentId, $accountId)) {
                     continue;
                 }
 
@@ -285,14 +275,6 @@ class Message extends Model {
             return false;
         }
 
-        $peer = self::findAccount((int) $peerAccountId);
-
-        if ($peer && self::isCoordinatorRole($currentUser['role'])
-            && strtolower((string) ($peer['role'] ?? '')) === 'student'
-            && !self::studentAssignedToCoordinator((int) $peerAccountId, (int) $currentUser['account_id'])) {
-            return false;
-        }
-
         $accountId = (int) $currentUser['account_id'];
         $peerAccountId = (int) $peerAccountId;
 
@@ -321,27 +303,6 @@ class Message extends Model {
             return $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
         } catch (Throwable $exception) {
             return [];
-        }
-    }
-
-    private static function studentAssignedToCoordinator($studentId, $coordinatorId) {
-        try {
-            $studentId = (int) $studentId;
-            $coordinatorId = (int) $coordinatorId;
-            $sql = "SELECT complaint_id
-                    FROM complaints
-                    WHERE submitted_by_account_id = ?
-                      AND assigned_coordinator_account_id = ?
-                      AND COALESCE(case_source, 'Online Submission') <> 'Legacy'
-                    LIMIT 1";
-            $stmt = self::$conn->prepare($sql);
-            $stmt->bind_param("ii", $studentId, $coordinatorId);
-            $stmt->execute();
-            $result = $stmt->get_result();
-
-            return $result && $result->num_rows > 0;
-        } catch (Throwable $exception) {
-            return false;
         }
     }
 
@@ -388,18 +349,7 @@ class Message extends Model {
             return true;
         }
 
-        if (!self::isStaffRole($user['role'])) {
-            return false;
-        }
-
-        $roleKey = strtolower(str_replace(['_', ' '], '-', $user['role'] ?? ''));
-
-        if ($roleKey === 'coordinator') {
-            return !empty($case['assigned_coordinator_account_id'])
-                && (int) $case['assigned_coordinator_account_id'] === (int) $user['account_id'];
-        }
-
-        return true;
+        return self::isStaffRole($user['role']);
     }
 
     public static function defaultCounterpartForCase(array $case, array $currentUser) {
@@ -436,18 +386,7 @@ class Message extends Model {
 
         $student = self::findAccount((int) $case['submitted_by_account_id']);
 
-        if (!$student || ($student['status'] ?? '') !== 'active') {
-            return null;
-        }
-
-        $roleKey = strtolower(str_replace(['_', ' '], '-', $currentUser['role'] ?? ''));
-
-        if ($roleKey === 'coordinator'
-            && (int) ($case['assigned_coordinator_account_id'] ?? 0) !== (int) $currentUser['account_id']) {
-            return null;
-        }
-
-        return $student;
+        return $student && ($student['status'] ?? '') === 'active' ? $student : null;
     }
 
     public static function isStaffRole($role) {
@@ -460,10 +399,6 @@ class Message extends Model {
         }
 
         return false;
-    }
-
-    public static function isCoordinatorRole($role) {
-        return strtolower(str_replace(['_', ' '], '-', (string) $role)) === 'coordinator';
     }
 
     public static function isHeadRole($role) {

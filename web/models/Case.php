@@ -63,8 +63,6 @@ class CaseRecord extends Model {
             $sql .= " AND c.status != 'Archived'";
         }
 
-        $sql .= " AND COALESCE(c.case_source, 'Online Submission') <> 'Legacy'";
-
         $sql .= " ORDER BY c.submitted_at DESC";
 
         $stmt = self::$conn->prepare($sql);
