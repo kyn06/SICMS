@@ -4,7 +4,6 @@
 .vercel
 node_modules
 Dockerfile
-Caddyfile
 sicms.sql
 LICENSE
 README.md
