@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 require_once __DIR__ . '/../../controllers/CaseController.php';
 require_once __DIR__ . '/../../helpers/Courses.php';
 
@@ -920,7 +920,7 @@ function person_name($first, $last) {
                                     <?php foreach ($pastHearings as $hearing): ?>
                                         <div class="list-item">
                                             <strong><?= h(date('M d, Y - h:i A', strtotime($hearing['hearing_datetime']))) ?></strong>
-                                            <div class="muted"><?= h($hearing['status']) ?> · <?= h($hearing['venue']) ?></div>
+                                            <div class="muted"><?= h($hearing['status']) ?> Â· <?= h($hearing['venue']) ?></div>
                                         </div>
                                     <?php endforeach; ?>
                                 <?php endif; ?>
@@ -928,7 +928,7 @@ function person_name($first, $last) {
                         </section>
 
                         <section class="panel">
-                            <h2>Conversation<?php if ($messageReceiver): ?> —
+                            <h2>Conversation<?php if ($messageReceiver): ?> â€”
                                 <?= h(trim(($messageReceiver['first_name'] ?? '') . ' ' . ($messageReceiver['last_name'] ?? ''))) ?><?php endif; ?>
                             </h2>
                             <div class="message-thread" id="caseConversation">

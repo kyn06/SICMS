@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 require_once __DIR__ . '/../../controllers/ComplaintController.php';
 require_once __DIR__ . '/../../helpers/Colleges.php';
 require_once __DIR__ . '/../../helpers/Courses.php';

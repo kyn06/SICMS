@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 require_once __DIR__ . '/../../controllers/AuditLogController.php';
 
 $controller = new AuditLogController();
