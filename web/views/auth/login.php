@@ -7,6 +7,30 @@ function app_base_path() {
     return rtrim(preg_replace('#/web/views/auth/login\.php$#', '', $script), '/');
 }
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST'
+    && str_contains($_SERVER['CONTENT_TYPE'] ?? '', 'application/json')
+) {
+    header('Content-Type: application/json; charset=utf-8');
+    require_once __DIR__ . '/../../chatbot/config/chatbot.php';
+
+    $raw = file_get_contents('php://input');
+    $data = json_decode($raw, true);
+    $message = trim((string)($data['message'] ?? ''));
+
+    if ($message === '') {
+        echo json_encode([
+            'success' => true,
+            'answer' => 'Please type a question so I can help you.',
+            'suggestions' => Chatbot::defaultSuggestions()
+        ]);
+        exit;
+    }
+
+    $result = Chatbot::respond($message);
+    echo json_encode(['success' => true] + $result);
+    exit;
+}
+
 if (isset($_SESSION['email'])) {
     header('Location: ' . app_base_path() . '/index.php');
     exit;
@@ -68,7 +92,356 @@ if ($requestMethod == 'POST') {
     <title>Login</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link rel="stylesheet" href="../layout/style.css">
-    <link rel="stylesheet" href="../layout/login-chatbot.css">
+    <style>
+:root {
+    --sicms-green-950: #0b2f16;
+    --sicms-green-900: #123c1b;
+    --sicms-green-700: #167a22;
+    --sicms-green-600: #1A9D00;
+    --sicms-green-100: #eaf7e8;
+    --sicms-page: #f4f7f2;
+    --sicms-surface: #ffffff;
+    --sicms-line: #dbe7d8;
+    --sicms-text: #172017;
+    --sicms-muted: #5f6f5c;
+}
+
+.sdruchat-launcher {
+    position: fixed;
+    right: 28px;
+    bottom: 28px;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    min-width: 218px;
+    padding: 11px 13px 11px 11px;
+    border: 1px solid rgba(255, 255, 255, .22);
+    border-radius: 18px;
+    background: linear-gradient(135deg, var(--sicms-green-900), #1d6328);
+    color: #fff;
+    font-family: 'Poppins', sans-serif;
+    text-align: left;
+    cursor: pointer;
+    box-shadow: 0 12px 30px rgba(18, 60, 27, .22);
+    transition: transform .18s ease, box-shadow .18s ease, filter .18s ease;
+    animation: sdruchatFloat 3.5s ease-in-out infinite;
+}
+
+.sdruchat-launcher:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 16px 36px rgba(18, 60, 27, .28);
+    filter: brightness(1.04);
+    animation-play-state: paused;
+}
+
+.sdruchat-launcher:focus-visible {
+    outline: 3px solid rgba(26, 157, 0, .22);
+    outline-offset: 3px;
+}
+
+.sdruchat-launcher-icon {
+    width: 42px;
+    height: 42px;
+    flex: 0 0 42px;
+    display: grid;
+    place-items: center;
+    border-radius: 14px;
+    background: #ffffff;
+    color: var(--sicms-green-900);
+    font-size: 19px;
+    font-weight: 800;
+    box-shadow: 0 5px 14px rgba(0, 0, 0, .12);
+}
+
+.sdruchat-launcher-copy {
+    min-width: 0;
+    flex: 1;
+}
+
+.sdruchat-launcher-copy strong {
+    display: block;
+    font-size: 13px;
+    line-height: 1.2;
+    letter-spacing: .01em;
+}
+
+.sdruchat-launcher-copy small {
+    display: block;
+    margin-top: 3px;
+    color: rgba(255, 255, 255, .78);
+    font-size: 10px;
+    line-height: 1.25;
+}
+
+.sdruchat-launcher-arrow {
+    width: 28px;
+    height: 28px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, .11);
+    color: #fff;
+    font-size: 14px;
+    transition: transform .18s ease, background .18s ease;
+}
+
+.sdruchat-launcher:hover .sdruchat-launcher-arrow {
+    transform: translate(2px, -2px);
+    background: rgba(255, 255, 255, .18);
+}
+
+@keyframes sdruchatFloat {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-2px); }
+}
+
+.sdruchat-panel {
+    position: fixed;
+    right: 28px;
+    bottom: 98px;
+    width: min(400px, calc(100vw - 32px));
+    height: min(610px, calc(100vh - 130px));
+    z-index: 999;
+    display: none;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid var(--sicms-line);
+    border-radius: 20px;
+    background: var(--sicms-surface);
+    box-shadow: 0 24px 70px rgba(11, 47, 22, .22);
+    font-family: 'Poppins', sans-serif;
+}
+
+.sdruchat-panel.open {
+    display: flex;
+    animation: sdruchatOpen .18s ease-out;
+}
+
+@keyframes sdruchatOpen {
+    from {
+        opacity: 0;
+        transform: translateY(8px) scale(.98);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.sdruchat-head {
+    padding: 18px 18px 16px;
+    background: linear-gradient(135deg, var(--sicms-green-900), #1d6328);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.sdruchat-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+}
+
+.sdruchat-title strong {
+    display: block;
+    font-size: 14px;
+    line-height: 1.2;
+}
+
+.sdruchat-avatar {
+    width: 42px;
+    height: 42px;
+    flex: 0 0 42px;
+    border-radius: 14px;
+    background: var(--sicms-green-100);
+    color: var(--sicms-green-900);
+    border: 1px solid rgba(255,255,255,.25);
+    display: grid;
+    place-items: center;
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.sdruchat-head small {
+    display: block;
+    opacity: .82;
+    margin-top: 3px;
+    font-size: 10px;
+    line-height: 1.25;
+}
+
+.sdruchat-close {
+    width: 34px;
+    height: 34px;
+    border: 0;
+    border-radius: 10px;
+    background: rgba(255,255,255,.08);
+    color: #fff;
+    font-size: 23px;
+    line-height: 1;
+    cursor: pointer;
+    transition: background .15s ease;
+}
+
+.sdruchat-close:hover {
+    background: rgba(255,255,255,.16);
+}
+
+.sdruchat-notice {
+    margin: 12px 12px 8px;
+    padding: 11px 12px;
+    border: 1px solid var(--sicms-line);
+    border-radius: 12px;
+    background: #f7faf6;
+    color: var(--sicms-muted);
+    font-size: 10.5px;
+    line-height: 1.5;
+}
+
+.sdruchat-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 6px 14px 14px;
+    background: var(--sicms-page);
+    scrollbar-width: thin;
+}
+
+.sdruchat-msg {
+    max-width: 86%;
+    margin: 10px 0;
+    padding: 10px 12px;
+    border: 1px solid transparent;
+    border-radius: 13px;
+    font-size: 12.5px;
+    line-height: 1.55;
+    white-space: pre-wrap;
+}
+
+.sdruchat-msg.bot {
+    background: var(--sicms-green-100);
+    color: var(--sicms-green-900);
+    border-color: #d6e9d2;
+    border-top-left-radius: 5px;
+}
+
+.sdruchat-msg.user {
+    margin-left: auto;
+    background: var(--sicms-green-900);
+    color: #fff;
+    border-top-right-radius: 5px;
+}
+
+.sdruchat-suggestions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+    padding: 0 14px 10px;
+    background: var(--sicms-page);
+}
+
+.sdruchat-suggestion {
+    border: 1px solid #cddcc9;
+    background: #fff;
+    color: var(--sicms-green-900);
+    border-radius: 999px;
+    padding: 7px 10px;
+    font-family: 'Poppins', sans-serif;
+    font-size: 10.5px;
+    line-height: 1.3;
+    cursor: pointer;
+    transition: background .15s ease, border-color .15s ease, transform .15s ease;
+}
+
+.sdruchat-suggestion:hover {
+    background: var(--sicms-green-100);
+    border-color: #a9c7a4;
+    transform: translateY(-1px);
+}
+
+.sdruchat-input {
+    display: flex;
+    gap: 8px;
+    padding: 12px;
+    border-top: 1px solid var(--sicms-line);
+    background: #fff;
+}
+
+.sdruchat-input textarea {
+    flex: 1;
+    resize: none;
+    min-height: 42px;
+    max-height: 100px;
+    border: 1px solid #b9cbb6;
+    border-radius: 10px;
+    padding: 10px 12px;
+    outline: none;
+    background: #fbfdfb;
+    color: var(--sicms-text);
+    font-family: 'Poppins', sans-serif;
+    font-size: 12px;
+}
+
+.sdruchat-input textarea::placeholder {
+    color: #7b8878;
+}
+
+.sdruchat-input textarea:focus {
+    border-color: var(--sicms-green-600);
+    box-shadow: 0 0 0 3px rgba(26, 157, 0, .10);
+    background: #fff;
+}
+
+.sdruchat-send {
+    width: 44px;
+    flex: 0 0 44px;
+    border: 0;
+    border-radius: 10px;
+    background: var(--sicms-green-600);
+    color: #fff;
+    font-size: 17px;
+    cursor: pointer;
+    box-shadow: 0 7px 16px rgba(26, 157, 0, .18);
+    transition: background .15s ease, transform .1s ease;
+}
+
+.sdruchat-send:hover {
+    background: var(--sicms-green-700);
+}
+
+.sdruchat-send:active {
+    transform: scale(.96);
+}
+
+.sdruchat-typing {
+    opacity: .6;
+    font-style: italic;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .sdruchat-launcher,
+    .sdruchat-panel {
+        animation: none;
+    }
+}
+
+@media (max-width: 600px) {
+    .sdruchat-launcher {
+        right: 16px;
+        bottom: 16px;
+        min-width: 205px;
+    }
+
+    .sdruchat-panel {
+        right: 16px;
+        bottom: 86px;
+        height: min(620px, calc(100vh - 105px));
+        border-radius: 16px;
+    }
+}
+    </style>
 </head>
 
 <body>
@@ -340,9 +713,214 @@ if ($requestMethod == 'POST') {
     </script>
 
     <script>
-        window.SDRU_CHAT_API = <?= json_encode(app_base_path() . '/web/chatbot/api/chat.php') ?>;
+        window.SDRU_CHAT_API = <?= json_encode(app_base_path() . '/web/views/auth/login.php') ?>;
     </script>
-    <script src="../layout/login-chatbot.js"></script>
+    <script>
+document.addEventListener('DOMContentLoaded', function () {
+    const launcher = document.getElementById('sdruchatLauncher');
+    const panel = document.getElementById('sdruchatPanel');
+    const closeButton = document.getElementById('sdruchatClose');
+    const form = document.getElementById('sdruchatForm');
+    const input = document.getElementById('sdruchatInput');
+    const sendButton = document.getElementById('sdruchatSend');
+    const messages = document.getElementById('sdruchatMessages');
+    const suggestions = document.getElementById('sdruchatSuggestions');
+
+    if (!launcher || !panel || !input || !messages) {
+        return;
+    }
+
+    let isSending = false;
+
+    function openChat() {
+        panel.classList.add('open');
+        launcher.setAttribute('aria-expanded', 'true');
+
+        setTimeout(function () {
+            input.focus();
+        }, 100);
+    }
+
+    function closeChat() {
+        panel.classList.remove('open');
+        launcher.setAttribute('aria-expanded', 'false');
+    }
+
+    launcher.addEventListener('click', function (event) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        if (panel.classList.contains('open')) {
+            closeChat();
+        } else {
+            openChat();
+        }
+    });
+
+    if (closeButton) {
+        closeButton.addEventListener('click', function (event) {
+            event.preventDefault();
+            closeChat();
+        });
+    }
+
+    function addMessage(text, sender) {
+        const message = document.createElement('div');
+
+        message.className =
+            sender === 'user'
+                ? 'sdruchat-msg user'
+                : 'sdruchat-msg bot';
+
+        message.textContent = text;
+
+        messages.appendChild(message);
+        messages.scrollTop = messages.scrollHeight;
+    }
+
+    function showTyping() {
+        const typing = document.createElement('div');
+
+        typing.id = 'sdruchatTyping';
+        typing.className = 'sdruchat-msg bot sdruchat-typing';
+        typing.textContent = 'Typing...';
+
+        messages.appendChild(typing);
+        messages.scrollTop = messages.scrollHeight;
+    }
+
+    function removeTyping() {
+        const typing = document.getElementById('sdruchatTyping');
+
+        if (typing) {
+            typing.remove();
+        }
+    }
+
+    async function sendMessage(textFromSuggestion = null) {
+        const text = (
+            textFromSuggestion !== null
+                ? textFromSuggestion
+                : input.value
+        ).trim();
+
+        if (!text || isSending) {
+            return;
+        }
+
+        isSending = true;
+        input.value = '';
+
+        addMessage(text, 'user');
+        showTyping();
+
+        try {
+            const apiUrl =
+                window.SDRU_CHAT_API || 'login.php';
+
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    message: text
+                })
+            });
+
+            const contentType = response.headers.get('content-type') || '';
+
+            if (!contentType.includes('application/json')) {
+                throw new Error('Unexpected response (' + response.status + '): ' + contentType);
+            }
+
+            const data = await response.json();
+
+            removeTyping();
+
+            if (data.success) {
+                addMessage(data.answer, 'bot');
+
+                if (suggestions && Array.isArray(data.suggestions)) {
+                    suggestions.innerHTML = '';
+
+                    data.suggestions.forEach(function (question) {
+                        const button = document.createElement('button');
+
+                        button.type = 'button';
+                        button.className = 'sdruchat-suggestion';
+                        button.textContent = question;
+
+                        suggestions.appendChild(button);
+                    });
+                }
+            } else {
+                addMessage(
+                    'Sorry, I could not process your question. Please try asking it another way.',
+                    'bot'
+                );
+            }
+        } catch (error) {
+            console.error('Chatbot error:', error);
+
+            removeTyping();
+
+            addMessage(
+                'Sorry, I am unable to answer at the moment. Please try again later.',
+                'bot'
+            );
+        } finally {
+            isSending = false;
+        }
+    }
+
+    if (form) {
+        form.addEventListener('submit', function (event) {
+            event.preventDefault();
+            sendMessage();
+        });
+    }
+
+    if (sendButton) {
+        sendButton.addEventListener('click', function (event) {
+            event.preventDefault();
+            sendMessage();
+        });
+    }
+
+    input.addEventListener('keydown', function (event) {
+        if (event.key === 'Enter' && !event.shiftKey) {
+            event.preventDefault();
+            sendMessage();
+        }
+    });
+
+    if (suggestions) {
+        suggestions.addEventListener('click', function (event) {
+            const button =
+                event.target.closest('.sdruchat-suggestion');
+
+            if (!button || isSending) {
+                return;
+            }
+
+            event.preventDefault();
+
+            const question = button.textContent.trim();
+
+            if (question) {
+                sendMessage(question);
+            }
+        });
+    }
+
+    document.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape' && panel.classList.contains('open')) {
+            closeChat();
+        }
+    });
+});
+    </script>
 
     <script>
     (function() {
