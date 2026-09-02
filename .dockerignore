@@ -1,0 +1,10 @@
+.git
+.gitignore
+.vercelignore
+.vercel
+node_modules
+Dockerfile
+Caddyfile
+sicms.sql
+LICENSE
+README.md

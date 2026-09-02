@@ -1,3 +1,4 @@
 <?php
 
-require __DIR__ . '/web/views/dashboard/index.php';
+header('Location: web/views/auth/login.php');
+exit;

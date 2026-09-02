@@ -1,0 +1,12 @@
+# Vercel: only deploy the static landing page
+Dockerfile
+Caddyfile
+.dockerignore
+.git
+.gitignore
+web/
+storage/
+routes.php
+sicms.sql
+LICENSE
+README.md

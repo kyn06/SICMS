@@ -16,8 +16,5 @@
         { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" }
       ]
     }
-  ],
-  "rewrites": [
-    { "source": "/login", "destination": "/web/views/auth/login.php" }
   ]
 }
