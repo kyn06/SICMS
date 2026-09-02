@@ -18,7 +18,6 @@ class Database{
         $this->password = getenv('DB_PASSWORD') ?: '';
         $this->database = getenv('DB_NAME') ?: 'sicms';
 
-    public function __construct(){
         $this->conn = mysqli_init();
         mysqli_options($this->conn, MYSQLI_OPT_CONNECT_TIMEOUT, 3);
 

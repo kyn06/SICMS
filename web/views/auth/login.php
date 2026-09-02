@@ -8,7 +8,7 @@ function app_base_path() {
 }
 
 if (isset($_SESSION['email'])) {
-    header('Location: ' . app_base_path() . '/index.php');
+    header('Location: ' . app_base_path() . '/web/views/dashboard/index.php');
     exit;
 }
 
@@ -43,7 +43,7 @@ if ($requestMethod == 'POST') {
 
     if (User::login($email, $password)) {
         Security::clearLoginAttempts($email);
-        header('Location: ' . app_base_path() . '/index.php');
+        header('Location: ' . app_base_path() . '/web/views/dashboard/index.php');
         exit;
     } else {
         Security::recordFailedLogin($email);
