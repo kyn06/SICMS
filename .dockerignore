@@ -1,9 +1,0 @@
-.git
-.gitignore
-.vercelignore
-.vercel
-node_modules
-Dockerfile
-sicms.sql
-LICENSE
-README.md

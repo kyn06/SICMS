@@ -17,20 +17,6 @@ class Report extends Model {
         return $data;
     }
 
-    public static function assignedCasesForCoordinator($coordinatorAccountId) {
-        $rows = self::filteredDataset(['coordinator' => (int) $coordinatorAccountId]);
-
-        $result = [];
-        foreach ($rows as $row) {
-            $result[] = array_intersect_key($row, array_flip([
-                'complaint_id', 'case_number', 'complainant_name', 'case_classification', 'status',
-                'assigned_at', 'respondent_names',
-            ]));
-        }
-
-        return $result;
-    }
-
     private static function filteredDataset(array $filters) {
         [$where, $params, $types] = self::caseWhere($filters, 'c');
         $sql = "SELECT c.complaint_id, c.case_number, c.submitted_by_account_id,
