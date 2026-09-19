@@ -265,10 +265,10 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
         cursor: pointer;
         display: inline-flex;
         font: inherit;
-        font-size: 13.5px;
+        font-size: 13px;
         font-weight: 700;
-        gap: 8px;
-        padding: 9px 16px;
+        gap: 7px;
+        padding: 7px 13px;
         transition: background-color .15s ease, border-color .15s ease, color .15s ease;
     }
 
@@ -290,6 +290,10 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
         height: 20px;
     }
 
+    .filters-count[hidden] {
+        display: none;
+    }
+
     #dashboardFilters.is-active .filters-toggle-btn,
     #dashboardFilters.is-active .filters-toggle-btn:hover {
         background: var(--sicms-green-600);
@@ -301,6 +305,25 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
         background: #fff;
     }
 
+    #dashboardFilters .filter-group-title {
+        align-items: center;
+        border-bottom: 1px solid #edf3ec;
+        color: var(--sicms-green-900);
+        display: flex;
+        font-size: 11px;
+        font-weight: 800;
+        gap: 6px;
+        grid-column: 1 / -1;
+        letter-spacing: .05em;
+        padding-bottom: 5px;
+        text-transform: uppercase;
+    }
+
+    #dashboardFilters .filter-group-title i {
+        color: #167a22;
+        font-size: 12px;
+    }
+
     .filters-popover {
         background: #fff;
         border: 1px solid rgba(191, 208, 188, .75);
@@ -308,11 +331,11 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
         box-shadow: 0 18px 45px rgba(15, 40, 21, .22);
         display: none;
         left: auto;
-        padding: 16px 18px;
+        padding: 12px 14px;
         position: absolute;
         right: 0;
         top: calc(100% + 10px);
-        width: min(680px, calc(100vw - 56px));
+        width: min(620px, calc(100vw - 56px));
         z-index: 500;
     }
 
@@ -334,7 +357,19 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
     }
 
     #dashboardFilters .filter-grid {
+        gap: 9px;
         grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    #dashboardFilters .filter-grid .field input,
+    #dashboardFilters .filter-grid .field select {
+        font-size: 13px;
+        min-height: 0;
+        padding: 7px 10px;
+    }
+
+    #dashboardFilters .filter-grid .field label {
+        font-size: 11.5px;
     }
 
     #dashboardFilters .filter-actions {
@@ -342,7 +377,12 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
         flex-wrap: wrap;
         gap: 8px;
         justify-content: flex-end;
-        margin-top: 14px;
+        margin-top: 12px;
+    }
+
+    #dashboardFiltersPanel .section-title {
+        font-size: 13.5px;
+        margin-bottom: 8px;
     }
 
     @media (max-width: 640px) {
@@ -814,11 +854,23 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
             </header>
 
             <?php if (!$canViewAnalytics): ?>
-            <section class="student-panel student-hero">
-                <div>
-                    <div class="welcome-label">Complainant Portal</div>
-                    <div class="section-title"> Submit a complaint or check the latest updates from SDRU.</div>
-                    <!-- <p class="activity-description" style="margin-bottom: 0px">Submit a complaint or check the latest updates from SDRU.</p> -->
+            <section class="student-panel student-hero student-hero-with-actions">
+                <div class="student-hero-glow" aria-hidden="true"></div>
+                <div class="student-hero-copy">
+                    <span class="student-hero-badge"><i class="bi bi-shield-halved"></i> Complainant Portal</span>
+                    <h2 class="section-title">How can we help you today?</h2>
+                    <p class="activity-description">Submit a new complaint or check the latest updates from SDRU.</p>
+                </div>
+                <div class="student-actions student-actions-compact" aria-label="Student quick actions">
+                <?php foreach ($quickActions as $action): ?>
+                <?php if (allowed_for_role($action, $roleKey)): ?>
+                <?php $gated = $profileIncomplete && in_array($action['label'], ['Submit Complaint', 'My Cases'], true); ?>
+                <a class="student-action<?= $gated ? ' sicms-gate-trigger' : '' ?>" href="<?= h($action['href']) ?>"<?= $gated ? ' aria-disabled="true"' : '' ?>>
+                    <i class="bi <?= h($action['icon']) ?>"></i>
+                    <?= h($action['label']) ?>
+                </a>
+                <?php endif; ?>
+                <?php endforeach; ?>
                 </div>
             </section>
 
@@ -838,18 +890,6 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
             </section>
             <?php endif; ?>
 
-            <section class="student-actions student-actions-compact" aria-label="Student quick actions">
-                <?php foreach ($quickActions as $action): ?>
-                <?php if (allowed_for_role($action, $roleKey)): ?>
-                <?php $gated = $profileIncomplete && in_array($action['label'], ['Submit Complaint', 'My Cases'], true); ?>
-                <a class="student-action<?= $gated ? ' sicms-gate-trigger' : '' ?>" href="<?= h($action['href']) ?>"<?= $gated ? ' aria-disabled="true"' : '' ?>>
-                    <i class="bi <?= h($action['icon']) ?>"></i>
-                    <?= h($action['label']) ?>
-                </a>
-                <?php endif; ?>
-                <?php endforeach; ?>
-            </section>
-
             <section class="student-dashboard-grid student-dashboard-focused">
                 <section class="student-panel">
                     <div class="section-title"><i class="bi bi-folder-check"></i> Recent Case Status</div>
@@ -866,9 +906,9 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
                                 <div class="student-case-meta"><?= h($studentCase['case_number']) ?> · Submitted
                                     <?= h(date('M d, Y', strtotime($studentCase['submitted_at']))) ?></div>
                             </div>
-                            <span class="status-pill"><?= h($studentCase['status']) ?></span>
+                            <span class="status-pill status-<?= h(strtolower(str_replace(' ', '-', $studentCase['status']))) ?>"><?= h($studentCase['status']) ?></span>
                             <div class="student-case-action"><a class="btn btn-secondary"
-                                    href="web/views/complaints/case_details.php?id=<?= (int) $studentCase['complaint_id'] ?>" style="background: linear-gradient(135deg, #1A9D00 0%, #128000 100%) !important; color: #fff !important;">
+                                    href="web/views/complaints/case_details.php?id=<?= (int) $studentCase['complaint_id'] ?>">
                                     <i class="bi bi-eye"></i> View Details</a></div>
                         </article>
                         <?php endforeach; ?>
@@ -904,85 +944,27 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
                 <div class="filters-popover" id="dashboardFiltersPanel">
                     <div class="section-title"><i class="bi bi-sliders"></i> Dashboard Filters</div>
                     <div class="filter-grid">
-                        <?php if ($isCoordinator): ?>
-                        <div class="field">
-                            <label for="status">Status</label>
-                            <select id="status" name="status">
-                                <option value="">All Statuses</option>
-                                <?php foreach ($options['statuses'] as $status): ?><option value="<?= h($status) ?>"
-                                    <?= selected($filters['status'], $status) ?>><?= h($status) ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                        <div class="field">
-                            <label for="classification">Classification</label>
-                            <select id="classification" name="classification">
-                                <option value="">All Classifications</option>
-                                <?php foreach ($options['classifications'] as $classification): ?><option
-                                    value="<?= h($classification) ?>"
-                                    <?= selected($filters['classification'], $classification) ?>>
-                                    <?= h($classification) ?></option><?php endforeach; ?>
-                            </select>
-                        </div>
+                        <div class="filter-group-title"><i class="bi bi-calendar-range"></i> Date</div>
                         <div class="field"><label for="date_from">Date From</label><input id="date_from" type="date"
                                 name="date_from" value="<?= h($filters['date_from']) ?>"></div>
                         <div class="field"><label for="date_to">Date To</label><input id="date_to" type="date"
                                 name="date_to" value="<?= h($filters['date_to']) ?>"></div>
-                        <?php else: ?>
                         <div class="field">
-                            <label for="academic_year">Academic Year</label>
-                            <input id="academic_year" type="number" name="year" min="2000" max="2100"
+                            <label for="month">Month</label>
+                            <select id="month" name="month">
+                                <option value="">All Months</option>
+                                <?php for ($m = 1; $m <= 12; $m++): ?>
+                                    <option value="<?= $m ?>" <?= selected($filters['month'], $m) ?>><?= date('F', mktime(0, 0, 0, $m, 1)) ?></option>
+                                <?php endfor; ?>
+                            </select>
+                        </div>
+                        <div class="field">
+                            <label for="year">Year</label>
+                            <input id="year" type="number" name="year" min="2000" max="2100"
                                 value="<?= h($filters['year']) ?>" placeholder="<?= h(date('Y')) ?>">
                         </div>
-                        <div class="field">
-                            <label for="college">College</label>
-                            <select id="college" name="college">
-                                <option value="">All Colleges</option>
-                                <?php foreach ($options['colleges'] as $college): ?>
-                                <option value="<?= h($college) ?>" <?= selected($filters['college'], $college) ?>>
-                                    <?= h($college) ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                        <div class="field">
-                            <label for="department">Course</label>
-                            <select id="department" name="department">
-                                <option value="">All Courses</option>
-                                <?php foreach ($options['departments'] as $department): ?>
-                                <option value="<?= h($department) ?>"
-                                    <?= selected($filters['department'], $department) ?>>
-                                    <?= h($department) ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                        <div class="field">
-                            <label for="year_level">Year Level</label>
-                            <select id="year_level" name="year_level">
-                                <option value="">All Year Levels</option>
-                                <?php foreach ($options['year_levels'] as $yearLevel): ?>
-                                <option value="<?= h($yearLevel) ?>" <?= selected($filters['year_level'], $yearLevel) ?>>
-                                    <?= h($yearLevel) ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                        <div class="field">
-                            <label for="sex">Sex</label>
-                            <select id="sex" name="sex">
-                                <option value="">All Sexes</option>
-                                <?php foreach ($options['sexes'] as $sex): ?>
-                                <option value="<?= h($sex) ?>" <?= selected($filters['sex'], $sex) ?>>
-                                    <?= h($sex) ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                        <div class="field">
-                            <label for="date_from">Date From</label>
-                            <input id="date_from" type="date" name="date_from" value="<?= h($filters['date_from']) ?>">
-                        </div>
-                        <div class="field">
-                            <label for="date_to">Date To</label>
-                            <input id="date_to" type="date" name="date_to" value="<?= h($filters['date_to']) ?>">
-                        </div>
+
+                        <div class="filter-group-title"><i class="bi bi-briefcase"></i> Case</div>
                         <div class="field">
                             <label for="status">Status</label>
                             <select id="status" name="status">
@@ -1005,6 +987,37 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
                             </select>
                         </div>
                         <div class="field">
+                            <label for="department">Course</label>
+                            <select id="department" name="department">
+                                <option value="">All Courses</option>
+                                <?php foreach ($options['departments'] as $department): ?>
+                                <option value="<?= h($department) ?>"
+                                    <?= selected($filters['department'], $department) ?>>
+                                    <?= h($department) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="field">
+                            <label for="sex">Sex</label>
+                            <select id="sex" name="sex">
+                                <option value="">All Sexes</option>
+                                <?php foreach ($options['sexes'] as $sex): ?>
+                                <option value="<?= h($sex) ?>" <?= selected($filters['sex'], $sex) ?>>
+                                    <?= h($sex) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="field">
+                            <label for="case_source">Case Source</label>
+                            <select id="case_source" name="case_source">
+                                <option value="">All case sources</option>
+                                <option value="Online Submission" <?= selected($filters['case_source'], 'Online Submission') ?>>Online</option>
+                                <option value="Legacy" <?= selected($filters['case_source'], 'Legacy') ?>>Migrated</option>
+                            </select>
+                        </div>
+
+                        <div class="filter-group-title"><i class="bi bi-person-check"></i> Personnel</div>
+                        <div class="field">
                             <label for="coordinator">Coordinator</label>
                             <select id="coordinator" name="coordinator">
                                 <option value="">All Coordinators</option>
@@ -1016,7 +1029,6 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
                                 <?php endforeach; ?>
                             </select>
                         </div>
-                        <?php endif; ?>
                     </div>
                     <div class="filter-actions">
                         <span id="dashboardFilterStatus" class="muted" role="status" aria-live="polite"></span>

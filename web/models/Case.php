@@ -21,7 +21,8 @@ class CaseRecord extends Model {
     public static function listCases(array $filters = []) {
         $sql = "SELECT c.*, a.first_name AS submitted_by_first_name, a.last_name AS submitted_by_last_name,
                        coordinator.first_name AS coordinator_first_name,
-                       coordinator.last_name AS coordinator_last_name
+                       coordinator.last_name AS coordinator_last_name,
+                       (SELECT GROUP_CONCAT(r.full_name ORDER BY r.respondent_id SEPARATOR ', ') FROM complaint_respondents r WHERE r.complaint_id = c.complaint_id) AS respondent_names
                 FROM complaints c
                 LEFT JOIN accounts a ON c.submitted_by_account_id = a.account_id
                 LEFT JOIN accounts coordinator ON c.assigned_coordinator_account_id = coordinator.account_id
@@ -51,6 +52,41 @@ class CaseRecord extends Model {
             $sql .= " AND c.complainant_name LIKE ?";
             $params[] = '%' . $filters['student_name'] . '%';
             $types .= 's';
+        }
+
+        if (!empty($filters['date_from'])) {
+            $sql .= " AND c.submitted_at >= ?";
+            $params[] = $filters['date_from'] . ' 00:00:00';
+            $types .= 's';
+        }
+
+        if (!empty($filters['date_to'])) {
+            $sql .= " AND c.submitted_at <= ?";
+            $params[] = $filters['date_to'] . ' 23:59:59';
+            $types .= 's';
+        }
+
+        if (!empty($filters['month'])) {
+            $sql .= " AND MONTH(c.submitted_at) = ?";
+            $params[] = (int) $filters['month'];
+            $types .= 'i';
+        }
+
+        if (!empty($filters['year'])) {
+            $sql .= " AND YEAR(c.submitted_at) = ?";
+            $params[] = (int) $filters['year'];
+            $types .= 'i';
+        }
+
+        if (!empty($filters['search'])) {
+            $search = '%' . $filters['search'] . '%';
+            $sql .= " AND (c.case_number LIKE ? OR c.complainant_name LIKE ? OR EXISTS (
+                        SELECT 1 FROM complaint_respondents rr WHERE rr.complaint_id = c.complaint_id AND rr.full_name LIKE ?
+                    ))";
+            $params[] = $search;
+            $params[] = $search;
+            $params[] = $search;
+            $types .= 'sss';
         }
 
         if (!empty($filters['assigned_coordinator_account_id'])) {
@@ -217,7 +253,8 @@ class CaseRecord extends Model {
      */
 
     public static function listLegacyCases(array $filters = []) {
-        $sql = "SELECT c.*, a.first_name AS submitted_by_first_name, a.last_name AS submitted_by_last_name
+        $sql = "SELECT c.*, a.first_name AS submitted_by_first_name, a.last_name AS submitted_by_last_name,
+                       (SELECT GROUP_CONCAT(r.full_name ORDER BY r.respondent_id SEPARATOR ', ') FROM complaint_respondents r WHERE r.complaint_id = c.complaint_id) AS respondent_names
                 FROM complaints c
                 LEFT JOIN accounts a ON c.submitted_by_account_id = a.account_id
                 WHERE c.case_source = 'Legacy'";
@@ -248,6 +285,24 @@ class CaseRecord extends Model {
             $types .= 'i';
         }
 
+        if (!empty($filters['date_from'])) {
+            $sql .= " AND COALESCE(c.original_case_date, c.submitted_at) >= ?";
+            $params[] = $filters['date_from'] . ' 00:00:00';
+            $types .= 's';
+        }
+
+        if (!empty($filters['date_to'])) {
+            $sql .= " AND COALESCE(c.original_case_date, c.submitted_at) <= ?";
+            $params[] = $filters['date_to'] . ' 23:59:59';
+            $types .= 's';
+        }
+
+        if (!empty($filters['month'])) {
+            $sql .= " AND MONTH(COALESCE(c.original_case_date, c.submitted_at)) = ?";
+            $params[] = (int) $filters['month'];
+            $types .= 'i';
+        }
+
         if (!empty($filters['case_number'])) {
             $sql .= " AND c.case_number LIKE ?";
             $params[] = '%' . $filters['case_number'] . '%';
@@ -258,6 +313,17 @@ class CaseRecord extends Model {
             $sql .= " AND c.complainant_name LIKE ?";
             $params[] = '%' . $filters['complainant_name'] . '%';
             $types .= 's';
+        }
+
+        if (!empty($filters['search'])) {
+            $search = '%' . $filters['search'] . '%';
+            $sql .= " AND (c.case_number LIKE ? OR c.complainant_name LIKE ? OR EXISTS (
+                        SELECT 1 FROM complaint_respondents rr WHERE rr.complaint_id = c.complaint_id AND rr.full_name LIKE ?
+                    ))";
+            $params[] = $search;
+            $params[] = $search;
+            $params[] = $search;
+            $types .= 'sss';
         }
 
         $sql .= " ORDER BY COALESCE(c.original_case_date, c.submitted_at) DESC, c.complaint_id DESC";

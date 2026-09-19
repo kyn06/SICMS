@@ -74,51 +74,18 @@ function selected($left, $right) {
             <?php endforeach; ?>
         </section>
 
-        <section class="panel user-create-banner">
-            <div>
-                <h2>Create Account</h2>
-                <p>SDRU staff and coordinator access</p>
-            </div>
-            <button class="btn btn-primary" id="openCreateAccount" type="button"><i class="bi bi-person-plus"></i> New Account</button>
-        </section>
-
         <section class="panel user-directory-panel">
             <div class="panel-heading directory-heading">
                 <div class="panel-heading-icon"><i class="bi bi-people" aria-hidden="true"></i></div>
                 <div><h2>Staff Directory</h2><p><span id="staffCount"><?= (int) count($accounts) ?></span> matching account<?= count($accounts) === 1 ? '' : 's' ?></p></div>
+                <div class="heading-tools">
+                    <div class="heading-search">
+                        <i class="bi bi-search" aria-hidden="true"></i>
+                        <input id="accountSearch" name="search" type="text" value="<?= h($filters['search']) ?>" placeholder="Search name or email">
+                    </div>
+                    <button class="btn btn-primary" id="openCreateAccount" type="button"><i class="bi bi-person-plus"></i> New Account</button>
+                </div>
             </div>
-            <form class="user-filter-form" id="userFilters" method="GET" action="index.php">
-                <div class="user-filter-grid">
-                    <div class="field">
-                        <label for="search">Search</label>
-                        <input id="search" name="search" value="<?= h($filters['search']) ?>" placeholder="Name or email">
-                    </div>
-                    <div class="field">
-                        <label for="filter_role">Role</label>
-                        <select id="filter_role" name="role">
-                            <option value="">All Roles</option>
-                            <?php foreach ($roles as $role => $label): ?>
-                                <option value="<?= h($role) ?>" <?= selected($filters['role'], $role) ?>><?= h($label) ?></option>
-                            <?php endforeach; ?>
-                            <option value="student" <?= selected($filters['role'], 'student') ?>>Student</option>
-                            <option value="head-of-sdru" <?= selected($filters['role'], 'head-of-sdru') ?>>Head SDRU</option>
-                        </select>
-                    </div>
-                    <div class="field">
-                        <label for="status">Status</label>
-                        <select id="status" name="status">
-                            <option value="">All Statuses</option>
-                            <option value="active" <?= selected($filters['status'], 'active') ?>>Active</option>
-                            <option value="inactive" <?= selected($filters['status'], 'inactive') ?>>Inactive</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="actions">
-                    <button class="btn btn-primary" type="submit"><i class="bi bi-funnel"></i> Apply Filters</button>
-                    <button class="btn btn-secondary" id="resetUserFilters" type="button"><i class="bi bi-arrow-counterclockwise"></i> Reset</button>
-                </div>
-            </form>
-
             <div class="table-wrap">
                 <table>
                     <thead>
@@ -321,8 +288,8 @@ function selected($left, $right) {
     </script>
     <script>
     (() => {
-        const form = document.getElementById('userFilters'), body = document.getElementById('userTableBody');
-        if (!form || !body) return;
+        const input = document.getElementById('accountSearch');
+        if (!input) return;
         const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
         const staffRowHtml = a => {
             const self = Number(a.account_id) === Number(window.SICMS_ACCOUNTS.viewerId);
@@ -334,22 +301,23 @@ function selected($left, $right) {
         let timer, request;
         async function load() {
             if (request) request.abort(); request = new AbortController();
-            const params = new URLSearchParams(new FormData(form)); params.set('ajax', '1');
-            const response = await fetch(`${form.action}?${params}`, {headers:{'X-Requested-With':'XMLHttpRequest'}, signal:request.signal});
+            const params = new URLSearchParams({ search: input.value.trim() }); params.set('ajax', '1');
+            const response = await fetch(`index.php?${params}`, {headers:{'X-Requested-With':'XMLHttpRequest'}, signal:request.signal});
             const data = await response.json(); if (!data.success) throw new Error(data.message);
-            fillTable(body, data.accounts, staffRowHtml, 'No accounts found.');
+            fillTable(document.getElementById('userTableBody'), data.accounts, staffRowHtml, 'No accounts found.');
             fillTable(document.getElementById('complainantTableBody'), data.complainants, complainantRowHtml, 'No complainants found.');
             const staffCount = document.getElementById('staffCount'), complainantCount = document.getElementById('complainantCount');
             if (staffCount) staffCount.textContent = (data.accounts || []).length;
             if (complainantCount) complainantCount.textContent = (data.complainants || []).length;
             Object.entries(data.summary).forEach(([key,value]) => { const node=document.querySelector(`[data-user-summary="${key}"]`); if(node) node.textContent=value; });
-            params.delete('ajax'); history.replaceState(null,'',params.toString()?`index.php?${params}`:'index.php');
+            const q = input.value.trim();
+            history.replaceState(null, '', q ? `index.php?search=${encodeURIComponent(q)}` : 'index.php');
         }
-        form.addEventListener('submit', e => {e.preventDefault(); load().catch(()=>{});});
-        form.querySelectorAll('select').forEach(el => el.addEventListener('change', load));
-        form.elements.search.addEventListener('input', () => {clearTimeout(timer); timer=setTimeout(load,400);});
-        document.getElementById('resetUserFilters').addEventListener('click', () => {form.reset(); load();});
-
+        input.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(load, 400); });
+    })();
+    </script>
+    <script>
+    (() => {
         document.addEventListener('change', async e => {
             const box = e.target.closest('.sicms-status-toggle');
             if (!box || box.disabled) return;
