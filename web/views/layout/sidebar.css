@@ -224,6 +224,18 @@
     gap: 10px;
 }
 
+.theme-toggle {
+    background: #f8fbf7;
+    border: 1px solid #dce7d9;
+    color: #536052;
+    cursor: pointer;
+}
+
+.theme-toggle:hover {
+    background: #eaf7e8;
+    color: #123c1b;
+}
+
 .topbar-date {
     background: #f8fbf7;
     border: 1px solid #dce7d9;

@@ -11,7 +11,8 @@ class AccountController {
     private $user;
     private $allowedRoles = ['head-of-sdru', 'sdru-head', 'super-admin'];
     private $creatableRoles = [
-        'coordinator' => 'Coordinator',
+        'coordinator' => 'Discipline Coordinator',
+        'reformation-coordinator' => 'Reformation Coordinator',
         'sdru-staff' => 'SDRU Staff',
     ];
 

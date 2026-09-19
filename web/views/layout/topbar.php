@@ -27,6 +27,12 @@ if (!function_exists('format_time_ago')) {
     }
 }
 ?>
+<script>
+try {
+    const savedTheme = localStorage.getItem('sicms-theme') || document.cookie.match(/(?:^|; )sicms-theme=([^;]+)/)?.[1];
+    if (savedTheme === 'dark') document.documentElement.dataset.theme = 'dark';
+} catch (error) {}
+</script>
 <div class="app-topbar-container">
     <header class="app-topbar<?= $hidePageTitle ? ' app-topbar-titleless' : '' ?>">
         <button class="sidebar-toggle" type="button" aria-label="Toggle navigation" aria-controls="app-sidebar" aria-expanded="false">
@@ -39,6 +45,9 @@ if (!function_exists('format_time_ago')) {
             </div>
         <?php endif; ?>
         <div class="app-topbar-actions">
+            <button class="theme-toggle topbar-icon" type="button" aria-label="Enable dark mode" title="Enable dark mode">
+                <i class="bi bi-moon-stars" aria-hidden="true"></i>
+            </button>
             <span class="topbar-date" style="font-weight: 200;"><?= h(date('F d, Y h:i A')) ?></span>
             <details class="profile-dropdown">
                 <summary class="topbar-icon" title="Notifications" aria-label="Notifications">
@@ -91,6 +100,25 @@ document.querySelector('.sidebar-toggle')?.addEventListener('click', function ()
     const open = document.body.classList.toggle('sidebar-open');
     this.setAttribute('aria-expanded', open ? 'true' : 'false');
 });
+
+const themeToggle = document.querySelector('.theme-toggle');
+const updateThemeToggle = () => {
+    const dark = document.documentElement.dataset.theme === 'dark';
+    if (!themeToggle) return;
+    themeToggle.setAttribute('aria-label', dark ? 'Enable light mode' : 'Enable dark mode');
+    themeToggle.title = dark ? 'Enable light mode' : 'Enable dark mode';
+    themeToggle.innerHTML = `<i class="bi bi-${dark ? 'sun' : 'moon-stars'}" aria-hidden="true"></i>`;
+};
+themeToggle?.addEventListener('click', () => {
+    const dark = document.documentElement.dataset.theme !== 'dark';
+    document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+    try {
+        localStorage.setItem('sicms-theme', dark ? 'dark' : 'light');
+        document.cookie = `sicms-theme=${dark ? 'dark' : 'light'}; path=/; max-age=31536000; SameSite=Lax`;
+    } catch (error) {}
+    updateThemeToggle();
+});
+updateThemeToggle();
 </script>
 <script>
 window.SICMS_NOTIFY = {

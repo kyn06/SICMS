@@ -541,3 +541,123 @@ tbody tr:hover {
         transition-duration: 0.01ms !important;
     }
 }
+
+html[data-theme="dark"] {
+    --sicms-surface: #1d2920;
+    --sicms-page: #111812;
+    --sicms-line: #344638;
+    --sicms-text: #edf5ed;
+    --sicms-muted: #aab8aa;
+    --sicms-green-100: #263b29;
+    --sicms-shadow: 0 4px 16px rgba(0, 0, 0, 0.24);
+    --sicms-shadow-hover: 0 8px 22px rgba(0, 0, 0, 0.32);
+}
+
+html[data-theme="dark"] body,
+html[data-theme="dark"] .app-topbar,
+html[data-theme="dark"] .topbar-date,
+html[data-theme="dark"] .theme-toggle,
+html[data-theme="dark"] .sidebar,
+html[data-theme="dark"] .dropdown-menu {
+    background-color: var(--sicms-surface) !important;
+    color: var(--sicms-text) !important;
+}
+
+html[data-theme="dark"] body,
+html[data-theme="dark"] .main-panel,
+html[data-theme="dark"] .case-page,
+html[data-theme="dark"] .complaint-page,
+html[data-theme="dark"] .app-content {
+    background: var(--sicms-page) !important;
+    color: var(--sicms-text) !important;
+}
+
+html[data-theme="dark"] .app-topbar-container,
+html[data-theme="dark"] .topbar-date,
+html[data-theme="dark"] .theme-toggle,
+html[data-theme="dark"] input,
+html[data-theme="dark"] select,
+html[data-theme="dark"] textarea,
+html[data-theme="dark"] .panel,
+html[data-theme="dark"] .table-panel,
+html[data-theme="dark"] .form-section,
+html[data-theme="dark"] .card {
+    border-color: var(--sicms-line) !important;
+}
+
+html[data-theme="dark"] input,
+html[data-theme="dark"] select,
+html[data-theme="dark"] textarea {
+    background: #162119 !important;
+    color: var(--sicms-text) !important;
+}
+
+html[data-theme="dark"] .app-topbar-title h1,
+html[data-theme="dark"] .panel h2,
+html[data-theme="dark"] .form-section h2,
+html[data-theme="dark"] .table-panel h2,
+html[data-theme="dark"] .theme-toggle,
+html[data-theme="dark"] .topbar-date {
+    color: var(--sicms-text) !important;
+}
+
+html[data-theme="dark"] .app-topbar-title p,
+html[data-theme="dark"] label,
+html[data-theme="dark"] .muted {
+    color: var(--sicms-muted) !important;
+}
+
+html[data-theme="dark"] .main-panel,
+html[data-theme="dark"] .topbar,
+html[data-theme="dark"] .datetime-pill,
+html[data-theme="dark"] .filters-toggle-btn,
+html[data-theme="dark"] .filter-popover,
+html[data-theme="dark"] .activity-item,
+html[data-theme="dark"] .sicms-card,
+html[data-theme="dark"] .chart-box,
+html[data-theme="dark"] .empty-state,
+html[data-theme="dark"] table,
+html[data-theme="dark"] th,
+html[data-theme="dark"] td {
+    background-color: var(--sicms-surface) !important;
+    color: var(--sicms-text) !important;
+    border-color: var(--sicms-line) !important;
+}
+
+html[data-theme="dark"] .datetime-pill,
+html[data-theme="dark"] .filters-toggle-btn {
+    color: var(--sicms-text) !important;
+}
+
+html[data-theme="dark"] .list,
+html[data-theme="dark"] .list-item,
+html[data-theme="dark"] .detail,
+html[data-theme="dark"] .case-action-group,
+html[data-theme="dark"] .status-banner,
+html[data-theme="dark"] .message-thread,
+html[data-theme="dark"] .message-content,
+html[data-theme="dark"] .notification-item,
+html[data-theme="dark"] .dropdown-footer,
+html[data-theme="dark"] .filters-popover,
+html[data-theme="dark"] .filter-popover,
+html[data-theme="dark"] .dynamic-item,
+html[data-theme="dark"] .case-modal,
+html[data-theme="dark"] .case-modal-body {
+    background: var(--sicms-surface) !important;
+    color: var(--sicms-text) !important;
+    border-color: var(--sicms-line) !important;
+}
+
+html[data-theme="dark"] p,
+html[data-theme="dark"] .value,
+html[data-theme="dark"] .section-title,
+html[data-theme="dark"] .section-subtitle,
+html[data-theme="dark"] td,
+html[data-theme="dark"] th,
+html[data-theme="dark"] a:not(.btn):not(.btn-primary) {
+    color: var(--sicms-text) !important;
+}
+
+html[data-theme="dark"] ::placeholder {
+    color: #91a294 !important;
+}

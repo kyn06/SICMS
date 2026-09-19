@@ -28,6 +28,7 @@ public static function record($user, $action, $description) {
                 'admin',
                 'sdru-staff',
                 'coordinator',
+                'reformation-coordinator',
                 'head-of-sdru',
                 'sdru-head',
             ];

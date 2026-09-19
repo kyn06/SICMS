@@ -6,7 +6,7 @@ class Message extends Model {
     protected static $table = 'case_messages';
     protected static $primaryKey = 'message_id';
 
-    private static $staffRoles = ['super-admin', 'admin', 'sdr staff', 'sdr-staff', 'sdru-staff', 'coordinator', 'head-of-sdru', 'sdru-head', 'head of sdru'];
+    private static $staffRoles = ['super-admin', 'admin', 'sdr staff', 'sdr-staff', 'sdru-staff', 'coordinator', 'reformation-coordinator', 'head-of-sdru', 'sdru-head', 'head of sdru'];
     private static $headRoles = ['head-of-sdru', 'sdru-head', 'head of sdru'];
     private static $columnCache = [];
 
@@ -121,9 +121,9 @@ class Message extends Model {
                     continue;
                 }
 
-                if (self::isCoordinatorRole($user['role'])
+                if (self::isAssignmentRole($user['role'])
                     && strtolower((string) ($counterpart['role'] ?? '')) === 'student'
-                    && !self::studentAssignedToCoordinator($peerId, $accountId)) {
+                    && !self::studentAssignedToStaff($user['role'], $peerId, $accountId)) {
                     continue;
                 }
 
@@ -181,7 +181,7 @@ class Message extends Model {
                     continue;
                 }
 
-                if (self::isCoordinatorRole($user['role']) && !self::studentAssignedToCoordinator($studentId, $accountId)) {
+                if (self::isAssignmentRole($user['role']) && !self::studentAssignedToStaff($user['role'], $studentId, $accountId)) {
                     continue;
                 }
 
@@ -287,9 +287,9 @@ class Message extends Model {
 
         $peer = self::findAccount((int) $peerAccountId);
 
-        if ($peer && self::isCoordinatorRole($currentUser['role'])
+        if ($peer && self::isAssignmentRole($currentUser['role'])
             && strtolower((string) ($peer['role'] ?? '')) === 'student'
-            && !self::studentAssignedToCoordinator((int) $peerAccountId, (int) $currentUser['account_id'])) {
+            && !self::studentAssignedToStaff($currentUser['role'], (int) $peerAccountId, (int) $currentUser['account_id'])) {
             return false;
         }
 
@@ -324,18 +324,19 @@ class Message extends Model {
         }
     }
 
-    private static function studentAssignedToCoordinator($studentId, $coordinatorId) {
+    private static function studentAssignedToStaff($staffRole, $studentId, $staffId) {
         try {
             $studentId = (int) $studentId;
-            $coordinatorId = (int) $coordinatorId;
+            $staffId = (int) $staffId;
+            $column = self::assignmentColumn($staffRole);
             $sql = "SELECT complaint_id
                     FROM complaints
                     WHERE submitted_by_account_id = ?
-                      AND assigned_coordinator_account_id = ?
+                      AND $column = ?
                       AND COALESCE(case_source, 'Online Submission') <> 'Legacy'
                     LIMIT 1";
             $stmt = self::$conn->prepare($sql);
-            $stmt->bind_param("ii", $studentId, $coordinatorId);
+            $stmt->bind_param("ii", $studentId, $staffId);
             $stmt->execute();
             $result = $stmt->get_result();
 
@@ -343,6 +344,22 @@ class Message extends Model {
         } catch (Throwable $exception) {
             return false;
         }
+    }
+
+    private static function caseAssignedToStaff(array $case, $staffRole, $staffId) {
+        $column = self::assignmentColumn($staffRole);
+        return !empty($case[$column])
+            && (int) $case[$column] === (int) $staffId;
+    }
+
+    private static function isAssignmentRole($role) {
+        $roleKey = strtolower(str_replace(['_', ' '], '-', (string) $role));
+        return $roleKey === 'coordinator' || $roleKey === 'reformation-coordinator';
+    }
+
+    private static function assignmentColumn($role) {
+        $roleKey = strtolower(str_replace(['_', ' '], '-', (string) $role));
+        return $roleKey === 'reformation-coordinator' ? 'assigned_reformation_coordinator_account_id' : 'assigned_coordinator_account_id';
     }
 
     public static function findWithNames($messageId) {
@@ -394,9 +411,8 @@ class Message extends Model {
 
         $roleKey = strtolower(str_replace(['_', ' '], '-', $user['role'] ?? ''));
 
-        if ($roleKey === 'coordinator') {
-            return !empty($case['assigned_coordinator_account_id'])
-                && (int) $case['assigned_coordinator_account_id'] === (int) $user['account_id'];
+        if (self::isAssignmentRole($user['role'] ?? '')) {
+            return self::caseAssignedToStaff($case, $user['role'] ?? '', $user['account_id'] ?? 0);
         }
 
         return true;
@@ -442,8 +458,8 @@ class Message extends Model {
 
         $roleKey = strtolower(str_replace(['_', ' '], '-', $currentUser['role'] ?? ''));
 
-        if ($roleKey === 'coordinator'
-            && (int) ($case['assigned_coordinator_account_id'] ?? 0) !== (int) $currentUser['account_id']) {
+        if (self::isAssignmentRole($currentUser['role'] ?? '')
+            && !self::caseAssignedToStaff($case, $currentUser['role'] ?? '', $currentUser['account_id'] ?? 0)) {
             return null;
         }
 

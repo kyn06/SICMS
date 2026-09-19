@@ -20,6 +20,12 @@ if (!function_exists('app_route')) {
     }
 }
 ?>
+<script>
+try {
+    const savedTheme = localStorage.getItem('sicms-theme') || document.cookie.match(/(?:^|; )sicms-theme=([^;]+)/)?.[1];
+    if (savedTheme === 'dark') document.documentElement.dataset.theme = 'dark';
+} catch (error) {}
+</script>
 <aside class="sidebar" id="app-sidebar">
     <div class="brand">
         <img src="<?= h(app_url('public/assets/clsulogo.png')) ?>" alt="CLSU logo">

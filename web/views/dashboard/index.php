@@ -87,7 +87,9 @@ $fullName = trim($user['first_name'] . ' ' . $user['last_name']);
 $displayName = $fullName ?: $user['email'];
 $role = $user['role'];
 $roleKey = role_key($role);
-$isCoordinator = $roleKey === 'coordinator';
+$isDisciplineCoordinator = $roleKey === 'coordinator';
+$isReformationCoordinator = $roleKey === 'reformation-coordinator';
+$isCoordinator = $isDisciplineCoordinator || $isReformationCoordinator;
 $isStudent = $roleKey === 'student';
 $profileIncomplete = $isStudent && !ProfileCompletion::isComplete($user);
 $profileMissingFields = $isStudent ? ProfileCompletion::missingFields($user) : [];
@@ -95,7 +97,7 @@ $roleLabel = ucwords(str_replace(['-', '_'], ' ', $role));
 $initials = strtoupper(substr($user['first_name'] ?? $user['email'], 0, 1) . substr($user['last_name'] ?? '', 0, 1));
 $initials = trim($initials) ?: 'U';
 
-$analyticsRoles = ['super-admin', 'admin', 'sdr-staff', 'sdru-staff', 'coordinator', 'head-of-sdru', 'sdru-head', 'head-of-sdru'];
+$analyticsRoles = ['super-admin', 'admin', 'sdr-staff', 'sdru-staff', 'coordinator', 'reformation-coordinator', 'head-of-sdru', 'sdru-head'];
 $staffHearingRoles = ['super-admin', 'admin', 'sdr-staff', 'sdru-staff', 'coordinator', 'head-of-sdru', 'sdru-head'];
 $canViewAnalytics = in_array($roleKey, $analyticsRoles, true);
 $canViewHearings = in_array($roleKey, $staffHearingRoles, true);
@@ -129,6 +131,8 @@ $summary = array_merge([
     'pending_cases' => 0,
     'ongoing_cases' => 0,
     'resolved_cases' => 0,
+    'reformation_in_progress_cases' => 0,
+    'reformation_completed_cases' => 0,
     'archived_cases' => 0,
     'scheduled_hearings' => 0,
     'total_students' => 0,
@@ -136,7 +140,10 @@ $summary = array_merge([
 
 $chartData = [
     'casesByMonth' => chart_payload($reportData['casesByMonth']),
-    'casesByStatus' => chart_payload($reportData['casesByStatus']),
+    'casesByStatus' => chart_payload(array_values(array_filter(
+        $reportData['casesByStatus'],
+        fn($row) => !in_array($row['label'], ['Reformation in Progress', 'Reformation Completed'], true)
+    ))),
     'casesByClassification' => chart_payload($reportData['casesByClassification']),
     'casesByCollege' => chart_payload($reportData['casesByCollege']),
     'hearingsByMonth' => chart_payload($reportData['hearingsByMonth']),
@@ -149,7 +156,9 @@ $options = $reportData['options'];
 $today = date('Y-m-d');
 $newComplaintsToday = 0;
 
-$coordinatorAssignedCases = $isCoordinator ? Report::assignedCasesForCoordinator((int) $user['account_id']) : [];
+$coordinatorAssignedCases = $isDisciplineCoordinator
+    ? Report::assignedCasesForCoordinator((int) $user['account_id'])
+    : ($isReformationCoordinator ? Report::assignedReformationCasesForCoordinator((int) $user['account_id']) : []);
 $coordinatorAssignedCount = count($coordinatorAssignedCases);
 
 foreach ($rows as $row) {
@@ -161,7 +170,7 @@ foreach ($rows as $row) {
 $upcomingHearings = [];
 $todaysHearings = 0;
 if ($canViewHearings) {
-    if ($isCoordinator) {
+    if ($isDisciplineCoordinator) {
         $coordinatorHearings = Hearing::listHearings($user);
         $todaysHearings = count(array_filter($coordinatorHearings, fn($hearing) => $hearing['status'] === 'Scheduled' && substr($hearing['hearing_datetime'], 0, 10) === $today));
         $upcomingHearings = array_values(array_filter($coordinatorHearings, fn($hearing) => $hearing['status'] === 'Scheduled' && strtotime($hearing['hearing_datetime']) >= time()));
@@ -181,13 +190,12 @@ $quickActions = [
     ['label' => 'Submit Complaint', 'href' => app_route('complaints.create'), 'icon' => 'bi-send-plus', 'roles' => ['student']],
     ['label' => 'My Cases', 'href' => app_route('complaints.my_cases'), 'icon' => 'bi-folder-check', 'roles' => ['student']],
     ['label' => 'Create User', 'href' => app_route('accounts.index'), 'icon' => 'bi-person-plus', 'roles' => ['super-admin', 'head-of-sdru', 'sdru-head']],
-    ['label' => 'Assign Coordinator', 'href' => app_route('cases.index'), 'icon' => 'bi-person-check', 'roles' => ['super-admin', 'admin', 'sdr-staff', 'sdru-staff', 'head-of-sdru', 'sdru-head']],
+    ['label' => 'Assign to Discipline Coordinator', 'href' => app_route('cases.index'), 'icon' => 'bi-person-check', 'roles' => ['super-admin', 'admin', 'sdr-staff', 'sdru-staff', 'head-of-sdru', 'sdru-head']],
     ['label' => 'Generate Report', 'href' => app_route('reports.index'), 'icon' => 'bi-file-earmark-bar-graph', 'roles' => ['super-admin', 'admin', 'sdr-staff', 'sdru-staff', 'head-of-sdru', 'sdru-head']],
     ['label' => 'Schedule Hearing', 'href' => app_route('hearings.index'), 'icon' => 'bi-calendar-plus', 'roles' => ['super-admin', 'admin', 'sdr-staff', 'sdru-staff', 'coordinator', 'head-of-sdru', 'sdru-head']],
-    ['label' => 'View Assigned Cases', 'href' => app_route('cases.index'), 'icon' => 'bi-folder-check', 'roles' => ['coordinator']],
-    ['label' => 'Chat', 'href' => app_route('messages.index'), 'icon' => 'bi-chat-dots', 'roles' => ['coordinator']],
-    ['label' => 'View Calendar', 'href' => app_route('hearings.index'), 'icon' => 'bi-calendar3', 'roles' => ['coordinator']],
-    ['label' => 'Notifications', 'href' => app_route('notifications.index'), 'icon' => 'bi-bell', 'roles' => ['coordinator']],
+    ['label' => 'View Assigned Cases', 'href' => app_route('cases.index'), 'icon' => 'bi-folder-check', 'roles' => ['coordinator', 'reformation-coordinator']],
+    ['label' => 'Chat', 'href' => app_route('messages.index'), 'icon' => 'bi-chat-dots', 'roles' => ['coordinator', 'reformation-coordinator']],
+    ['label' => 'Notifications', 'href' => app_route('notifications.index'), 'icon' => 'bi-bell', 'roles' => ['coordinator', 'reformation-coordinator']],
 ];
 
 function allowed_for_role(array $item, $roleKey) {
@@ -210,6 +218,10 @@ $statCards = $isCoordinator ? [
     ['key' => 'new_complaints_today', 'label' => 'New Complaints Today', 'value' => $newComplaintsToday, 'icon' => 'bi-inbox', 'accent' => 'rose', 'trend' => 'Based on report results'],
     ['key' => 'total_students', 'label' => 'Registered Students', 'value' => $summary['total_students'], 'icon' => 'bi-mortarboard', 'accent' => 'green', 'trend' => 'Student accounts'],
 ];
+
+if ($isReformationCoordinator) {
+    $statCards = array_values(array_filter($statCards, fn($card) => !in_array($card['key'], ['scheduled_hearings', 'todays_hearings'], true)));
+}
 
 if (($_GET['ajax'] ?? '') === 'dashboard') {
     if (!$canViewAnalytics) {
@@ -739,11 +751,11 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
     }
 
     .case-actions-trigger {
-        background: #fff;
-        border: 1.5px solid var(--sicms-green-600, #2e7d32);
+        background: var(--sicms-green-600, #1A9D00) !important;
+        border: 1.5px solid var(--sicms-green-600, #1A9D00);
         border-radius: 10px;
         box-shadow: 0 2px 6px rgba(18, 60, 27, .12);
-        color: var(--sicms-green-700, #1b5e20);
+        color: #fff !important;
         height: 40px;
         min-height: 40px;
         padding: 0 12px;
@@ -751,7 +763,7 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
     }
 
     .case-actions-trigger:hover {
-        background: var(--green-100, #eaf5ea);
+        background: var(--sicms-green-700, #167a22) !important;
         box-shadow: 0 4px 12px rgba(18, 60, 27, .22);
         transform: translateY(-1px);
     }
@@ -781,6 +793,12 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
 </head>
 
 <body>
+    <script>
+    try {
+        const savedTheme = localStorage.getItem('sicms-theme') || document.cookie.match(/(?:^|; )sicms-theme=([^;]+)/)?.[1];
+        if (savedTheme === 'dark') document.documentElement.dataset.theme = 'dark';
+    } catch (error) {}
+    </script>
     <?php require __DIR__ . '/../layout/protection.php'; ?>
     <div class="dashboard-shell">
         <?php require __DIR__ . '/../layout/sidebar.php'; ?>
@@ -790,10 +808,13 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
                 <div>
                     <div class="welcome-label">Welcome back, <?= h($displayName) ?></div>
                     <h1 class="page-title">
-                        <?= $isCoordinator ? 'Coordinator Workspace' : 'SDRU Case Management Dashboard' ?></h1>
+                        <?= $isCoordinator ? ($isReformationCoordinator ? 'Reformation Coordinator Workspace' : 'Discipline Coordinator Workspace') : 'SDRU Case Management Dashboard' ?></h1>
                 </div>
 
                 <div class="topbar-actions">
+                    <button class="theme-toggle topbar-icon" type="button" aria-label="Enable dark mode" title="Enable dark mode">
+                        <i class="bi bi-moon-stars" aria-hidden="true"></i>
+                    </button>
                     <div class="datetime-pill" id="currentDateTime"><?= h(date('F d, Y h:i A')) ?></div>
 
                     <details class="dropdown">
@@ -1018,9 +1039,9 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
 
                         <div class="filter-group-title"><i class="bi bi-person-check"></i> Personnel</div>
                         <div class="field">
-                            <label for="coordinator">Coordinator</label>
+                            <label for="coordinator">Discipline Coordinator</label>
                             <select id="coordinator" name="coordinator">
-                                <option value="">All Coordinators</option>
+                                <option value="">All Discipline Coordinators</option>
                                 <?php foreach ($options['coordinators'] as $coordinator): ?>
                                 <option value="<?= (int) $coordinator['account_id'] ?>"
                                     <?= selected($filters['coordinator'], $coordinator['account_id']) ?>>
@@ -1158,11 +1179,19 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
                                                     <i class="bi bi-chat-dots"></i>
                                                     Message
                                                 </a>
+                                                <?php if (!$isReformationCoordinator): ?>
                                                 <a
                                                     href="web/views/hearings/create.php?complaint_id=<?= (int) $row['complaint_id'] ?>">
                                                     <i class="bi bi-calendar-plus"></i>
                                                     Schedule Hearing
                                                 </a>
+                                                <?php endif; ?>
+                                                <?php if ($isReformationCoordinator): ?>
+                                                <a href="web/views/cases/show.php?id=<?= (int) $row['complaint_id'] ?>#reformation-work">
+                                                    <i class="bi bi-arrow-repeat"></i>
+                                                    Reformation Work
+                                                </a>
+                                                <?php endif; ?>
                                             </div>
                                         </details>
                                     </div>
@@ -1697,24 +1726,28 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
                                     <i class="bi bi-eye"></i>
                                     View Case
                                 </a>
+                                <?php if (!$isReformationCoordinator): ?>
                                 <a
                                     href="web/views/cases/show.php?id=${+item.complaint_id}#status-actions"
                                 >
                                     <i class="bi bi-arrow-repeat"></i>
                                     Update Status
                                 </a>
+                                <?php endif; ?>
                                 <a
                                     href="web/views/messages/index.php?conversation_id=${+item.complaint_id}"
                                 >
                                     <i class="bi bi-chat-dots"></i>
                                     Message
                                 </a>
+                                <?php if (!$isReformationCoordinator): ?>
                                 <a
                                     href="web/views/hearings/create.php?complaint_id=${+item.complaint_id}"
                                 >
                                     <i class="bi bi-calendar-plus"></i>
                                     Schedule Hearing
                                 </a>
+                                <?php endif; ?>
                             </div>
                         </details>
                     </div>
@@ -1791,6 +1824,25 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
         event.preventDefault();
         applyDashboardFilters(true);
     });
+
+    const dashboardThemeToggle = document.querySelector('.theme-toggle');
+    const updateDashboardThemeToggle = () => {
+        const dark = document.documentElement.dataset.theme === 'dark';
+        if (!dashboardThemeToggle) return;
+        dashboardThemeToggle.setAttribute('aria-label', dark ? 'Enable light mode' : 'Enable dark mode');
+        dashboardThemeToggle.title = dark ? 'Enable light mode' : 'Enable dark mode';
+        dashboardThemeToggle.innerHTML = `<i class="bi bi-${dark ? 'sun' : 'moon-stars'}" aria-hidden="true"></i>`;
+    };
+    dashboardThemeToggle?.addEventListener('click', () => {
+        const dark = document.documentElement.dataset.theme !== 'dark';
+        document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+        try {
+            localStorage.setItem('sicms-theme', dark ? 'dark' : 'light');
+            document.cookie = `sicms-theme=${dark ? 'dark' : 'light'}; path=/; max-age=31536000; SameSite=Lax`;
+        } catch (error) {}
+        updateDashboardThemeToggle();
+    });
+    updateDashboardThemeToggle();
     </script>
     <script src="<?= h(app_url('web/views/layout/system.js')) ?>" defer></script>
 </body>

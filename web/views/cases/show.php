@@ -19,18 +19,24 @@ foreach (CaseUpdate::attachmentsForCase($complaintId) as $attachment) {
     $caseUpdateAttachments[(int) $attachment['update_id']][] = $attachment;
 }
 $coordinators = $viewData['coordinators'];
+$reformationCoordinators = $viewData['reformationCoordinators'];
+$reformationRecords = $viewData['reformationRecords'] ?? [];
+$reformationReports = $viewData['reformationReports'] ?? [];
 $messages = $viewData['messages'];
 $messageReceiver = $viewData['messageReceiver'];
 $message = $viewData['message'];
 $errors = $viewData['errors'];
 $resubmission = $viewData['resubmission'];
 $classificationOptions = $viewData['classificationOptions'];
+$pendingApproval = $viewData['pendingApproval'] ?? null;
 $caseStatus = $case['status'] ?? '';
 $statusMeta = [
     'Under Investigation' => ['slug' => 'under-investigation', 'icon' => 'bi-search'],
     'Returned for Revision' => ['slug' => 'returned', 'icon' => 'bi-arrow-return-left'],
     'Rejected' => ['slug' => 'rejected', 'icon' => 'bi-x-circle'],
     'Resolved' => ['slug' => 'resolved', 'icon' => 'bi-check2-circle'],
+    'Reformation in Progress' => ['slug' => 'reformation-in-progress', 'icon' => 'bi-arrow-repeat'],
+    'Reformation Completed' => ['slug' => 'reformation-completed', 'icon' => 'bi-patch-check'],
     'Escalated' => ['slug' => 'escalated', 'icon' => 'bi-arrow-up-circle'],
     'Archived' => ['slug' => 'archived', 'icon' => 'bi-archive'],
 ];
@@ -38,8 +44,14 @@ $caseStatusSlug = $statusMeta[$caseStatus]['slug'] ?? 'under-investigation';
 $caseStatusIcon = $statusMeta[$caseStatus]['icon'] ?? 'bi-tag';
 $caseUpdatedAt = $case['updated_at'] ?? $case['submitted_at'] ?? null;
 $viewerRoleKey = strtolower(str_replace(['_', ' '], '-', $user['role'] ?? ''));
-$canManageCase = $viewerRoleKey !== 'coordinator'
-    || ((int) ($case['assigned_coordinator_account_id'] ?? 0) === (int) ($user['account_id'] ?? 0));
+$viewOnlyStaffRoles = ['sdr-staff', 'sdru-staff'];
+$isReformationCoordinator = $viewerRoleKey === 'reformation-coordinator';
+$isHeadViewer = in_array($viewerRoleKey, ['super-admin', 'head-of-sdru', 'sdru-head'], true);
+$canManageCase = !in_array($viewerRoleKey, $viewOnlyStaffRoles, true)
+    && ($viewerRoleKey !== 'coordinator'
+        || ((int) ($case['assigned_coordinator_account_id'] ?? 0) === (int) ($user['account_id'] ?? 0)))
+    && ($viewerRoleKey !== 'reformation-coordinator'
+        || ((int) ($case['assigned_reformation_coordinator_account_id'] ?? 0) === (int) ($user['account_id'] ?? 0)));
 
 $controller->clearFlash();
 
@@ -188,6 +200,16 @@ function person_name($first, $last) {
         --status-bg: #e6f5e0;
     }
 
+    .status-banner[data-status="reformation-in-progress"] {
+        --status-color: #8a5a00;
+        --status-bg: #fff4d6;
+    }
+
+    .status-banner[data-status="reformation-completed"] {
+        --status-color: #087f5b;
+        --status-bg: #e1f6ef;
+    }
+
     .status-banner[data-status="escalated"] {
         --status-color: #c2410c;
         --status-bg: #fdeee3;
@@ -301,6 +323,15 @@ function person_name($first, $last) {
 
     .detail.full {
         grid-column: 1 / -1;
+    }
+
+    .respondent-details-list {
+        display: grid;
+        gap: 14px;
+    }
+
+    .respondent-details-card {
+        padding: 0;
     }
 
     .label {
@@ -417,6 +448,18 @@ function person_name($first, $last) {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
+    .case-update-respondent-grid {
+        display: grid;
+        gap: 8px;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        margin: 8px 0 12px;
+    }
+
+    .case-update-respondent-grid input,
+    .case-update-respondent-grid select {
+        min-width: 0;
+    }
+
     .btn {
         border: 0;
         border-radius: 8px;
@@ -465,6 +508,80 @@ function person_name($first, $last) {
 
     .btn-resolve:hover {
         background: #0f5a00;
+    }
+
+    .approval-panel {
+        background: linear-gradient(135deg, #fffdf5 0%, #ffffff 72%);
+        border: 1px solid #ead9a5;
+        border-left: 5px solid #b57600;
+        box-shadow: 0 5px 18px rgba(104, 77, 14, .08);
+        margin: 0 0 16px;
+        padding: 14px 16px 16px;
+    }
+
+    .approval-heading {
+        align-items: flex-start;
+        display: flex;
+        gap: 12px;
+        margin-bottom: 4px;
+    }
+
+    .approval-heading-icon {
+        align-items: center;
+        background: #fff1c7;
+        border-radius: 10px;
+        color: #966500;
+        display: inline-flex;
+        flex: 0 0 38px;
+        font-size: 18px;
+        height: 38px;
+        justify-content: center;
+    }
+
+    .approval-heading h2 {
+        margin: 0;
+    }
+
+    .approval-intro {
+        color: #6a614c;
+        font-size: 13px;
+        line-height: 1.55;
+        margin: 0 0 9px 50px;
+    }
+
+    .approval-summary {
+        background: rgba(255, 255, 255, .78);
+        border: 1px solid #eadfbd;
+        border-radius: 8px;
+        color: #283126;
+        font-size: 13px;
+        line-height: 1.55;
+        margin: 0 0 10px 50px;
+        padding: 9px 12px;
+    }
+
+    .approval-form {
+        gap: 8px;
+        margin: 0 0 0 50px;
+    }
+
+    .approval-form textarea {
+        background: #fff;
+        min-height: 52px;
+    }
+
+    .approval-actions {
+        display: grid;
+        gap: 8px;
+        grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+    }
+
+    .approval-actions .btn {
+        align-items: center;
+        display: inline-flex;
+        gap: 7px;
+        justify-content: center;
+        min-height: 42px;
     }
 
     .btn-escalate {
@@ -845,6 +962,20 @@ function person_name($first, $last) {
             align-items: stretch;
             flex-direction: column;
         }
+
+        .approval-intro,
+        .approval-summary,
+        .approval-form {
+            margin-left: 0;
+        }
+
+        .approval-actions {
+            grid-template-columns: 1fr;
+        }
+
+        .case-update-respondent-grid {
+            grid-template-columns: 1fr;
+        }
     }
     </style>
     <link rel="stylesheet" href="../layout/system.css?v=2">
@@ -877,6 +1008,27 @@ function person_name($first, $last) {
                             <?= $caseUpdatedAt ? h(date('M d, Y h:i A', strtotime($caseUpdatedAt))) : '—' ?></span>
                     </div>
                 </div>
+
+                <?php if ($pendingApproval && $pendingApproval['status'] === 'Pending'): ?>
+                <section class="panel approval-panel" id="case-approval-panel">
+                    <div class="approval-heading">
+                        <span class="approval-heading-icon"><i class="bi bi-shield-check"></i></span>
+                        <h2>Approve This Action?</h2>
+                    </div>
+                    <p class="approval-intro">A coordinator requested <strong><?= h($pendingApproval['action_label']) ?></strong>. Review the submitted details before deciding.</p>
+                    <div class="approval-summary"><?= h(CaseApproval::description($pendingApproval)) ?></div>
+                    <form class="action-form approval-form" method="POST" action="show.php?id=<?= (int) $case['complaint_id'] ?>">
+                        <?= Security::csrfField() ?>
+                        <textarea name="review_remarks" placeholder="Optional review note"></textarea>
+                        <div class="approval-actions">
+                            <input type="hidden" name="approval_id" value="<?= (int) $pendingApproval['approval_id'] ?>">
+                            <button class="btn btn-resolve" type="submit" name="case_action" value="approval_decision" data-swal-confirm="Approve this coordinator action? It will be applied to the case now."><i class="bi bi-check-lg"></i> Approve Action</button>
+                            <button class="btn btn-reject" type="submit" name="case_action" value="approval_decision" data-approval-decision="reject"><i class="bi bi-x-lg"></i> Reject Action</button>
+                        </div>
+                        <input type="hidden" name="approval_decision" id="approvalDecision" value="approve">
+                    </form>
+                </section>
+                <?php endif; ?>
 
                 <?php if ($message): ?>
                 <div class="alert alert-success"><?= h($message) ?></div>
@@ -999,6 +1151,22 @@ function person_name($first, $last) {
                                         <?= h(person_name($case['coordinator_first_name'], $case['coordinator_last_name'])) ?>
                                     </div>
                                 </div>
+                                <div class="detail">
+                                    <div class="label">Reformation Coordinator</div>
+                                    <div class="value">
+                                        <?= h(person_name($case['reformation_coordinator_first_name'], $case['reformation_coordinator_last_name'])) ?>
+                                    </div>
+                                </div>
+                                <div class="detail">
+                                    <div class="label">Reformation Status</div>
+                                    <div class="value">
+                                        <?php if (!empty($case['reformation_completed_at'])): ?>
+                                            <span class="reformation-completed-badge"><i class="bi bi-patch-check"></i> Completed &middot; <?= h(date('M d, Y', strtotime($case['reformation_completed_at']))) ?></span>
+                                        <?php else: ?>
+                                            Not yet completed
+                                        <?php endif; ?>
+                                    </div>
+                                </div>
                                 <div class="detail full">
                                     <div class="label">Details</div>
                                     <div class="value"><?= nl2br(h($case['complaint_details'])) ?></div>
@@ -1008,58 +1176,66 @@ function person_name($first, $last) {
 
                         <section class="panel">
                             <h2>Respondents</h2>
-                            <div class="list">
+                            <div class="respondent-details-list">
                                 <?php foreach ($respondents as $respondent): ?>
                                 <?php $rtype = $respondent['respondent_type'] ?? 'Student'; ?>
-                                <div class="list-item">
-                                    <strong><?= h($respondent['full_name']) ?>
-                                        <span class="muted">(<?= h($rtype) ?>)</span></strong>
+                                <div class="respondent-details-card">
+                                    <div class="details-grid">
+                                    <div class="detail">
+                                        <div class="label">Full Name</div>
+                                        <div class="value"><strong><?= h($respondent['full_name']) ?></strong></div>
+                                    </div>
+                                    <div class="detail">
+                                        <div class="label">Respondent Type</div>
+                                        <div class="value"><?= h($rtype) ?></div>
+                                    </div>
                                     <?php if (!empty($respondent['gender'])): ?>
-                                        <div class="muted">Gender: <?= h($respondent['gender']) ?></div>
+                                    <div class="detail"><div class="label">Gender</div><div class="value"><?= h($respondent['gender']) ?></div></div>
                                     <?php endif; ?>
                                     <?php if (!empty($respondent['age'])): ?>
-                                        <div class="muted">Age: <?= h($respondent['age']) ?></div>
+                                    <div class="detail"><div class="label">Age</div><div class="value"><?= h($respondent['age']) ?></div></div>
                                     <?php endif; ?>
                                     <?php if (!empty($respondent['birthday'])): ?>
-                                        <div class="muted">Birthday: <?= h($respondent['birthday']) ?></div>
+                                    <div class="detail"><div class="label">Birthday</div><div class="value"><?= h($respondent['birthday']) ?></div></div>
                                     <?php endif; ?>
                                     <?php if ($rtype === 'Student'): ?>
                                         <?php if (!empty($respondent['student_no'])): ?>
-                                            <div class="muted">Student Number: <?= h($respondent['student_no']) ?></div>
+                                        <div class="detail"><div class="label">Student Number</div><div class="value"><?= h($respondent['student_no']) ?></div></div>
                                         <?php endif; ?>
                                         <?php if (!empty($respondent['college'])): ?>
-                                            <div class="muted">College: <?= h($respondent['college']) ?></div>
+                                        <div class="detail"><div class="label">College</div><div class="value"><?= h($respondent['college']) ?></div></div>
                                         <?php endif; ?>
                                         <?php if (!empty($respondent['course_year'])): ?>
-                                            <div class="muted">Course and Section: <?= h($respondent['course_year']) ?></div>
+                                        <div class="detail"><div class="label">Course and Section</div><div class="value"><?= h($respondent['course_year']) ?></div></div>
                                         <?php endif; ?>
                                     <?php elseif ($rtype === 'Employee'): ?>
                                         <?php if (!empty($respondent['employee_no'])): ?>
-                                            <div class="muted">Employee Number: <?= h($respondent['employee_no']) ?></div>
+                                        <div class="detail"><div class="label">Employee Number</div><div class="value"><?= h($respondent['employee_no']) ?></div></div>
                                         <?php endif; ?>
                                         <?php if (!empty($respondent['position'])): ?>
-                                            <div class="muted">Position: <?= h($respondent['position']) ?></div>
+                                        <div class="detail"><div class="label">Position</div><div class="value"><?= h($respondent['position']) ?></div></div>
                                         <?php endif; ?>
                                         <?php if (!empty($respondent['office_department'])): ?>
-                                            <div class="muted">College/Office/Department: <?= h($respondent['office_department']) ?></div>
+                                        <div class="detail"><div class="label">College / Office / Department</div><div class="value"><?= h($respondent['office_department']) ?></div></div>
                                         <?php endif; ?>
                                     <?php elseif ($rtype === 'Other'): ?>
                                         <?php if (!empty($respondent['affiliation'])): ?>
-                                            <div class="muted">Affiliation/Organization: <?= h($respondent['affiliation']) ?></div>
+                                        <div class="detail"><div class="label">Affiliation / Organization</div><div class="value"><?= h($respondent['affiliation']) ?></div></div>
                                         <?php endif; ?>
                                     <?php endif; ?>
                                     <?php if (!empty($respondent['contact_info'])): ?>
-                                        <div class="muted">Contact Number: <?= h($respondent['contact_info']) ?></div>
+                                    <div class="detail"><div class="label">Contact Number</div><div class="value"><?= h($respondent['contact_info']) ?></div></div>
                                     <?php endif; ?>
                                     <?php if (!empty($respondent['email'])): ?>
-                                        <div class="muted">Email: <?= h($respondent['email']) ?></div>
+                                    <div class="detail"><div class="label">Email</div><div class="value"><?= h($respondent['email']) ?></div></div>
                                     <?php endif; ?>
                                     <?php if (!empty($respondent['address'])): ?>
-                                        <div class="muted">Address: <?= h($respondent['address']) ?></div>
+                                    <div class="detail"><div class="label">Address</div><div class="value"><?= h($respondent['address']) ?></div></div>
                                     <?php endif; ?>
                                     <?php if (!empty($respondent['details'])): ?>
-                                        <div class="value"><?= h($respondent['details']) ?></div>
+                                    <div class="detail full"><div class="label">Details</div><div class="value"><?= nl2br(h($respondent['details'])) ?></div></div>
                                     <?php endif; ?>
+                                    </div>
                                 </div>
                                 <?php endforeach; ?>
                             </div>
@@ -1263,7 +1439,7 @@ function person_name($first, $last) {
 
                         <?php
                         $outcomeText = trim((string) ($case['outcome'] ?? ''));
-                        if ($outcomeText !== '' && in_array($caseStatus, ['Resolved', 'Archived'], true)):
+                        if ($outcomeText !== '' && in_array($caseStatus, ['Resolved', 'Reformation in Progress', 'Reformation Completed', 'Archived'], true)):
                             $resolutionMeta = null;
                             foreach ($history as $historyItem) {
                                 if (($historyItem['new_status'] ?? '') === 'Resolved') {
@@ -1284,10 +1460,75 @@ function person_name($first, $last) {
                             <div class="case-outcome-text"><?= nl2br(h($outcomeText)) ?></div>
                         </section>
                         <?php endif; ?>
+
+                        <?php if (!empty($reformationRecords)): ?>
+                        <section class="panel">
+                            <h2><i class="bi bi-journal-text"></i> Reformation Activities</h2>
+                            <?php foreach ($reformationRecords as $record): ?>
+                            <div class="reformation-entry">
+                                <strong><?= h(($record['progress_status'] ?? '') === 'Ongoing' ? 'On Going' : ($record['progress_status'] ?: 'Progress Update')) ?></strong>
+                                <span class="muted">&middot; <?= h(date('M d, Y', strtotime($record['progress_date'] ?: $record['created_at']))) ?> &middot; <?= h(person_name($record['coordinator_first_name'], $record['coordinator_last_name'])) ?></span>
+                                <div class="value"><?= nl2br(h($record['remarks'] ?: $record['activity'])) ?></div>
+                                <?php foreach (ReformationRecord::attachments((int) $record['reformation_record_id']) as $attachment): ?>
+                                <div class="update-attachments">
+                                    <a class="btn btn-secondary" target="_blank" href="../complaints/attachment.php?id=<?= (int) $attachment['evidence_id'] ?>&amp;mode=view"><i class="bi bi-paperclip"></i> <?= h($attachment['original_filename']) ?></a>
+                                </div>
+                                <?php endforeach; ?>
+                            </div>
+                            <?php endforeach; ?>
+                        </section>
+                        <?php endif; ?>
                     </div>
 
                     <aside>
-                        <?php $caseStatus = $case['status'] ?? ''; $caseLocked = in_array($caseStatus, ['Resolved', 'Escalated', 'Archived'], true); ?>
+                        <?php $caseStatus = $case['status'] ?? ''; $caseLocked = in_array($caseStatus, ['Resolved', 'Reformation in Progress', 'Reformation Completed', 'Escalated', 'Archived'], true); ?>
+                        <?php if (!in_array($viewerRoleKey, ['sdr-staff', 'sdru-staff'], true)): ?>
+                        <?php if ($isReformationCoordinator): ?>
+                        <section class="panel">
+                            <h2><i class="bi bi-arrow-repeat"></i> Reformation Panel</h2>
+                            <?php if (!$canManageCase): ?>
+                            <p class="muted" style="margin-bottom:10px"><i class="bi bi-lock-fill"></i> This case is
+                                not assigned to you for reformation. You can still view all case details.
+                            </p>
+                            <?php else: ?>
+                            <div class="case-action-group">
+                                    <h3 class="case-action-label">Reformation Work</h3>
+                                <button type="button" class="btn btn-assign" id="openReformationActivityModal"
+                                    <?= in_array($caseStatus, ['Resolved', 'Reformation in Progress'], true) ? '' : 'disabled title="Reformation begins once the case is resolved."' ?>><i class="bi bi-journal-text"></i> Add Progress Update</button>
+                            </div>
+
+                            <div class="case-action-group">
+                                <h3 class="case-action-label">Completion</h3>
+                                <?php if (!empty($case['reformation_completed_at'])): ?>
+                                <p class="muted" style="margin-bottom:0"><i class="bi bi-check2-circle" style="color:#157000"></i> Reformation completed on <?= h(date('M d, Y', strtotime($case['reformation_completed_at']))) ?>.</p>
+                                <?php else: ?>
+                                <form class="action-form" method="POST"
+                                    action="show.php?id=<?= (int) $case['complaint_id'] ?>">
+                                    <?= Security::csrfField() ?>
+                                    <button class="btn btn-resolve" type="submit" name="case_action" value="reformation_completed"
+                                        <?= $caseStatus === 'Reformation in Progress' ? 'data-swal-confirm="Mark this case reformation as completed?"' : 'disabled title="Reformation begins once the case is in progress."' ?>><i class="bi bi-check-lg"></i> Mark Reformation Completed</button>
+                                </form>
+                                <?php endif; ?>
+                            </div>
+
+                            <?php if (!empty($reformationReports)): ?>
+                            <div class="case-action-group">
+                                <h3 class="case-action-label">Uploaded Reports</h3>
+                                <?php foreach ($reformationReports as $report): ?>
+                                <div class="reformation-entry">
+                                    <strong><i class="bi bi-file-earmark-pdf"></i> <?= h($report['report_title']) ?></strong>
+                                    <div class="muted"><?= h($report['original_filename']) ?> &middot; <?= h(date('M d, Y', strtotime($report['created_at']))) ?></div>
+                                    <div class="button-row" style="margin-top:6px">
+                                        <a class="btn btn-secondary" href="reformation_report.php?id=<?= (int) $report['report_id'] ?>&amp;mode=view"><i class="bi bi-eye"></i> View</a>
+                                        <a class="btn btn-secondary" href="reformation_report.php?id=<?= (int) $report['report_id'] ?>&amp;mode=download"><i class="bi bi-download"></i> Download</a>
+                                    </div>
+                                </div>
+                                <?php endforeach; ?>
+                            </div>
+                            <?php endif; ?>
+                            <?php endif; ?>
+                        </section>
+                        <?php else: ?>
                         <section class="panel">
                             <h2>Case Actions</h2>
                             <?php if (!$canManageCase): ?>
@@ -1338,8 +1579,17 @@ function person_name($first, $last) {
 
                             <div class="case-action-group">
                                 <h3 class="case-action-label">Case Workflow</h3>
+                                <?php if ($viewerRoleKey !== 'coordinator'): ?>
                                 <button type="button" class="btn btn-assign" id="openAssignModal"
-                                    <?= $caseLocked ? 'disabled title="This case is closed."' : '' ?>><i class="bi bi-person-plus"></i> Assign Coordinator</button>
+                                    <?= $caseLocked ? 'disabled title="This case is closed."' : '' ?>><i class="bi bi-person-plus"></i> Assign to Discipline Coordinator</button>
+                                <?php if ($isHeadViewer): ?>
+                                <?php if (in_array($caseStatus, ['Resolved', 'Reformation in Progress', 'Reformation Completed'], true)): ?>
+                                <button type="button" class="btn btn-assign" id="openAssignReformationModal"><i class="bi bi-arrow-repeat"></i> Assign to Reformation Coordinator</button>
+                                <?php else: ?>
+                                <button type="button" class="btn btn-assign" disabled title="A case must be resolved first."><i class="bi bi-arrow-repeat"></i> Assign to Reformation Coordinator</button>
+                                <?php endif; ?>
+                                <?php endif; ?>
+                                <?php endif; ?>
                                 <button type="button" class="btn btn-assign" id="openUpdateModal"
                                     <?= in_array($caseStatus, ['Escalated', 'Archived'], true) ? 'disabled title="This case is ' . ($caseStatus === 'Escalated' ? 'escalated' : 'archived') . ' and can no longer be updated."' : '' ?>><i class="bi bi-plus-circle"></i> Add Case Update</button>
                             </div>
@@ -1360,7 +1610,7 @@ function person_name($first, $last) {
                                                 data-swal-confirm="Unarchive this case? Its previous status will be restored.">Unarchive Case</button>
                                         <?php else: ?>
                                             <button class="btn btn-archive" type="submit" name="case_action" value="archive"
-                                                <?= in_array($caseStatus, ['Resolved', 'Escalated'], true) ? 'data-swal-confirm="Archive this case? It will be moved to Archived Cases."' : 'disabled title="Available once the case is Resolved or Escalated."' ?>>Archive Case</button>
+                                                <?= in_array($caseStatus, ['Resolved', 'Reformation in Progress', 'Reformation Completed', 'Escalated'], true) ? 'data-swal-confirm="Archive this case? It will be moved to Archived Cases."' : 'disabled title="Available once the case is Resolved or Escalated."' ?>>Archive Case</button>
                                         <?php endif; ?>
                                     </div>
                                 </form>
@@ -1374,6 +1624,8 @@ function person_name($first, $last) {
                             </div>
                             <?php endif; ?>
                         </section>
+                        <?php endif; ?>
+                        <?php endif; ?>
 
                         <section class="panel">
                             <h2>Timeline</h2>
@@ -1445,8 +1697,8 @@ function person_name($first, $last) {
         <div class="case-modal" role="dialog" aria-modal="true" aria-labelledby="assignModalTitle">
             <div class="case-modal-header">
                 <div>
-                    <h3 id="assignModalTitle"><i class="bi bi-person-plus"></i> Assign Coordinator</h3>
-                    <p>Assign a coordinator to handle this case.</p>
+                    <h3 id="assignModalTitle"><i class="bi bi-person-plus"></i> Assign to Discipline Coordinator</h3>
+                    <p>Assign a discipline coordinator to handle this case.</p>
                 </div>
                 <button class="case-modal-close" type="button" data-close-modal aria-label="Close">&times;</button>
             </div>
@@ -1454,9 +1706,9 @@ function person_name($first, $last) {
                 action="show.php?id=<?= (int) $case['complaint_id'] ?>">
                 <?= Security::csrfField() ?>
                 <div class="case-modal-body">
-                    <label class="case-modal-label" for="coordinatorSelect">Coordinator</label>
+                    <label class="case-modal-label" for="coordinatorSelect">Discipline Coordinator</label>
                     <select id="coordinatorSelect" name="coordinator_account_id" required>
-                        <option value="">Select coordinator</option>
+                        <option value="">Select discipline coordinator</option>
                         <?php foreach ($coordinators as $coordinator): ?>
                         <option value="<?= (int) $coordinator['account_id'] ?>"
                             <?= ((int) $case['assigned_coordinator_account_id'] === (int) $coordinator['account_id']) ? 'selected' : '' ?>>
@@ -1471,7 +1723,74 @@ function person_name($first, $last) {
                 <div class="case-modal-actions">
                     <button type="button" class="btn btn-secondary" data-close-modal>Cancel</button>
                     <button class="btn btn-assign" type="submit" name="case_action"
-                        value="assign" data-swal-confirm="Assign this coordinator to the case?">Assign Coordinator</button>
+                        value="assign" data-swal-confirm="Assign this discipline coordinator to the case?">Assign to Discipline Coordinator</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="case-modal-overlay" id="assignReformationModalOverlay">
+        <div class="case-modal" role="dialog" aria-modal="true" aria-labelledby="assignReformationModalTitle">
+            <div class="case-modal-header">
+                <div>
+                    <h3 id="assignReformationModalTitle"><i class="bi bi-arrow-repeat"></i> Assign to Reformation Coordinator</h3>
+                    <p>Assign this resolved case for reformation work.</p>
+                </div>
+                <button class="case-modal-close" type="button" data-close-modal aria-label="Close">&times;</button>
+            </div>
+            <form class="action-form" method="POST" action="show.php?id=<?= (int) $case['complaint_id'] ?>">
+                <?= Security::csrfField() ?>
+                <div class="case-modal-body">
+                    <label class="case-modal-label" for="reformationCoordinatorSelect">Reformation Coordinator</label>
+                    <select id="reformationCoordinatorSelect" name="reformation_coordinator_account_id" required>
+                        <option value="">Select reformation coordinator</option>
+                        <?php foreach ($reformationCoordinators as $coordinator): ?>
+                        <option value="<?= (int) $coordinator['account_id'] ?>" <?= ((int) ($case['assigned_reformation_coordinator_account_id'] ?? 0) === (int) $coordinator['account_id']) ? 'selected' : '' ?>>
+                            <?= h(trim($coordinator['first_name'] . ' ' . $coordinator['last_name'])) ?>
+                        </option>
+                        <?php endforeach; ?>
+                    </select>
+                    <label class="case-modal-label" for="reformationAssignRemarks">Assignment remarks</label>
+                    <textarea id="reformationAssignRemarks" name="remarks" placeholder="Assignment remarks"></textarea>
+                </div>
+                <div class="case-modal-actions">
+                    <button type="button" class="btn btn-secondary" data-close-modal>Cancel</button>
+                    <button class="btn btn-assign" type="submit" name="case_action" value="assign_reformation" data-swal-confirm="Assign this reformation coordinator to the case?">Assign to Reformation Coordinator</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="case-modal-overlay" id="reformationActivityModalOverlay">
+        <div class="case-modal" role="dialog" aria-modal="true" aria-labelledby="reformationActivityModalTitle">
+            <div class="case-modal-header">
+                <div>
+                    <h3 id="reformationActivityModalTitle"><i class="bi bi-journal-text"></i> Add Progress Update</h3>
+                    <p>Record the latest reformation progress for this case.</p>
+                </div>
+                <button class="case-modal-close" type="button" data-close-modal aria-label="Close">&times;</button>
+            </div>
+            <form class="action-form" method="POST" action="show.php?id=<?= (int) $case['complaint_id'] ?>" enctype="multipart/form-data">
+                <?= Security::csrfField() ?>
+                <div class="case-modal-body">
+                    <label class="case-modal-label" for="progressDate">Date</label>
+                    <input id="progressDate" type="date" value="<?= h(date('Y-m-d')) ?>" readonly>
+                    <label class="case-modal-label" for="progressStatus">Progress Status</label>
+                    <select id="progressStatus" name="progress_status" required>
+                        <option value="">Select progress status</option>
+                        <option value="Ongoing">Ongoing</option>
+                        <option value="Completed">Completed</option>
+                        <option value="Needs Improvement">Needs Improvement</option>
+                        <option value="For Follow-up">For Follow-up</option>
+                    </select>
+                    <label class="case-modal-label" for="progressRemarks">Remarks / Progress Notes</label>
+                    <textarea id="progressRemarks" name="remarks" required placeholder="Enter observations and progress notes."></textarea>
+                    <label class="case-modal-label" for="progressAttachments">Attachments (optional, max 5MB per file: PDF, JPG, PNG, DOCX)</label>
+                    <input id="progressAttachments" type="file" name="progress_attachments[]" multiple accept=".pdf,.jpg,.jpeg,.png,.docx">
+                </div>
+                <div class="case-modal-actions">
+                    <button type="button" class="btn btn-secondary" data-close-modal>Cancel</button>
+                    <button class="btn btn-assign" type="submit" name="case_action" value="reformation_activity">Submit Update</button>
                 </div>
             </form>
         </div>
@@ -1497,9 +1816,40 @@ function person_name($first, $last) {
                         <option value="<?= h($value) ?>"><?= h($label) ?></option>
                         <?php endforeach; ?>
                     </select>
+                    <div id="respondentUpdateFields" hidden>
+                    <?php if (!empty($respondents)): ?>
+                    <label class="case-modal-label" for="respondentId">Respondent</label>
+                    <select id="respondentId" name="respondent_id">
+                        <option value="">Select respondent</option>
+                        <?php foreach ($respondents as $respondent): ?>
+                        <option value="<?= (int) $respondent['respondent_id'] ?>"><?= h($respondent['full_name']) ?> (<?= h($respondent['respondent_type']) ?>)</option>
+                        <?php endforeach; ?>
+                    </select>
+                    <?php endif; ?>
+                    <div class="case-update-respondent-grid">
+                        <select name="respondent_type"><option value="">Respondent Type</option><option>Student</option><option>Employee</option><option>Private Individual</option><option>Other</option></select>
+                        <input name="respondent_name" placeholder="Full Name">
+                        <input name="respondent_age" type="number" min="1" max="120" placeholder="Age">
+                        <select name="respondent_gender"><option value="">Gender</option><option>Male</option><option>Female</option></select>
+                        <div class="update-respondent-field" data-update-respondent-types="Student"><input name="respondent_student_no" placeholder="Student Number"></div>
+                        <div class="update-respondent-field" data-update-respondent-types="Employee"><input name="respondent_employee_no" placeholder="Employee Number"></div>
+                        <div class="update-respondent-field" data-update-respondent-types="Student"><input name="respondent_college" placeholder="College"></div>
+                        <div class="update-respondent-field" data-update-respondent-types="Student"><input name="respondent_course" placeholder="Course / Program"></div>
+                        <div class="update-respondent-field" data-update-respondent-types="Student"><input name="respondent_section" placeholder="Section"></div>
+                        <div class="update-respondent-field" data-update-respondent-types="Employee"><input name="respondent_position" placeholder="Position"></div>
+                        <div class="update-respondent-field" data-update-respondent-types="Employee"><input name="respondent_department" placeholder="College / Office / Department"></div>
+                        <div class="update-respondent-field" data-update-respondent-types="Other"><input name="respondent_affiliation" placeholder="Affiliation / Organization"></div>
+                        <input name="respondent_contact" placeholder="Contact Number">
+                        <input name="respondent_email" type="email" placeholder="Email">
+                        <input name="respondent_address" placeholder="Address">
+                        <input name="respondent_details" placeholder="Other Details">
+                    </div>
+                    </div>
+                    <div id="standardCaseUpdateFields">
                     <label class="case-modal-label" for="caseUpdateDetails">Details / Remarks</label>
                     <textarea id="caseUpdateDetails" name="details" required
                         placeholder="Enter additional details, evidence notes, clarifications, investigation remarks, or administrative information for this case."></textarea>
+                    </div>
                     <label class="case-modal-label" for="caseUpdateAttachments">Attach Evidence (optional, max 5MB
                         per file: PDF, JPG, PNG, DOCX)</label>
                     <input id="caseUpdateAttachments" type="file" name="attachments[]" multiple
@@ -1508,7 +1858,7 @@ function person_name($first, $last) {
                 <div class="case-modal-actions">
                     <button type="button" class="btn btn-secondary" data-close-modal>Cancel</button>
                     <button class="btn btn-assign" type="submit" name="case_action" value="case_update"
-                        data-swal-confirm="Add this case update? The original complaint and the case status will remain unchanged.">Add Case Update</button>
+                        id="submitCaseUpdate" data-swal-confirm="Add this case update? The original complaint and the case status will remain unchanged."><i class="bi bi-plus-circle"></i> <span id="submitCaseUpdateLabel">Add Case Update</span></button>
                 </div>
             </form>
         </div>
@@ -1523,6 +1873,48 @@ function person_name($first, $last) {
 
     (() => {
         const archivedUrl = <?= json_encode(app_route('archived_cases.index')) ?>;
+
+        const updateType = document.getElementById('caseUpdateType');
+        const respondentFields = document.getElementById('respondentUpdateFields');
+        const standardFields = document.getElementById('standardCaseUpdateFields');
+        const respondentId = document.getElementById('respondentId');
+        const respondentType = document.querySelector('[name="respondent_type"]');
+        const detailsField = document.getElementById('caseUpdateDetails');
+        const syncRespondentTypeFields = () => {
+            const selectedType = respondentType?.value || '';
+            document.querySelectorAll('[data-update-respondent-types]').forEach(field => {
+                const allowedTypes = field.dataset.updateRespondentTypes.split(',');
+                field.hidden = !allowedTypes.includes(selectedType);
+                const input = field.querySelector('input');
+                if (input && field.hidden) input.value = '';
+            });
+        };
+        respondentType?.addEventListener('change', syncRespondentTypeFields);
+        syncRespondentTypeFields();
+        const syncUpdateFields = () => {
+            const isRespondentUpdate = updateType?.value === 'additional_details';
+            if (respondentFields) respondentFields.hidden = !isRespondentUpdate;
+            if (standardFields) standardFields.hidden = isRespondentUpdate;
+            if (respondentId) respondentId.required = isRespondentUpdate;
+            if (detailsField) detailsField.required = !isRespondentUpdate;
+            const submitButton = document.getElementById('submitCaseUpdate');
+            const submitLabel = document.getElementById('submitCaseUpdateLabel');
+            if (submitButton && submitLabel) {
+                submitLabel.textContent = isRespondentUpdate ? 'Submit Respondent Details' : 'Add Case Update';
+                submitButton.dataset.swalConfirm = isRespondentUpdate
+                    ? 'Submit these respondent details for head approval?'
+                    : 'Add this case update? The original complaint and the case status will remain unchanged.';
+            }
+        };
+        updateType?.addEventListener('change', syncUpdateFields);
+        syncUpdateFields();
+
+        document.querySelectorAll('[data-approval-decision]').forEach(button => {
+            button.addEventListener('click', () => {
+                const field = button.form?.querySelector('[name="approval_decision"]');
+                if (field) field.value = button.dataset.approvalDecision;
+            });
+        });
 
         document.addEventListener('click', event => {
             const button = event.target.closest('[data-swal-confirm]');
@@ -1655,6 +2047,8 @@ function person_name($first, $last) {
 
         bindModal('openReturnModal', 'returnModalOverlay');
         bindModal('openAssignModal', 'assignModalOverlay');
+        bindModal('openAssignReformationModal', 'assignReformationModalOverlay');
+        bindModal('openReformationActivityModal', 'reformationActivityModalOverlay');
         bindModal('openUpdateModal', 'updateModalOverlay');
 
         const caseClassification = document.getElementById('caseClassification');

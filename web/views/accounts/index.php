@@ -26,6 +26,12 @@ function h($value) {
 function selected($left, $right) {
     return (string) $left === (string) $right ? 'selected' : '';
 }
+
+function account_role_label($role) {
+    $labels = ['coordinator' => 'Discipline Coordinator', 'reformation-coordinator' => 'Reformation Coordinator'];
+    $key = strtolower(str_replace(['_', ' '], '-', (string) $role));
+    return $labels[$key] ?? ucwords(str_replace(['-', '_'], ' ', (string) $role));
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -112,7 +118,7 @@ function selected($left, $right) {
                                     </div>
                                 </td>
                                 <td><?= h($account['email']) ?></td>
-                                <td><span class="role-badge"><?= h(ucwords(str_replace(['-', '_'], ' ', $account['role']))) ?></span></td>
+                                <td><span class="role-badge"><?= h(account_role_label($account['role'])) ?></span></td>
                                 <td><span class="status"><?= h($account['status']) ?></span></td>
                                 <td><?= h(date('M d, Y', strtotime($account['created_at']))) ?></td>
                                 <td>
@@ -162,7 +168,7 @@ function selected($left, $right) {
                                     </div>
                                 </td>
                                 <td><?= h($account['email']) ?></td>
-                                <td><span class="role-badge"><?= h(ucwords(str_replace(['-', '_'], ' ', $account['role']))) ?></span></td>
+                                <td><span class="role-badge"><?= h(account_role_label($account['role'])) ?></span></td>
                                 <td><span class="status"><?= h($account['status']) ?></span></td>
                                 <td><?= h(date('M d, Y', strtotime($account['created_at']))) ?></td>
                             </tr>
@@ -180,7 +186,7 @@ function selected($left, $right) {
             <div class="account-modal-header">
                 <div>
                     <h3 id="createAccountTitle">New Account</h3>
-                    <p>SDRU staff and coordinator access</p>
+                    <p>SDRU staff, discipline coordinator, and reformation coordinator access</p>
                 </div>
                 <button class="account-modal-close" id="closeCreateAccount" type="button" aria-label="Close">&times;</button>
             </div>

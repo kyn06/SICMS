@@ -13,6 +13,8 @@ class CaseRecord extends Model {
             'Returned for Revision',
             'Rejected',
             'Resolved',
+            'Reformation in Progress',
+            'Reformation Completed',
             'Escalated',
             'Archived',
         ];
@@ -22,10 +24,13 @@ class CaseRecord extends Model {
         $sql = "SELECT c.*, a.first_name AS submitted_by_first_name, a.last_name AS submitted_by_last_name,
                        coordinator.first_name AS coordinator_first_name,
                        coordinator.last_name AS coordinator_last_name,
+                       reformation_coordinator.first_name AS reformation_coordinator_first_name,
+                       reformation_coordinator.last_name AS reformation_coordinator_last_name,
                        (SELECT GROUP_CONCAT(r.full_name ORDER BY r.respondent_id SEPARATOR ', ') FROM complaint_respondents r WHERE r.complaint_id = c.complaint_id) AS respondent_names
                 FROM complaints c
                 LEFT JOIN accounts a ON c.submitted_by_account_id = a.account_id
                 LEFT JOIN accounts coordinator ON c.assigned_coordinator_account_id = coordinator.account_id
+                LEFT JOIN accounts reformation_coordinator ON c.assigned_reformation_coordinator_account_id = reformation_coordinator.account_id
                 WHERE 1 = 1";
         $params = [];
         $types = '';
@@ -92,6 +97,12 @@ class CaseRecord extends Model {
         if (!empty($filters['assigned_coordinator_account_id'])) {
             $sql .= " AND c.assigned_coordinator_account_id = ?";
             $params[] = (int) $filters['assigned_coordinator_account_id'];
+            $types .= 'i';
+        }
+
+        if (!empty($filters['assigned_reformation_coordinator_account_id'])) {
+            $sql .= " AND c.assigned_reformation_coordinator_account_id = ?";
+            $params[] = (int) $filters['assigned_reformation_coordinator_account_id'];
             $types .= 'i';
         }
 
@@ -182,10 +193,13 @@ class CaseRecord extends Model {
     public static function findCase($complaintId) {
         $sql = "SELECT c.*, a.first_name AS submitted_by_first_name, a.last_name AS submitted_by_last_name,
                        coordinator.first_name AS coordinator_first_name,
-                       coordinator.last_name AS coordinator_last_name
+                       coordinator.last_name AS coordinator_last_name,
+                       reformation_coordinator.first_name AS reformation_coordinator_first_name,
+                       reformation_coordinator.last_name AS reformation_coordinator_last_name
                 FROM complaints c
                 LEFT JOIN accounts a ON c.submitted_by_account_id = a.account_id
                 LEFT JOIN accounts coordinator ON c.assigned_coordinator_account_id = coordinator.account_id
+                LEFT JOIN accounts reformation_coordinator ON c.assigned_reformation_coordinator_account_id = reformation_coordinator.account_id
                 WHERE c.complaint_id = ?
                 LIMIT 1";
         $stmt = self::$conn->prepare($sql);
@@ -200,6 +214,55 @@ class CaseRecord extends Model {
         return self::fetchRelated("SELECT * FROM complaint_respondents WHERE complaint_id = ? ORDER BY respondent_id", $complaintId);
     }
 
+    public static function createRespondent($complaintId, array $data) {
+        $stmt = self::$conn->prepare(
+                "INSERT INTO complaint_respondents
+                    (complaint_id, respondent_type, full_name, gender, student_no, employee_no, college, office_department, course_year, position, affiliation, contact_info, details, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        );
+        if (!$stmt) throw new Exception('Unable to prepare respondent creation.');
+
+        $createdAt = date('Y-m-d H:i:s');
+        $stmt->bind_param(
+            'isssssssssssss',
+            $complaintId,
+            $data['respondent_type'],
+            $data['full_name'],
+            $data['gender'],
+            $data['student_no'],
+            $data['employee_no'],
+            $data['college'],
+            $data['office_department'],
+            $data['course_year'],
+            $data['position'],
+            $data['affiliation'],
+            $data['contact_info'],
+            $data['details'],
+            $createdAt
+        );
+        if (!$stmt->execute()) throw new Exception('Unable to create respondent.');
+        return (int) $stmt->insert_id;
+    }
+
+    public static function updateRespondent($respondentId, $complaintId, array $data) {
+        $allowed = ['respondent_type', 'full_name', 'gender', 'student_no', 'employee_no', 'college', 'office_department', 'course_year', 'position', 'affiliation', 'contact_info', 'details'];
+        $changes = array_intersect_key($data, array_flip($allowed));
+        if (empty($changes)) return false;
+
+        $set = implode(', ', array_map(fn($key) => "$key = ?", array_keys($changes)));
+        $sql = "UPDATE complaint_respondents SET $set WHERE respondent_id = ? AND complaint_id = ?";
+        $stmt = self::$conn->prepare($sql);
+        if (!$stmt) throw new Exception('Unable to prepare respondent update.');
+
+        $values = array_values($changes);
+        $types = str_repeat('s', count($values)) . 'ii';
+        $values[] = (int) $respondentId;
+        $values[] = (int) $complaintId;
+        $stmt->bind_param($types, ...$values);
+        if (!$stmt->execute()) throw new Exception('Unable to save respondent details.');
+        return $stmt->affected_rows > 0;
+    }
+
     public static function getWitnesses($complaintId) {
         return self::fetchRelated("SELECT * FROM complaint_witnesses WHERE complaint_id = ? ORDER BY witness_id", $complaintId);
     }
@@ -209,7 +272,8 @@ class CaseRecord extends Model {
     }
 
     public static function findEvidence($evidenceId) {
-        $sql = "SELECT e.*, c.submitted_by_account_id, c.assigned_coordinator_account_id, c.case_number, c.case_source
+        $sql = "SELECT e.*, c.submitted_by_account_id, c.assigned_coordinator_account_id,
+                       c.assigned_reformation_coordinator_account_id, c.case_number, c.case_source
                 FROM complaint_evidence e
                 INNER JOIN complaints c ON c.complaint_id = e.complaint_id
                 WHERE e.evidence_id = ? LIMIT 1";
@@ -220,21 +284,26 @@ class CaseRecord extends Model {
     public static function getHistory($complaintId) {
         $sql = "SELECT h.*, actor.first_name AS actor_first_name, actor.last_name AS actor_last_name,
                        coordinator.first_name AS coordinator_first_name,
-                       coordinator.last_name AS coordinator_last_name
+                       coordinator.last_name AS coordinator_last_name,
+                       reformation_coordinator.first_name AS reformation_coordinator_first_name,
+                       reformation_coordinator.last_name AS reformation_coordinator_last_name
                 FROM case_history h
                 LEFT JOIN accounts actor ON h.created_by_account_id = actor.account_id
                 LEFT JOIN accounts coordinator ON h.assigned_coordinator_account_id = coordinator.account_id
+                LEFT JOIN accounts reformation_coordinator ON h.reformation_coordinator_account_id = reformation_coordinator.account_id
                 WHERE h.complaint_id = ?
                 ORDER BY h.created_at DESC, h.history_id DESC";
         return self::fetchRelated($sql, $complaintId);
     }
 
-    public static function getCoordinators() {
+    public static function getCoordinators($role = 'coordinator') {
+        $normalized = strtolower(str_replace(['_', ' '], '-', (string) $role));
         $sql = "SELECT account_id, first_name, last_name, role
                 FROM accounts
-                WHERE status = 'active' AND LOWER(REPLACE(REPLACE(role, '_', '-'), ' ', '-')) = 'coordinator'
+                WHERE status = 'active' AND LOWER(REPLACE(REPLACE(role, '_', '-'), ' ', '-')) = ?
                 ORDER BY first_name, last_name";
         $stmt = self::$conn->prepare($sql);
+        $stmt->bind_param('s', $normalized);
         $stmt->execute();
         $result = $stmt->get_result();
 
@@ -709,6 +778,100 @@ class CaseRecord extends Model {
         }
     }
 
+    public static function assignReformationCoordinator($complaintId, $coordinatorAccountId, $remarks, $actorAccountId) {
+        $case = self::findCase($complaintId);
+
+        if (!$case) {
+            return false;
+        }
+
+        self::$conn->begin_transaction();
+
+        try {
+            $now = date('Y-m-d H:i:s');
+            $stmt = self::$conn->prepare("UPDATE complaints SET status = 'Reformation in Progress', assigned_reformation_coordinator_account_id = ?, reformation_completed_at = NULL, updated_at = ? WHERE complaint_id = ?");
+            $stmt->bind_param("isi", $coordinatorAccountId, $now, $complaintId);
+            $stmt->execute();
+
+            self::createHistory([
+                'complaint_id' => $complaintId,
+                'action' => 'Assigned Reformation Coordinator',
+                'previous_status' => $case['status'],
+                'new_status' => 'Reformation in Progress',
+                'remarks' => $remarks,
+                'assigned_coordinator_account_id' => null,
+                'reformation_coordinator_account_id' => $coordinatorAccountId,
+                'created_by_account_id' => $actorAccountId,
+                'created_at' => $now,
+            ]);
+
+            Notification::createForUser(
+                (int) $coordinatorAccountId,
+                'reformation_assigned',
+                'Reformation Case Assigned',
+                'You were assigned as the reformation coordinator for case ' . $case['case_number'] . '.',
+                'web/views/cases/show.php?id=' . $complaintId
+            );
+
+            self::$conn->commit();
+            return true;
+        } catch (Throwable $exception) {
+            self::$conn->rollback();
+            throw $exception;
+        }
+    }
+
+    public static function markReformationCompleted($complaintId, $actorAccountId) {
+        $complaintId = (int) $complaintId;
+        $case = self::findCase($complaintId);
+
+        if (!$case) {
+            return false;
+        }
+
+        self::$conn->begin_transaction();
+
+        try {
+            $now = date('Y-m-d H:i:s');
+            $stmt = self::$conn->prepare("UPDATE complaints SET status = 'Reformation Completed', reformation_completed_at = ?, updated_at = ? WHERE complaint_id = ?");
+            $stmt->bind_param("ssi", $now, $now, $complaintId);
+            $stmt->execute();
+
+            self::createHistory([
+                'complaint_id' => $complaintId,
+                'action' => 'Reformation Completed',
+                'previous_status' => $case['status'],
+                'new_status' => 'Reformation Completed',
+                'remarks' => null,
+                'assigned_coordinator_account_id' => null,
+                'reformation_coordinator_account_id' => $case['assigned_reformation_coordinator_account_id'] ?? null,
+                'created_by_account_id' => $actorAccountId,
+                'created_at' => $now,
+            ]);
+
+            Notification::createForUser(
+                (int) $case['submitted_by_account_id'],
+                'reformation_completed',
+                'Reformation Completed',
+                'The reformation for case ' . $case['case_number'] . ' has been completed.',
+                'web/views/complaints/case_details.php?id=' . $complaintId
+            );
+
+            Notification::createForHeads(
+                'reformation_completed',
+                'Reformation Completed',
+                'The reformation for case ' . $case['case_number'] . ' has been completed.',
+                'web/views/cases/show.php?id=' . $complaintId
+            );
+
+            self::$conn->commit();
+            return true;
+        } catch (Throwable $exception) {
+            self::$conn->rollback();
+            throw $exception;
+        }
+    }
+
     public static function classifyCase($complaintId, $classification, $remarks, $actorAccountId) {
         $complaintId = (int) $complaintId;
         $case = self::findCase($complaintId);
@@ -789,6 +952,8 @@ class CaseRecord extends Model {
             'Returned for Revision' => 'Returned for Revision',
             'Rejected' => 'Rejected Complaint',
             'Resolved' => 'Resolved Case',
+            'Reformation in Progress' => 'Reformation in Progress',
+            'Reformation Completed' => 'Reformation Completed',
             'Escalated' => 'Escalated Case',
             'Archived' => 'Archived Case',
             'Unarchived' => 'Unarchived Case',
@@ -812,7 +977,7 @@ class CaseRecord extends Model {
         $historyRow = $stmt->get_result()->fetch_assoc();
 
         $previousStatus = $historyRow['previous_status'] ?? '';
-        if (!in_array($previousStatus, ['Resolved', 'Escalated'], true)) {
+        if (!in_array($previousStatus, ['Resolved', 'Reformation in Progress', 'Reformation Completed', 'Escalated'], true)) {
             $previousStatus = 'Resolved';
         }
 

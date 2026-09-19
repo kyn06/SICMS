@@ -335,9 +335,9 @@ function respondents_label(array $case) {
 
                             <div class="filter-group-title"><i class="bi bi-person-check"></i> Personnel</div>
                             <div class="field">
-                                <label for="coordinator">Coordinator</label>
+                                <label for="coordinator">Discipline Coordinator</label>
                                 <select id="coordinator" name="coordinator">
-                                    <option value="">All Coordinators</option>
+                                    <option value="">All Discipline Coordinators</option>
                                     <?php foreach ($coordinators as $coordinator): ?>
                                         <option value="<?= (int) $coordinator['account_id'] ?>" <?= (int) $filters['coordinator'] === (int) $coordinator['account_id'] ? 'selected' : '' ?>><?= h(trim($coordinator['first_name'] . ' ' . $coordinator['last_name'])) ?></option>
                                     <?php endforeach; ?>
@@ -353,10 +353,10 @@ function respondents_label(array $case) {
                 </form>
             </section>
 
-            <?php if ($viewerRoleKey === 'coordinator'): ?>
+            <?php if (in_array($viewerRoleKey, ['coordinator', 'reformation-coordinator'], true)): ?>
             <section class="table-panel">
                     <div class="table-heading table-heading-row">
-                        <h2><i class="bi bi-folder-check"></i> Assigned Cases</h2>
+                        <h2><i class="bi bi-folder-check"></i> <?= $viewerRoleKey === 'reformation-coordinator' ? 'My Reformation Cases' : 'Assigned Cases' ?></h2>
                     </div>
                     <div class="empty-state" id="assignedEmptyState" <?= empty($assignedCases) ? '' : 'hidden' ?>>No cases are assigned to you.</div>
                     <table id="assignedCaseTable" <?= empty($assignedCases) ? 'hidden' : '' ?>>
@@ -396,6 +396,7 @@ function respondents_label(array $case) {
             </section>
             <?php endif; ?>
 
+            <?php if (!in_array($viewerRoleKey, ['coordinator', 'reformation-coordinator'], true)): ?>
             <section class="table-panel">
                     <div class="table-heading table-heading-row">
                         <h2><i class="bi bi-globe2"></i> Online Cases</h2>
@@ -478,6 +479,7 @@ function respondents_label(array $case) {
                     </tbody>
                 </table>
             </section>
+            <?php endif; ?>
 
             <section class="table-panel">
                 <div class="table-heading" style="margin-bottom:2px">
@@ -555,6 +557,7 @@ function respondents_label(array $case) {
             };
 
             const renderCases = (cases) => {
+                if (!table || !tableBody || !emptyState) return;
                 tableBody.replaceChildren();
 
                 cases.forEach((item) => {
@@ -637,6 +640,7 @@ function respondents_label(array $case) {
             };
 
             const renderMigrated = (cases) => {
+                if (!migratedTable || !migratedBody || !migratedEmptyState) return;
                 migratedBody.replaceChildren();
 
                 cases.forEach((item) => {
@@ -700,18 +704,22 @@ function respondents_label(array $case) {
                     filterStatus.textContent = 'Cases updated.';
                 } catch (error) {
                     if (error.name !== 'AbortError') {
-                        table.hidden = true;
-                        emptyState.hidden = false;
-                        emptyState.textContent = 'Unable to filter cases. Please try again.';
+                        if (table) table.hidden = true;
+                        if (emptyState) {
+                            emptyState.hidden = false;
+                            emptyState.textContent = 'Unable to filter cases. Please try again.';
+                        }
                         filterStatus.textContent = 'Unable to filter cases. Please try again.';
                         if (assignedTable) assignedTable.hidden = true;
                         if (assignedEmptyState) {
                             assignedEmptyState.hidden = false;
                             assignedEmptyState.textContent = 'Unable to filter cases. Please try again.';
                         }
-                        migratedTable.hidden = true;
-                        migratedEmptyState.hidden = false;
-                        migratedEmptyState.textContent = 'Unable to filter cases. Please try again.';
+                        if (migratedTable) migratedTable.hidden = true;
+                        if (migratedEmptyState) {
+                            migratedEmptyState.hidden = false;
+                            migratedEmptyState.textContent = 'Unable to filter cases. Please try again.';
+                        }
                     }
                 } finally {
                     form.removeAttribute('aria-busy');

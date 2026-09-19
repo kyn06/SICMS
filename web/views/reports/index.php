@@ -618,7 +618,7 @@ function applied_filter_labels(array $filters, array $options) {
                 <div class="field">
                     <label for="coordinator">Coordinator</label>
                     <select id="coordinator" name="coordinator">
-                        <option value="">All Coordinators</option>
+                        <option value="">All Discipline Coordinators</option>
                         <?php foreach ($options['coordinators'] as $coordinator): ?>
                             <option value="<?= (int) $coordinator['account_id'] ?>" <?= selected($filters['coordinator'], $coordinator['account_id']) ?>>
                                 <?= h(trim($coordinator['first_name'] . ' ' . $coordinator['last_name'])) ?>

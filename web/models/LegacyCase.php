@@ -18,7 +18,7 @@ class LegacyCase extends Model {
     public const SOURCE_LEGACY = 'Legacy';
 
     // Roles that may VIEW the Legacy Cases module.
-    public const VIEW_ROLES = ['sdr-staff', 'sdru-staff', 'super-admin', 'admin', 'head-of-sdru', 'coordinator'];
+    public const VIEW_ROLES = ['sdr-staff', 'sdru-staff', 'super-admin', 'admin', 'head-of-sdru', 'coordinator', 'reformation-coordinator'];
 
     // Roles that may CREATE / EDIT / UPLOAD legacy cases (staff + SDRU head).
     public const EDIT_ROLES = ['sdr-staff', 'sdru-staff', 'head-of-sdru', 'sdru-head'];

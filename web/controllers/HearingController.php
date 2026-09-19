@@ -6,6 +6,7 @@ require_once __DIR__ . '/../models/Hearing.php';
 require_once __DIR__ . '/../models/Case.php';
 require_once __DIR__ . '/../models/Notification.php';
 require_once __DIR__ . '/../models/AuditLog.php';
+require_once __DIR__ . '/../models/CaseApproval.php';
 require_once __DIR__ . '/../helpers/Security.php';
 require_once __DIR__ . '/../services/GoogleCalendarService.php';
 
@@ -145,6 +146,7 @@ class HearingController {
         CaseRecord::setConnection($this->db);
         Notification::setConnection($this->db);
         AuditLog::setConnection($this->db);
+        CaseApproval::setConnection($this->db);
 
         $this->user = User::findByEmail($_SESSION['email']);
         $roleKey = strtolower(str_replace(['_', ' '], '-', $this->user['role'] ?? ''));
@@ -163,6 +165,18 @@ class HearingController {
             $_SESSION['hearing_errors'] = $errors;
             $_SESSION['hearing_old'] = $_POST;
             header('Location: create.php');
+            exit;
+        }
+
+        if ($this->roleKey() === 'coordinator') {
+            $complaintId = (int) $_POST['complaint_id'];
+            $case = CaseRecord::findCase($complaintId);
+            $payload = $_POST;
+            unset($payload['csrf_token']);
+            $approval = CaseApproval::createForCase($complaintId, $this->user['account_id'], 'hearing_schedule', 'Hearing Record', $payload);
+            Notification::createForHeads('case_action_approval_needed', 'Hearing Approval Needed', 'A coordinator submitted a hearing record for case ' . ($case['case_number'] ?? $complaintId) . ' and is waiting for your review.', 'web/views/cases/show.php?id=' . $complaintId . '&approval_id=' . (int) ($approval['approval_id'] ?? 0));
+            $_SESSION['hearing_message'] = 'Hearing request submitted for head approval. The schedule was not changed.';
+            header('Location: index.php');
             exit;
         }
 
@@ -233,6 +247,17 @@ class HearingController {
             exit;
         }
 
+        if ($this->roleKey() === 'coordinator') {
+            $hearing = Hearing::findHearing($hearingId);
+            $payload = array_merge($_POST, ['hearing_id' => $hearingId]);
+            unset($payload['csrf_token']);
+            $approval = CaseApproval::createForCase((int) $hearing['complaint_id'], $this->user['account_id'], 'hearing_update', 'Hearing Update', $payload);
+            Notification::createForHeads('case_action_approval_needed', 'Hearing Approval Needed', 'A coordinator submitted a hearing update for case ' . ($hearing['case_number'] ?? $hearing['complaint_id']) . ' and is waiting for your review.', 'web/views/cases/show.php?id=' . (int) $hearing['complaint_id'] . '&approval_id=' . (int) ($approval['approval_id'] ?? 0));
+            $_SESSION['hearing_message'] = 'Hearing update submitted for head approval. The schedule was not changed.';
+            header('Location: index.php');
+            exit;
+        }
+
         $hearing = Hearing::findHearing($hearingId);
         Hearing::updateHearing($hearingId, [
             'complaint_id' => (int) $_POST['complaint_id'],
@@ -285,6 +310,17 @@ class HearingController {
             exit;
         }
 
+        if ($this->roleKey() === 'coordinator') {
+            $approval = CaseApproval::createForCase((int) $hearing['complaint_id'], $this->user['account_id'], 'hearing_status', 'Hearing Record', [
+                'hearing_id' => $hearingId,
+                'hearing_action' => $action,
+            ]);
+            Notification::createForHeads('case_action_approval_needed', 'Hearing Approval Needed', 'A coordinator submitted a hearing status action for case ' . ($hearing['case_number'] ?? $hearing['complaint_id']) . ' and is waiting for your review.', 'web/views/cases/show.php?id=' . (int) $hearing['complaint_id'] . '&approval_id=' . (int) ($approval['approval_id'] ?? 0));
+            $_SESSION['hearing_message'] = 'Hearing action submitted for head approval. The hearing was not changed.';
+            header('Location: index.php');
+            exit;
+        }
+
         if ($action === 'cancel') {
             Hearing::updateStatus($hearingId, 'Cancelled');
             $this->notifyHearingStatus($hearing, 'Cancelled');
@@ -330,6 +366,10 @@ class HearingController {
         }
 
         return $errors;
+    }
+
+    private function roleKey() {
+        return strtolower(str_replace(['_', ' '], '-', $this->user['role'] ?? ''));
     }
 
     private function isStaffRole($roleKey) {

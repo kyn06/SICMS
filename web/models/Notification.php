@@ -7,7 +7,8 @@ class Notification extends Model {
     protected static $table = 'notifications';
     protected static $primaryKey = 'notification_id';
 
-    private static $staffRoles = ['super-admin', 'admin', 'sdr staff', 'sdr-staff', 'sdru-staff', 'coordinator', 'head-of-sdru', 'sdru-head', 'head of sdru'];
+    private static $staffRoles = ['super-admin', 'admin', 'sdr staff', 'sdr-staff', 'sdru-staff', 'coordinator', 'reformation-coordinator', 'head-of-sdru', 'sdru-head', 'head of sdru'];
+    private static $headRoles = ['head-of-sdru', 'sdru-head', 'head of sdru'];
 
     public static function createForUser($accountId, $type, $title, $message, $link = null) {
         if (!$accountId) {
@@ -34,6 +35,16 @@ class Notification extends Model {
     public static function createForStaff($type, $title, $message, $link = null) {
         try {
             foreach (self::getStaffAccounts() as $account) {
+                self::createForUser($account['account_id'], $type, $title, $message, $link);
+            }
+        } catch (Throwable $exception) {
+            return;
+        }
+    }
+
+    public static function createForHeads($type, $title, $message, $link = null) {
+        try {
+            foreach (self::getAccountsByRoles(self::$headRoles) as $account) {
                 self::createForUser($account['account_id'], $type, $title, $message, $link);
             }
         } catch (Throwable $exception) {
@@ -123,7 +134,11 @@ class Notification extends Model {
     }
 
     private static function getStaffAccounts() {
-        $normalizedRoles = array_map(fn($role) => strtolower(str_replace(['_', ' '], '-', $role)), self::$staffRoles);
+        return self::getAccountsByRoles(self::$staffRoles);
+    }
+
+    private static function getAccountsByRoles(array $roles) {
+        $normalizedRoles = array_map(fn($role) => strtolower(str_replace(['_', ' '], '-', $role)), $roles);
         $placeholders = implode(', ', array_fill(0, count($normalizedRoles), '?'));
         $sql = "SELECT account_id FROM accounts WHERE status = 'active' AND LOWER(REPLACE(REPLACE(role, '_', '-'), ' ', '-')) IN ($placeholders)";
         $stmt = self::$conn->prepare($sql);

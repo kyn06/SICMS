@@ -5,7 +5,7 @@ require_once __DIR__ . '/../helpers/Colleges.php';
 require_once __DIR__ . '/../helpers/Courses.php';
 
 class Report extends Model {
-    private static $caseStatuses = ['Under Investigation', 'Returned for Revision', 'Rejected', 'Resolved', 'Escalated', 'Archived'];
+    private static $caseStatuses = ['Under Investigation', 'Returned for Revision', 'Rejected', 'Resolved', 'Reformation in Progress', 'Reformation Completed', 'Escalated', 'Archived'];
 
     public static function getDashboardData(array $filters = [], $includeOptions = true) {
         $data = self::analyticsFromDataset(self::filteredDataset($filters));
@@ -22,6 +22,9 @@ class Report extends Model {
 
         $result = [];
         foreach ($rows as $row) {
+            if (in_array($row['status'] ?? '', ['Reformation in Progress', 'Reformation Completed'], true)) {
+                $row['status'] = 'Resolved';
+            }
             $result[] = array_intersect_key($row, array_flip([
                 'complaint_id', 'case_number', 'complainant_name', 'case_classification', 'status',
                 'assigned_at', 'respondent_names',
@@ -29,6 +32,18 @@ class Report extends Model {
         }
 
         return $result;
+    }
+
+    public static function assignedReformationCasesForCoordinator($coordinatorAccountId) {
+        $sql = "SELECT c.complaint_id, c.case_number, c.complainant_name, c.case_classification, c.status,
+                       c.reformation_completed_at,
+                       COALESCE((SELECT MAX(ch.created_at) FROM case_history ch WHERE ch.complaint_id = c.complaint_id AND ch.action = 'Assigned Reformation Coordinator' AND ch.reformation_coordinator_account_id = c.assigned_reformation_coordinator_account_id), c.updated_at) AS assigned_at,
+                       (SELECT GROUP_CONCAT(r.full_name ORDER BY r.respondent_id SEPARATOR ', ') FROM complaint_respondents r WHERE r.complaint_id = c.complaint_id) AS respondent_names
+                FROM complaints c
+                WHERE c.assigned_reformation_coordinator_account_id = ?
+                  AND COALESCE(c.case_source, 'Online Submission') <> 'Legacy'
+                ORDER BY COALESCE(c.reformation_completed_at, c.updated_at) DESC, c.updated_at DESC";
+        return self::fetchAll($sql, [(int) $coordinatorAccountId], 'i');
     }
 
     private static function filteredDataset(array $filters) {
@@ -64,6 +79,8 @@ class Report extends Model {
             'returned_for_revision_cases' => 0,
             'rejected_cases' => 0,
             'resolved_cases' => 0,
+            'reformation_in_progress_cases' => 0,
+            'reformation_completed_cases' => 0,
             'escalated_cases' => 0,
             'archived_cases' => 0,
             'scheduled_hearings' => 0,
@@ -82,6 +99,8 @@ class Report extends Model {
             'Returned for Revision' => 'returned_for_revision_cases',
             'Rejected' => 'rejected_cases',
             'Resolved' => 'resolved_cases',
+            'Reformation in Progress' => 'reformation_in_progress_cases',
+            'Reformation Completed' => 'reformation_completed_cases',
             'Escalated' => 'escalated_cases',
             'Archived' => 'archived_cases',
         ];
@@ -91,6 +110,7 @@ class Report extends Model {
         foreach ($rows as $row) {
             $row['complainant_college'] = Colleges::canonical($row['complainant_college']);
             if (isset($statusKeys[$row['status']])) $summary[$statusKeys[$row['status']]]++;
+            if (in_array($row['status'], ['Resolved', 'Reformation in Progress', 'Reformation Completed'], true)) $summary['resolved_cases'] += $row['status'] === 'Resolved' ? 0 : 1;
             if (in_array($row['status'], ['Under Investigation', 'Returned for Revision'], true)) $summary['pending_cases']++;
             if ($row['status'] === 'Under Investigation' || (!empty($row['assigned_coordinator_account_id']) && !in_array($row['status'], ['Resolved', 'Archived'], true))) $summary['ongoing_cases']++;
             if (($row['complainant_type'] ?? 'Student') === 'Student' && !empty($row['submitted_by_account_id'])) $students[(int) $row['submitted_by_account_id']] = true;
@@ -216,6 +236,7 @@ class Report extends Model {
             'status' => substr(self::inputValue($input, 'status'), 0, 50),
             'classification' => substr(self::inputValue($input, 'classification'), 0, 100),
             'coordinator' => (int) self::inputValue($input, 'coordinator'),
+            'reformation_coordinator' => (int) self::inputValue($input, 'reformation_coordinator'),
             'college' => substr(self::inputValue($input, 'college'), 0, 255),
             'case_source' => self::caseSource(self::inputValue($input, 'case_source')),
             'sex' => substr(self::inputValue($input, 'sex'), 0, 20),
@@ -226,7 +247,7 @@ class Report extends Model {
 
     public static function validateFilters(array $input, array $filters) {
         $errors = [];
-        foreach (['date_from', 'date_to', 'month', 'year', 'status', 'classification', 'coordinator', 'college', 'case_source', 'sex', 'year_level', 'department'] as $key) {
+        foreach (['date_from', 'date_to', 'month', 'year', 'status', 'classification', 'coordinator', 'reformation_coordinator', 'college', 'case_source', 'sex', 'year_level', 'department'] as $key) {
             if (isset($input[$key]) && !is_scalar($input[$key])) $errors[] = 'Invalid filter input.';
         }
         foreach (['date_from' => 'Date From', 'date_to' => 'Date To'] as $key => $label) {
@@ -244,6 +265,7 @@ class Report extends Model {
         if ($filters['sex'] !== '' && !in_array($filters['sex'], ['Male', 'Female', 'Other', 'Unspecified'], true)) $errors[] = 'Please select a valid sex.';
         if ($filters['year_level'] !== '' && !in_array($filters['year_level'], array_values(Courses::yearOptions()), true)) $errors[] = 'Please select a valid year level.';
         if ($filters['coordinator'] && !self::coordinatorExists($filters['coordinator'])) $errors[] = 'Please select a valid coordinator.';
+        if ($filters['reformation_coordinator'] && !self::coordinatorExists($filters['reformation_coordinator'])) $errors[] = 'Please select a valid reformation coordinator.';
         return array_values(array_unique($errors));
     }
 
@@ -252,8 +274,10 @@ class Report extends Model {
         $sql = "SELECT
                     COUNT(*) AS total_cases,
                     SUM(CASE WHEN c.status IN ('Under Investigation', 'Returned for Revision') THEN 1 ELSE 0 END) AS pending_cases,
-                    SUM(CASE WHEN c.status IN ('Under Investigation') OR c.assigned_coordinator_account_id IS NOT NULL THEN 1 ELSE 0 END) AS ongoing_cases,
-                    SUM(CASE WHEN c.status = 'Resolved' THEN 1 ELSE 0 END) AS resolved_cases,
+                    SUM(CASE WHEN (c.status IN ('Under Investigation') OR c.assigned_coordinator_account_id IS NOT NULL) AND c.status NOT IN ('Resolved', 'Reformation in Progress', 'Reformation Completed') THEN 1 ELSE 0 END) AS ongoing_cases,
+                    SUM(CASE WHEN c.status IN ('Resolved', 'Reformation in Progress', 'Reformation Completed') THEN 1 ELSE 0 END) AS resolved_cases,
+                    SUM(CASE WHEN c.status = 'Reformation in Progress' THEN 1 ELSE 0 END) AS reformation_in_progress_cases,
+                    SUM(CASE WHEN c.status = 'Reformation Completed' THEN 1 ELSE 0 END) AS reformation_completed_cases,
                     SUM(CASE WHEN c.status = 'Archived' THEN 1 ELSE 0 END) AS archived_cases
                 FROM complaints c
                 $where";
@@ -410,7 +434,7 @@ class Report extends Model {
             'coordinators' => self::fetchAll("SELECT account_id, first_name, last_name, role
                                               FROM accounts
                                               WHERE status = 'active'
-                                                AND LOWER(REPLACE(REPLACE(role, '_', '-'), ' ', '-')) IN ('super-admin', 'admin', 'sdr-staff', 'sdru-staff', 'coordinator', 'head-of-sdru', 'sdru-head')
+                                                AND LOWER(REPLACE(REPLACE(role, '_', '-'), ' ', '-')) IN ('super-admin', 'admin', 'sdr-staff', 'sdru-staff', 'coordinator', 'reformation-coordinator', 'head-of-sdru', 'sdru-head')
                                               ORDER BY first_name, last_name"),
         ];
     }
@@ -422,11 +446,11 @@ class Report extends Model {
                     SUM(CASE WHEN c.status = 'Under Investigation' THEN 1 ELSE 0 END) AS under_investigation_cases,
                     SUM(CASE WHEN c.status = 'Returned for Revision' THEN 1 ELSE 0 END) AS returned_for_revision_cases,
                     SUM(CASE WHEN c.status = 'Rejected' THEN 1 ELSE 0 END) AS rejected_cases,
-                    SUM(CASE WHEN c.status = 'Resolved' THEN 1 ELSE 0 END) AS resolved_cases,
+                    SUM(CASE WHEN c.status IN ('Resolved', 'Reformation in Progress', 'Reformation Completed') THEN 1 ELSE 0 END) AS resolved_cases,
                     SUM(CASE WHEN c.status = 'Escalated' THEN 1 ELSE 0 END) AS escalated_cases,
                     SUM(CASE WHEN c.status = 'Archived' THEN 1 ELSE 0 END) AS archived_cases,
                     SUM(CASE WHEN c.status IN ('Under Investigation', 'Returned for Revision') THEN 1 ELSE 0 END) AS pending_cases,
-                    SUM(CASE WHEN (c.status = 'Under Investigation' OR (c.assigned_coordinator_account_id IS NOT NULL AND c.status NOT IN ('Resolved', 'Archived'))) THEN 1 ELSE 0 END) AS ongoing_cases
+                    SUM(CASE WHEN (c.status = 'Under Investigation' OR (c.assigned_coordinator_account_id IS NOT NULL AND c.status NOT IN ('Resolved', 'Reformation in Progress', 'Reformation Completed', 'Archived'))) THEN 1 ELSE 0 END) AS ongoing_cases
              FROM complaints c
              $where",
             $params,
@@ -682,6 +706,12 @@ class Report extends Model {
         if (!empty($filters['coordinator'])) {
             $where[] = "$alias.assigned_coordinator_account_id = ?";
             $params[] = (int) $filters['coordinator'];
+            $types .= 'i';
+        }
+
+        if (!empty($filters['reformation_coordinator'])) {
+            $where[] = "$alias.assigned_reformation_coordinator_account_id = ?";
+            $params[] = (int) $filters['reformation_coordinator'];
             $types .= 'i';
         }
 
