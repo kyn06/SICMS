@@ -495,7 +495,7 @@ class LegacyCaseController {
             'incident_datetime' => $this->datetimeValue($post['incident_datetime'] ?? ''),
             'incident_location' => trim($post['incident_location'] ?? '') ?: null,
             'complaint_details' => trim($post['complaint_details'] ?? '') ?: null,
-            'status' => in_array($post['status'] ?? '', LegacyCase::statuses(), true) ? $post['status'] : 'Verified',
+            'status' => in_array($post['status'] ?? '', LegacyCase::statuses(), true) ? $post['status'] : 'Under Investigation',
             'original_case_date' => $this->dateValue($post['original_case_date'] ?? '') ?: date('Y-m-d'),
             'legacy_outcome' => trim($post['legacy_outcome'] ?? '') ?: null,
             'action_taken' => trim($post['action_taken'] ?? '') ?: null,

@@ -541,16 +541,7 @@ unset($_SESSION['cal_message'], $_SESSION['cal_error']);
                             </div>
                         </div>
                     </form>
-
-                <div class="settings-section-header settings-subsection settings-archive-section">
-                    <h3 class="settings-section-title"><i class="bi bi-archive-fill"></i> Archived Cases</h3>
-                    <p class="settings-section-description">
-                        View cases that have been archived. Archived cases are still counted in statistics and reports.
-                    </p>
-                    <div class="settings-archive-action">
-                        <a class="btn btn-primary" href="<?= h(app_route('archived_cases.index')) ?>"><i class="bi bi-archive-fill"></i> Open Archived Cases</a>
                     </div>
-                </div>
                 </div>
                 <?php endif; ?>
                 </div> 

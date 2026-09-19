@@ -27,7 +27,7 @@ class LegacyCase extends Model {
     public const ADD_ROLES = ['sdr-staff', 'sdru-staff'];
 
     public static function statuses(): array {
-        return ['Submitted', 'Verified', 'Returned for Revision', 'Rejected', 'Resolved', 'Archived'];
+        return ['Under Investigation', 'Returned for Revision', 'Rejected', 'Resolved', 'Escalated', 'Archived'];
     }
 
     public static function canView(array $user): bool {

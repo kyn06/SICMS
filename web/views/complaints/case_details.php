@@ -10,16 +10,17 @@ $hearings = $viewData['hearings'];
 
 function h($value) { return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8'); }
 function progress_steps($status) {
-    if ($status === 'Returned for Revision') return ['Submitted', 'Returned for Revision'];
-    if ($status === 'Rejected') return ['Submitted', 'Rejected'];
-    return ['Submitted', 'Under Investigation', 'Resolved'];
+    if ($status === 'Returned for Revision') return ['Under Investigation', 'Returned for Revision'];
+    if ($status === 'Rejected') return ['Under Investigation', 'Rejected'];
+    if ($status === 'Escalated') return ['Under Investigation', 'Escalated'];
+    return ['Under Investigation', 'Resolved'];
 }
 function stage_done($status, $stage) {
-    $order = ['Submitted' => 0, 'Under Investigation' => 1, 'Resolved' => 2, 'Archived' => 3];
-    if (in_array($status, ['Returned for Revision', 'Rejected'], true)) return $stage === 'Submitted' || $stage === $status;
+    $order = ['Under Investigation' => 0, 'Resolved' => 1, 'Archived' => 2];
+    if (in_array($status, ['Returned for Revision', 'Rejected', 'Escalated'], true)) return $stage === 'Under Investigation' || $stage === $status;
     return isset($order[$stage], $order[$status]) && $order[$stage] <= $order[$status];
 }
-$officialStatuses = ['Submitted', 'Under Investigation', 'Returned for Revision', 'Rejected', 'Resolved', 'Archived'];
+$officialStatuses = ['Under Investigation', 'Returned for Revision', 'Rejected', 'Resolved', 'Escalated', 'Archived'];
 $studentRemarks = array_values(array_filter($history, fn($item) =>
     trim((string) ($item['remarks'] ?? '')) !== ''
     && in_array(($item['new_status'] ?? ''), $officialStatuses, true)

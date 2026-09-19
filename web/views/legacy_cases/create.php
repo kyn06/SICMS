@@ -336,7 +336,7 @@ $hearingTemplate = function () {
                             <label>Status</label>
                             <select name="status">
                                 <?php foreach ($statuses as $status): ?>
-                                    <option value="<?= h($status) ?>" <?= selected_if(ov($old, 'status', 'Verified'), $status) ?>><?= h($status) ?></option>
+                                    <option value="<?= h($status) ?>" <?= selected_if(ov($old, 'status', 'Under Investigation'), $status) ?>><?= h($status) ?></option>
                                 <?php endforeach; ?>
                             </select>
                         </div>

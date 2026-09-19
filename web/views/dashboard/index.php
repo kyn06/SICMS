@@ -125,6 +125,7 @@ $reportData = $canViewAnalytics ? Report::getDashboardData($filters) : [
 
 $summary = array_merge([
     'total_cases' => 0,
+    'under_investigation_cases' => 0,
     'pending_cases' => 0,
     'ongoing_cases' => 0,
     'resolved_cases' => 0,
@@ -195,14 +196,13 @@ function allowed_for_role(array $item, $roleKey) {
 
 $statCards = $isCoordinator ? [
     ['key' => 'total_cases', 'label' => 'Total Assigned Cases', 'value' => $coordinatorAssignedCount, 'icon' => 'bi-folder-check', 'accent' => 'green', 'trend' => 'Assigned to you'],
-    ['key' => 'submitted_cases', 'label' => 'Submitted Cases', 'value' => $summary['submitted_cases'] ?? 0, 'icon' => 'bi-send', 'accent' => 'blue', 'trend' => 'Awaiting action'],
-    ['key' => 'verified_cases', 'label' => 'Verified Cases', 'value' => $summary['verified_cases'] ?? 0, 'icon' => 'bi-patch-check', 'accent' => 'teal', 'trend' => 'Verified assignments'],
+    ['key' => 'under_investigation_cases', 'label' => 'Under Investigation', 'value' => $summary['under_investigation_cases'] ?? 0, 'icon' => 'bi-search', 'accent' => 'blue', 'trend' => 'Cases awaiting action'],
     ['key' => 'returned_for_revision_cases', 'label' => 'Returned for Revision', 'value' => $summary['returned_for_revision_cases'] ?? 0, 'icon' => 'bi-pencil-square', 'accent' => 'amber', 'trend' => 'Awaiting student revision'],
     ['key' => 'resolved_cases', 'label' => 'Resolved Cases', 'value' => $summary['resolved_cases'], 'icon' => 'bi-check2-circle', 'accent' => 'teal', 'trend' => 'Completed cases'],
     ['key' => 'scheduled_hearings', 'label' => 'Scheduled Hearings', 'value' => $summary['scheduled_hearings'], 'icon' => 'bi-calendar-week', 'accent' => 'indigo', 'trend' => $todaysHearings . ' scheduled today'],
 ] : [
     ['key' => 'total_cases', 'label' => 'Total Cases', 'value' => $summary['total_cases'], 'icon' => 'bi-briefcase', 'accent' => 'green', 'trend' => 'All recorded cases'],
-    ['key' => 'ongoing_cases', 'label' => 'Active Cases', 'value' => $summary['ongoing_cases'], 'icon' => 'bi-activity', 'accent' => 'blue', 'trend' => 'Verified or assigned'],
+    ['key' => 'ongoing_cases', 'label' => 'Active Cases', 'value' => $summary['ongoing_cases'], 'icon' => 'bi-activity', 'accent' => 'blue', 'trend' => 'Under investigation or assigned'],
     ['key' => 'pending_cases', 'label' => 'Pending Reviews', 'value' => $summary['pending_cases'], 'icon' => 'bi-hourglass-split', 'accent' => 'amber', 'trend' => 'Needs SDRU action'],
     ['key' => 'resolved_cases', 'label' => 'Resolved Cases', 'value' => $summary['resolved_cases'], 'icon' => 'bi-check2-circle', 'accent' => 'teal', 'trend' => 'Completed case work'],
     ['key' => 'scheduled_hearings', 'label' => 'Scheduled Hearings', 'value' => $summary['scheduled_hearings'], 'icon' => 'bi-calendar-week', 'accent' => 'indigo', 'trend' => 'Upcoming schedule'],
@@ -1166,12 +1166,12 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
                 <div class="section-title"><i class="bi bi-list-check"></i> Pending Tasks</div>
                 <div class="activity-list">
                     <article class="activity-item">
-                        <div class="activity-check"><i class="bi bi-send"></i></div>
+                        <div class="activity-check"><i class="bi bi-search"></i></div>
                         <div>
                             <div class="activity-title"><span
-                                    data-task-count="submitted_cases"><?= (int) ($summary['submitted_cases'] ?? 0) ?></span>
-                                submitted complaint(s)</div>
-                            <div class="activity-description">Awaiting coordinator review or action.</div>
+                                    data-task-count="under_investigation_cases"><?= (int) ($summary['under_investigation_cases'] ?? 0) ?></span>
+                                under investigation</div>
+                            <div class="activity-description">Cases awaiting coordinator review or action.</div>
                         </div>
                     </article>
                     <article class="activity-item">

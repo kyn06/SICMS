@@ -31,6 +31,7 @@ function h($value) {
     <link rel="stylesheet" href="../layout/cases.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link rel="stylesheet" href="../layout/system.css?v=2">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 </head>
 
 <body>
@@ -99,6 +100,7 @@ function h($value) {
     </div>
     <script>
         (() => {
+            const CSRF_TOKEN = <?= json_encode(Security::csrfToken(), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
             const form = document.getElementById('caseFilters');
             const table = document.getElementById('caseTable');
             const tableBody = document.getElementById('caseTableBody');
@@ -153,6 +155,29 @@ function h($value) {
                     viewLink.href = `../cases/show.php?id=${encodeURIComponent(item.complaint_id)}`;
                     viewLink.innerHTML = '<i class="bi bi-eye"></i> View Details';
                     actionsDiv.appendChild(viewLink);
+
+                    const unarchiveForm = document.createElement('form');
+                    unarchiveForm.method = 'POST';
+                    unarchiveForm.action = `../cases/show.php?id=${encodeURIComponent(item.complaint_id)}`;
+                    const csrfInput = document.createElement('input');
+                    csrfInput.type = 'hidden';
+                    csrfInput.name = 'csrf_token';
+                    csrfInput.value = CSRF_TOKEN;
+                    unarchiveForm.appendChild(csrfInput);
+                    const remarksInput = document.createElement('input');
+                    remarksInput.type = 'hidden';
+                    remarksInput.name = 'remarks';
+                    remarksInput.value = 'Case restored from the archive.';
+                    unarchiveForm.appendChild(remarksInput);
+                    const actionButton = document.createElement('button');
+                    actionButton.className = 'btn btn-secondary';
+                    actionButton.type = 'submit';
+                    actionButton.name = 'case_action';
+                    actionButton.value = 'unarchive';
+                    actionButton.dataset.swalConfirm = 'Return this case to active cases? Its previous status will be restored.';
+                    actionButton.innerHTML = '<i class="bi bi-arrow-up-square"></i> Unarchive';
+                    unarchiveForm.appendChild(actionButton);
+                    actionsDiv.appendChild(unarchiveForm);
                     actionsCell.appendChild(actionsDiv);
                     row.appendChild(actionsCell);
                     tableBody.appendChild(row);
@@ -209,6 +234,25 @@ function h($value) {
                 clearTimeout(debounceTimer);
                 textInputs.forEach((control) => control.value = '');
                 updateCases();
+            });
+
+            document.addEventListener('click', (event) => {
+                const button = event.target.closest('[data-swal-confirm]');
+                if (!button) return;
+                event.preventDefault();
+                const confirmText = button.dataset.swalConfirm || 'Unarchive this case?';
+                Swal.fire({
+                    icon: 'question',
+                    title: confirmText,
+                    showCancelButton: true,
+                    confirmButtonText: 'Yes, unarchive',
+                    cancelButtonText: 'Cancel',
+                    reverseButtons: true
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        button.form.requestSubmit(button);
+                    }
+                });
             });
         })();
     </script>
