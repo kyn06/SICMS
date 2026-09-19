@@ -9,11 +9,11 @@ class CaseRecord extends Model {
 
     public static function getStatuses() {
         return [
-            'Submitted',
-            'Verified',
+            'Under Investigation',
             'Returned for Revision',
             'Rejected',
             'Resolved',
+            'Escalated',
             'Archived',
         ];
     }
@@ -194,15 +194,11 @@ class CaseRecord extends Model {
     }
 
     public static function getCoordinators() {
-        $roles = ['super-admin', 'admin', 'sdr staff', 'sdr-staff', 'sdru-staff', 'coordinator', 'head-of-sdru', 'sdru-head', 'head of sdru'];
-        $placeholders = implode(', ', array_fill(0, count($roles), '?'));
         $sql = "SELECT account_id, first_name, last_name, role
                 FROM accounts
-                WHERE status = 'active' AND role IN ($placeholders)
+                WHERE status = 'active' AND LOWER(REPLACE(REPLACE(role, '_', '-'), ' ', '-')) = 'coordinator'
                 ORDER BY first_name, last_name";
         $stmt = self::$conn->prepare($sql);
-        $types = str_repeat('s', count($roles));
-        $stmt->bind_param($types, ...$roles);
         $stmt->execute();
         $result = $stmt->get_result();
 
@@ -452,6 +448,7 @@ class CaseRecord extends Model {
     }
 
     public static function updateStatus($complaintId, $newStatus, $remarks, $actorAccountId, array $revisionFields = []) {
+        $complaintId = (int) $complaintId;
         $case = self::findCase($complaintId);
 
         if (!$case) {
@@ -520,6 +517,44 @@ class CaseRecord extends Model {
             ]);
 
             self::notifyCaseStatusChanged($case, 'Resolved');
+
+            self::$conn->commit();
+            return true;
+        } catch (Throwable $exception) {
+            self::$conn->rollback();
+            throw $exception;
+        }
+    }
+
+    public static function escalateCase($complaintId, $remarks, $actorAccountId) {
+        $complaintId = (int) $complaintId;
+        $case = self::findCase($complaintId);
+
+        if (!$case) {
+            return false;
+        }
+
+        self::$conn->begin_transaction();
+
+        try {
+            $now = date('Y-m-d H:i:s');
+            $stmt = self::$conn->prepare("UPDATE complaints SET status = 'Escalated', updated_at = ? WHERE complaint_id = ?");
+            $stmt->bind_param("si", $now, $complaintId);
+            $stmt->execute();
+
+            self::createHistory([
+                'complaint_id' => $complaintId,
+                'action' => 'Escalated Case',
+                'previous_status' => $case['status'],
+                'new_status' => 'Escalated',
+                'remarks' => $remarks,
+                'revision_fields' => null,
+                'assigned_coordinator_account_id' => null,
+                'created_by_account_id' => $actorAccountId,
+                'created_at' => $now,
+            ]);
+
+            self::notifyCaseStatusChanged($case, 'Escalated');
 
             self::$conn->commit();
             return true;
@@ -684,22 +719,74 @@ class CaseRecord extends Model {
 
     private static function actionFromStatus($status) {
         return match ($status) {
-            'Verified' => 'Verified Complaint',
+            'Under Investigation' => 'Under Investigation',
             'Returned for Revision' => 'Returned for Revision',
             'Rejected' => 'Rejected Complaint',
             'Resolved' => 'Resolved Case',
+            'Escalated' => 'Escalated Case',
+            'Archived' => 'Archived Case',
+            'Unarchived' => 'Unarchived Case',
             default => 'Updated Status',
         };
     }
 
+    public static function unarchiveCase($complaintId, $remarks, $actorAccountId) {
+        $complaintId = (int) $complaintId;
+        $case = self::findCase($complaintId);
+
+        if (!$case || ($case['status'] ?? '') !== 'Archived') {
+            return false;
+        }
+
+        $sql = "SELECT previous_status FROM case_history WHERE complaint_id = ? AND new_status = 'Archived'
+                ORDER BY created_at DESC, history_id DESC LIMIT 1";
+        $stmt = self::$conn->prepare($sql);
+        $stmt->bind_param("i", $complaintId);
+        $stmt->execute();
+        $historyRow = $stmt->get_result()->fetch_assoc();
+
+        $previousStatus = $historyRow['previous_status'] ?? '';
+        if (!in_array($previousStatus, ['Resolved', 'Escalated'], true)) {
+            $previousStatus = 'Resolved';
+        }
+
+        self::$conn->begin_transaction();
+
+        try {
+            $now = date('Y-m-d H:i:s');
+            $stmt = self::$conn->prepare("UPDATE complaints SET status = ?, updated_at = ? WHERE complaint_id = ?");
+            $stmt->bind_param("ssi", $previousStatus, $now, $complaintId);
+            $stmt->execute();
+
+            self::createHistory([
+                'complaint_id' => $complaintId,
+                'action' => 'Unarchived Case',
+                'previous_status' => $case['status'],
+                'new_status' => $previousStatus,
+                'remarks' => $remarks,
+                'revision_fields' => null,
+                'assigned_coordinator_account_id' => null,
+                'created_by_account_id' => $actorAccountId,
+                'created_at' => $now,
+            ]);
+
+            self::notifyCaseStatusChanged($case, $previousStatus);
+
+            self::$conn->commit();
+            return true;
+        } catch (Throwable $exception) {
+            self::$conn->rollback();
+            throw $exception;
+        }
+    }
+
     private static function notifyCaseStatusChanged(array $case, $newStatus) {
         $type = $newStatus === 'Resolved' ? 'case_resolved' : 'case_status_updated';
-        $type = $newStatus === 'Verified' ? 'complaint_verified' : $type;
-        $title = $newStatus === 'Verified' ? 'Complaint Verified' : 'Case Status Updated';
-
-        if ($newStatus === 'Resolved') {
-            $title = 'Case Resolved';
-        }
+        $title = match ($newStatus) {
+            'Resolved' => 'Case Resolved',
+            'Escalated' => 'Case Escalated',
+            default => 'Case Status Updated',
+        };
 
         Notification::createForUser(
             (int) $case['submitted_by_account_id'],

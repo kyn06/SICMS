@@ -226,7 +226,7 @@ class CaseController {
             $case = CaseRecord::findCase($complaintId);
             $caseLabel = $case['case_number'] ?? ('Case #' . $complaintId);
             $caseStatus = $case['status'] ?? '';
-            $isClosed = in_array($caseStatus, ['Resolved', 'Archived'], true);
+            $isClosed = in_array($caseStatus, ['Resolved', 'Escalated', 'Archived'], true);
 
             if ($this->roleKey() === 'coordinator'
                 && (int) ($case['assigned_coordinator_account_id'] ?? 0) !== (int) $this->user['account_id']) {
@@ -235,7 +235,7 @@ class CaseController {
                 exit;
             }
 
-            if (in_array($action, ['verify', 'reject', 'return', 'assign', 'classify'], true) && $isClosed) {
+            if (in_array($action, ['reject', 'return', 'assign', 'classify', 'escalate'], true) && $isClosed) {
                 $_SESSION['case_errors'] = ['This case is already closed and can no longer be modified.'];
                 header('Location: show.php?id=' . $complaintId);
                 exit;
@@ -270,10 +270,6 @@ class CaseController {
                 CaseRecord::classifyCase($complaintId, $classification, $remarks, $actorAccountId);
                 AuditLog::record($this->user, 'Case Classification', 'Classified ' . $caseLabel . ' as ' . $classification . '.');
                 $_SESSION['case_message'] = 'Case classification saved.';
-            } elseif ($action === 'verify') {
-                CaseRecord::updateStatus($complaintId, 'Verified', $remarks, $actorAccountId);
-                AuditLog::record($this->user, 'Case Verification', 'Verified complaint ' . $caseLabel . '.');
-                $_SESSION['case_message'] = 'Complaint verified.';
             } elseif ($action === 'return') {
                 $revisionFields = array_values(array_intersect($this->revisionFields, (array) ($_POST['revision_fields'] ?? [])));
 
@@ -297,8 +293,8 @@ class CaseController {
                 AuditLog::record($this->user, 'Complaint Updates', 'Rejected complaint ' . $caseLabel . '.');
                 $_SESSION['case_message'] = 'Complaint rejected.';
             } elseif ($action === 'resolve') {
-                if ($caseStatus !== 'Verified') {
-                    $_SESSION['case_errors'] = ['Only verified cases can be marked as resolved.'];
+                if ($caseStatus !== 'Under Investigation') {
+                    $_SESSION['case_errors'] = ['Only cases under investigation can be marked as resolved.'];
                     header('Location: show.php?id=' . $complaintId);
                     exit;
                 }
@@ -331,9 +327,43 @@ class CaseController {
 
                 AuditLog::record($this->user, 'Case Resolution', 'Marked case ' . $caseLabel . ' as resolved.');
                 $_SESSION['case_message'] = 'Case marked as resolved. A closure notice was sent to the complainant' . ((int) ($case['assigned_coordinator_account_id'] ?? 0) > 0 ? ' and the assigned coordinator' : '') . '.';
+            } elseif ($action === 'escalate') {
+                if ($caseStatus !== 'Under Investigation') {
+                    $_SESSION['case_errors'] = ['Only cases under investigation can be marked as escalated.'];
+                    header('Location: show.php?id=' . $complaintId);
+                    exit;
+                }
+
+                if ($remarks === '') {
+                    $_SESSION['case_errors'] = ['Please provide the reason for escalation before marking the case as escalated.'];
+                    header('Location: show.php?id=' . $complaintId);
+                    exit;
+                }
+
+                CaseRecord::escalateCase($complaintId, $remarks, $actorAccountId);
+                AuditLog::record($this->user, 'Case Escalation', 'Marked case ' . $caseLabel . ' as escalated.');
+                $_SESSION['case_message'] = 'Case marked as escalated. All case actions are now locked except archiving.';
+            } elseif ($action === 'withdraw_escalation') {
+                if (($case['status'] ?? '') !== 'Escalated') {
+                    $_SESSION['case_errors'] = ['Only escalated cases can have their escalation withdrawn.'];
+                    header('Location: show.php?id=' . $complaintId);
+                    exit;
+                }
+
+                CaseRecord::updateStatus($complaintId, 'Under Investigation', $remarks, $actorAccountId);
+                AuditLog::record($this->user, 'Case Escalation Withdrawn', 'Withdrew escalation for ' . $caseLabel . '. Status returned to Under Investigation.');
+                $_SESSION['case_message'] = 'Escalation withdrawn. The case is now under investigation again.';
             } elseif ($action === 'archive') {
-                if (($case['status'] ?? '') !== 'Resolved') {
-                    $_SESSION['case_errors'] = ['Only resolved cases can be archived.'];
+                $isAjax = ($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') === 'XMLHttpRequest';
+
+                if (!in_array($case['status'] ?? '', ['Resolved', 'Escalated'], true)) {
+                    if ($isAjax) {
+                        header('Content-Type: application/json; charset=utf-8');
+                        echo json_encode(['success' => false, 'errors' => ['Only resolved or escalated cases can be archived.']]);
+                        exit;
+                    }
+
+                    $_SESSION['case_errors'] = ['Only resolved or escalated cases can be archived.'];
                     header('Location: show.php?id=' . $complaintId);
                     exit;
                 }
@@ -341,6 +371,22 @@ class CaseController {
                 CaseRecord::updateStatus($complaintId, 'Archived', $remarks, $actorAccountId);
                 AuditLog::record($this->user, 'Case Archival', 'Archived case ' . $caseLabel . '.');
                 $_SESSION['case_message'] = 'Case archived.';
+
+                if ($isAjax) {
+                    header('Content-Type: application/json; charset=utf-8');
+                    echo json_encode(['success' => true, 'message' => 'This case has been moved to Archived Cases.', 'case_number' => $caseLabel]);
+                    exit;
+                }
+            } elseif ($action === 'unarchive') {
+                if (($case['status'] ?? '') !== 'Archived') {
+                    $_SESSION['case_errors'] = ['Only archived cases can be returned to active cases.'];
+                    header('Location: ../archived_cases/index.php');
+                    exit;
+                }
+
+                CaseRecord::unarchiveCase($complaintId, $remarks, $actorAccountId);
+                AuditLog::record($this->user, 'Case Unarchival', 'Returned archived case ' . $caseLabel . ' to active cases.');
+                $_SESSION['case_message'] = 'Case unarchived and returned to active cases.';
             } elseif ($action === 'reopen') {
                 if (($case['status'] ?? '') !== 'Resolved') {
                     $_SESSION['case_errors'] = ['Only resolved cases can be opened again.'];
@@ -348,9 +394,9 @@ class CaseController {
                     exit;
                 }
 
-                CaseRecord::updateStatus($complaintId, 'Verified', $remarks, $actorAccountId);
-                AuditLog::record($this->user, 'Case Reopened', 'Reopened case ' . $caseLabel . '. Status returned to Verified.');
-                $_SESSION['case_message'] = 'Case opened again. Its status is now Verified.';
+                CaseRecord::updateStatus($complaintId, 'Under Investigation', $remarks, $actorAccountId);
+                AuditLog::record($this->user, 'Case Reopened', 'Reopened case ' . $caseLabel . '. Status returned to Under Investigation.');
+                $_SESSION['case_message'] = 'Case opened again. Its status is now Under Investigation.';
             } elseif ($action === 'assign') {
                 $coordinatorId = (int) ($_POST['coordinator_account_id'] ?? 0);
 

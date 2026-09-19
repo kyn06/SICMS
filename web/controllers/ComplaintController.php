@@ -70,7 +70,7 @@ class ComplaintController {
             'page' => $page,
             'perPage' => $perPage,
             'totalPages' => max(1, (int) ceil($total / $perPage)),
-            'statuses' => ['Submitted', 'Verified', 'Returned for Revision', 'Rejected', 'Resolved', 'Archived'],
+            'statuses' => ['Under Investigation', 'Returned for Revision', 'Rejected', 'Resolved', 'Escalated', 'Archived'],
             'classifications' => $this->classifications,
         ];
     }
@@ -237,7 +237,7 @@ class ComplaintController {
                 'incident_datetime' => date('Y-m-d H:i:s', strtotime($_POST['incident_datetime'])),
                 'incident_location' => trim($_POST['incident_location']),
                 'complaint_details' => trim($_POST['complaint_details']),
-                'status' => 'Submitted',
+                'status' => 'Under Investigation',
                 'submitted_at' => $now,
                 'created_at' => $now,
                 'updated_at' => $now,

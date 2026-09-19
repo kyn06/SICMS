@@ -659,11 +659,11 @@ function applied_filter_labels(array $filters, array $options) {
             <div class="cards">
             <?php foreach ([
                 'Total Cases' => 'total_cases',
-                'Submitted' => 'submitted_cases',
-                'Verified' => 'verified_cases',
+                'Under Investigation' => 'under_investigation_cases',
                 'Returned for Revision' => 'returned_for_revision_cases',
                 'Rejected' => 'rejected_cases',
                 'Resolved' => 'resolved_cases',
+                'Escalated' => 'escalated_cases',
                 'Archived' => 'archived_cases',
             ] as $label => $key): ?>
                 <article class="card">

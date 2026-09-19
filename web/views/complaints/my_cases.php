@@ -8,14 +8,14 @@ $viewData = $controller->handleTrackingRequest();
 $user = $viewData['user'];
 $profileIncomplete = ProfileCompletion::isStudentAccount($user) && !ProfileCompletion::isComplete($user);
 $profileMissingFields = ProfileCompletion::isStudentAccount($user) ? ProfileCompletion::missingFields($user) : [];
-$statuses = ['Submitted', 'Verified', 'Returned for Revision', 'Rejected', 'Resolved', 'Archived'];
+$statuses = ['Under Investigation', 'Returned for Revision', 'Rejected', 'Resolved', 'Escalated', 'Archived'];
 $allCases = Complaint::forStudent((int) $user['account_id'], 10000, ['sort' => 'newest'], 0);
 
 function h($value) { return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8'); }
 function status_class($status) { return strtolower(str_replace(' ', '-', $status)); }
 function filtered_student_cases(array $cases, array $input) {
     $search = trim((string) ($input['search'] ?? ''));
-    $status = in_array(($input['status'] ?? ''), ['Submitted', 'Verified', 'Returned for Revision', 'Rejected', 'Resolved', 'Archived'], true) ? $input['status'] : '';
+    $status = in_array(($input['status'] ?? ''), ['Under Investigation', 'Returned for Revision', 'Rejected', 'Resolved', 'Escalated', 'Archived'], true) ? $input['status'] : '';
     $year = preg_match('/^\d{4}$/', (string) ($input['year'] ?? '')) ? (string) $input['year'] : '';
 
     return array_values(array_filter($cases, function ($case) use ($search, $status, $year) {
@@ -37,9 +37,9 @@ function case_payload(array $case) {
     ];
 }
 function summary_payload(array $cases) {
-    $summary = ['total' => count($cases), 'submitted' => 0, 'verified' => 0, 'resolved' => 0];
+    $summary = ['total' => count($cases), 'under_investigation' => 0, 'returned_for_revision' => 0, 'resolved' => 0];
     foreach ($cases as $case) {
-        $key = strtolower($case['status']);
+        $key = strtolower(str_replace(' ', '_', $case['status']));
         if (isset($summary[$key])) $summary[$key]++;
     }
     return $summary;
@@ -91,9 +91,10 @@ rsort($years);
         .cases-table tbody tr:hover { background: #f8fbf7; }
         .case-link { color: #146d20; font-weight: 800; text-decoration: none; }
         .status-pill { border-radius: 999px; display: inline-flex; font-size: 11px; font-weight: 800; padding: 6px 9px; white-space: nowrap; }
-        .status-submitted, .status-returned-for-revision { background: #fff5d8; color: #825e00; }
-        .status-verified { background: #e7f0ff; color: #275ca8; }
+        .status-under-investigation { background: #e7f0ff; color: #275ca8; }
+        .status-returned-for-revision { background: #fff5d8; color: #825e00; }
         .status-resolved { background: #e5f6e3; color: #157000; }
+        .status-escalated { background: #fdeee3; color: #c2410c; }
         .status-rejected { background: #fff0ef; color: #a92c23; }
         .status-archived { background: #edf0ed; color: #59635a; }
         .row-actions { display: flex; flex-wrap: wrap; gap: 7px; }
@@ -124,7 +125,7 @@ rsort($years);
             </header>
 
             <section class="summary-grid" aria-label="Complaint summary">
-                <?php foreach ([['total','Total Complaints','bi-folder2-open'],['submitted','Submitted','bi-send'],['verified','Verified','bi-patch-check'],['resolved','Resolved','bi-check2-circle']] as [$key,$label,$icon]): ?>
+                <?php foreach ([['total','Total Complaints','bi-folder2-open'],['under_investigation','Under Investigation','bi-search'],['returned_for_revision','Returned for Revision','bi-pencil-square'],['resolved','Resolved','bi-check2-circle']] as [$key,$label,$icon]): ?>
                     <article class="summary-card"><span class="summary-icon"><i class="bi <?= h($icon) ?>"></i></span><div><div class="summary-label"><?= h($label) ?></div><div class="summary-value" data-summary="<?= h($key) ?>"><?= (int) $summary[$key] ?></div></div></article>
                 <?php endforeach; ?>
             </section>

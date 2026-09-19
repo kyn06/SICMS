@@ -5,7 +5,7 @@ require_once __DIR__ . '/../helpers/Colleges.php';
 require_once __DIR__ . '/../helpers/Courses.php';
 
 class Report extends Model {
-    private static $caseStatuses = ['Submitted', 'Verified', 'Returned for Revision', 'Rejected', 'Resolved', 'Archived'];
+    private static $caseStatuses = ['Under Investigation', 'Returned for Revision', 'Rejected', 'Resolved', 'Escalated', 'Archived'];
 
     public static function getDashboardData(array $filters = [], $includeOptions = true) {
         $data = self::analyticsFromDataset(self::filteredDataset($filters));
@@ -60,11 +60,11 @@ class Report extends Model {
     private static function analyticsFromDataset(array $rows) {
         $summary = [
             'total_cases' => count($rows),
-            'submitted_cases' => 0,
-            'verified_cases' => 0,
+            'under_investigation_cases' => 0,
             'returned_for_revision_cases' => 0,
             'rejected_cases' => 0,
             'resolved_cases' => 0,
+            'escalated_cases' => 0,
             'archived_cases' => 0,
             'scheduled_hearings' => 0,
             'hearings_today' => 0,
@@ -78,11 +78,11 @@ class Report extends Model {
         $groups = ['casesByMonth' => [], 'casesByYear' => [], 'casesByClassification' => [], 'casesByStatus' => [], 'casesByCollege' => [], 'casesByCoordinator' => [], 'casesBySex' => [], 'respondentsBySex' => [], 'hearingsByMonth' => []];
         $reportRows = [];
         $statusKeys = [
-            'Submitted' => 'submitted_cases',
-            'Verified' => 'verified_cases',
+            'Under Investigation' => 'under_investigation_cases',
             'Returned for Revision' => 'returned_for_revision_cases',
             'Rejected' => 'rejected_cases',
             'Resolved' => 'resolved_cases',
+            'Escalated' => 'escalated_cases',
             'Archived' => 'archived_cases',
         ];
         $now = new DateTimeImmutable();
@@ -91,8 +91,8 @@ class Report extends Model {
         foreach ($rows as $row) {
             $row['complainant_college'] = Colleges::canonical($row['complainant_college']);
             if (isset($statusKeys[$row['status']])) $summary[$statusKeys[$row['status']]]++;
-            if (in_array($row['status'], ['Submitted', 'Returned for Revision'], true)) $summary['pending_cases']++;
-            if ($row['status'] === 'Verified' || (!empty($row['assigned_coordinator_account_id']) && !in_array($row['status'], ['Resolved', 'Archived'], true))) $summary['ongoing_cases']++;
+            if (in_array($row['status'], ['Under Investigation', 'Returned for Revision'], true)) $summary['pending_cases']++;
+            if ($row['status'] === 'Under Investigation' || (!empty($row['assigned_coordinator_account_id']) && !in_array($row['status'], ['Resolved', 'Archived'], true))) $summary['ongoing_cases']++;
             if (($row['complainant_type'] ?? 'Student') === 'Student' && !empty($row['submitted_by_account_id'])) $students[(int) $row['submitted_by_account_id']] = true;
             $summary['scheduled_hearings'] += (int) $row['scheduled_hearing_count'];
             $summary['completed_hearings'] += (int) $row['completed_hearing_count'];
@@ -251,8 +251,8 @@ class Report extends Model {
         [$where, $params, $types] = self::caseWhere($filters, 'c');
         $sql = "SELECT
                     COUNT(*) AS total_cases,
-                    SUM(CASE WHEN c.status IN ('Submitted', 'Returned for Revision') THEN 1 ELSE 0 END) AS pending_cases,
-                    SUM(CASE WHEN c.status IN ('Verified') OR c.assigned_coordinator_account_id IS NOT NULL THEN 1 ELSE 0 END) AS ongoing_cases,
+                    SUM(CASE WHEN c.status IN ('Under Investigation', 'Returned for Revision') THEN 1 ELSE 0 END) AS pending_cases,
+                    SUM(CASE WHEN c.status IN ('Under Investigation') OR c.assigned_coordinator_account_id IS NOT NULL THEN 1 ELSE 0 END) AS ongoing_cases,
                     SUM(CASE WHEN c.status = 'Resolved' THEN 1 ELSE 0 END) AS resolved_cases,
                     SUM(CASE WHEN c.status = 'Archived' THEN 1 ELSE 0 END) AS archived_cases
                 FROM complaints c
@@ -419,14 +419,14 @@ class Report extends Model {
         [$where, $params, $types] = self::caseWhere($filters, 'c');
         $summary = self::fetchOne(
             "SELECT COUNT(*) AS total_cases,
-                    SUM(CASE WHEN c.status = 'Submitted' THEN 1 ELSE 0 END) AS submitted_cases,
-                    SUM(CASE WHEN c.status = 'Verified' THEN 1 ELSE 0 END) AS verified_cases,
+                    SUM(CASE WHEN c.status = 'Under Investigation' THEN 1 ELSE 0 END) AS under_investigation_cases,
                     SUM(CASE WHEN c.status = 'Returned for Revision' THEN 1 ELSE 0 END) AS returned_for_revision_cases,
                     SUM(CASE WHEN c.status = 'Rejected' THEN 1 ELSE 0 END) AS rejected_cases,
                     SUM(CASE WHEN c.status = 'Resolved' THEN 1 ELSE 0 END) AS resolved_cases,
+                    SUM(CASE WHEN c.status = 'Escalated' THEN 1 ELSE 0 END) AS escalated_cases,
                     SUM(CASE WHEN c.status = 'Archived' THEN 1 ELSE 0 END) AS archived_cases,
-                    SUM(CASE WHEN c.status IN ('Submitted', 'Returned for Revision') THEN 1 ELSE 0 END) AS pending_cases,
-                    SUM(CASE WHEN (c.status = 'Verified' OR (c.assigned_coordinator_account_id IS NOT NULL AND c.status NOT IN ('Resolved', 'Archived'))) THEN 1 ELSE 0 END) AS ongoing_cases
+                    SUM(CASE WHEN c.status IN ('Under Investigation', 'Returned for Revision') THEN 1 ELSE 0 END) AS pending_cases,
+                    SUM(CASE WHEN (c.status = 'Under Investigation' OR (c.assigned_coordinator_account_id IS NOT NULL AND c.status NOT IN ('Resolved', 'Archived'))) THEN 1 ELSE 0 END) AS ongoing_cases
              FROM complaints c
              $where",
             $params,

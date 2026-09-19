@@ -27,14 +27,14 @@ $resubmission = $viewData['resubmission'];
 $classificationOptions = $viewData['classificationOptions'];
 $caseStatus = $case['status'] ?? '';
 $statusMeta = [
-    'Submitted' => ['slug' => 'submitted', 'icon' => 'bi-send'],
-    'Verified' => ['slug' => 'verified', 'icon' => 'bi-shield-check'],
+    'Under Investigation' => ['slug' => 'under-investigation', 'icon' => 'bi-search'],
     'Returned for Revision' => ['slug' => 'returned', 'icon' => 'bi-arrow-return-left'],
     'Rejected' => ['slug' => 'rejected', 'icon' => 'bi-x-circle'],
     'Resolved' => ['slug' => 'resolved', 'icon' => 'bi-check2-circle'],
+    'Escalated' => ['slug' => 'escalated', 'icon' => 'bi-arrow-up-circle'],
     'Archived' => ['slug' => 'archived', 'icon' => 'bi-archive'],
 ];
-$caseStatusSlug = $statusMeta[$caseStatus]['slug'] ?? 'submitted';
+$caseStatusSlug = $statusMeta[$caseStatus]['slug'] ?? 'under-investigation';
 $caseStatusIcon = $statusMeta[$caseStatus]['icon'] ?? 'bi-tag';
 $caseUpdatedAt = $case['updated_at'] ?? $case['submitted_at'] ?? null;
 $viewerRoleKey = strtolower(str_replace(['_', ' '], '-', $user['role'] ?? ''));
@@ -168,14 +168,9 @@ function person_name($first, $last) {
         transition: border-color 0.3s ease, box-shadow 0.4s ease;
     }
 
-    .status-banner[data-status="submitted"] {
+    .status-banner[data-status="under-investigation"] {
         --status-color: #1c6dd0;
         --status-bg: #eaf3fd;
-    }
-
-    .status-banner[data-status="verified"] {
-        --status-color: #1a9d00;
-        --status-bg: #e9f8e4;
     }
 
     .status-banner[data-status="returned"] {
@@ -191,6 +186,11 @@ function person_name($first, $last) {
     .status-banner[data-status="resolved"] {
         --status-color: #157000;
         --status-bg: #e6f5e0;
+    }
+
+    .status-banner[data-status="escalated"] {
+        --status-color: #c2410c;
+        --status-bg: #fdeee3;
     }
 
     .status-banner[data-status="archived"] {
@@ -427,28 +427,60 @@ function person_name($first, $last) {
         padding: 10px;
     }
 
-    .btn-verify {
-        background: #1A9D00;
+    .case-action-group > .btn {
+        width: 100%;
+    }
+
+    .case-action-group > .btn + .btn {
+        margin-top: 14px;
     }
 
     .btn-return {
+        background: #b57600;
+    }
+
+    .btn-return:hover {
         background: #936d00;
     }
 
     .btn-reject {
-        background: #b42318;
+        background: #c62828;
+    }
+
+    .btn-reject:hover {
+        background: #a01818;
     }
 
     .btn-assign {
-        background: #123c1b;
+        background: #1c6dd0;
+    }
+
+    .btn-assign:hover {
+        background: #15549e;
     }
 
     .btn-resolve {
         background: #157000;
     }
 
+    .btn-resolve:hover {
+        background: #0f5a00;
+    }
+
+    .btn-escalate {
+        background: #c2410c;
+    }
+
+    .btn-escalate:hover {
+        background: #9a3307;
+    }
+
     .btn-archive {
         background: #59635a;
+    }
+
+    .btn-archive:hover {
+        background: #454d45;
     }
 
     .btn-reopen {
@@ -561,6 +593,10 @@ function person_name($first, $last) {
         padding: 20px;
         position: fixed;
         z-index: 3000;
+    }
+
+    .swal2-container {
+        z-index: 4000 !important;
     }
 
     .case-modal-overlay.open {
@@ -1251,7 +1287,7 @@ function person_name($first, $last) {
                     </div>
 
                     <aside>
-                        <?php $caseStatus = $case['status'] ?? ''; $caseLocked = in_array($caseStatus, ['Resolved', 'Archived'], true); ?>
+                        <?php $caseStatus = $case['status'] ?? ''; $caseLocked = in_array($caseStatus, ['Resolved', 'Escalated', 'Archived'], true); ?>
                         <section class="panel">
                             <h2>Case Actions</h2>
                             <?php if (!$canManageCase): ?>
@@ -1270,14 +1306,12 @@ function person_name($first, $last) {
                                     action="show.php?id=<?= (int) $case['complaint_id'] ?>">
                                     <?= Security::csrfField() ?>
                                     <textarea name="remarks" placeholder="Remarks / notes..."></textarea>
-                                    <div class="button-row two">
-                                        <button class="btn btn-verify" type="submit" name="case_action" value="verify"
-                                            <?= $caseLocked ? 'disabled title="This case is closed."' : '' ?>>Verify</button>
-                                        <button class="btn btn-reject" type="submit" name="case_action" value="reject"
-                                            <?= $caseLocked ? 'disabled title="This case is closed."' : '' ?>
-                                            data-swal-confirm="Reject this complaint? This action changes its workflow status.">Reject</button>
-                                    </div>
+                                    <button class="btn btn-reject" type="submit" name="case_action" value="reject"
+                                        <?= $caseLocked ? 'disabled title="This case is closed."' : '' ?>
+                                        data-swal-confirm="Reject this complaint? This action changes its workflow status.">Reject</button>
                                 </form>
+                                <button type="button" class="btn btn-return" id="openReturnModal"
+                                    <?= $caseLocked ? 'disabled title="This case is closed."' : '' ?>><i class="bi bi-arrow-return-left"></i> Return for Revision</button>
                             </div>
 
                             <div class="case-action-group">
@@ -1296,29 +1330,18 @@ function person_name($first, $last) {
                                     <input type="text" name="classification_other" id="caseClassificationOther"
                                         placeholder="Specify the case classification" autocomplete="off"
                                         maxlength="100" hidden <?= $caseLocked ? 'disabled' : '' ?>>
-                                    <div class="button-row">
-                                        <button class="btn btn-assign" type="submit" name="case_action" value="classify"
-                                            <?= $caseLocked ? 'disabled title="This case is closed."' : '' ?>
-                                            data-swal-confirm="Save this case classification?">Save Classification</button>
-                                    </div>
+                                    <button class="btn btn-assign" type="submit" name="case_action" value="classify"
+                                        <?= $caseLocked ? 'disabled title="This case is closed."' : '' ?>
+                                        data-swal-confirm="Save this case classification?">Save Classification</button>
                                 </form>
                             </div>
 
                             <div class="case-action-group">
                                 <h3 class="case-action-label">Case Workflow</h3>
-                                <div class="button-row two">
-                                    <button type="button" class="btn btn-return" id="openReturnModal"
-                                        <?= $caseLocked ? 'disabled title="This case is closed."' : '' ?>><i class="bi bi-arrow-return-left"></i> Return for Revision</button>
-                                    <button type="button" class="btn btn-assign" id="openAssignModal"
-                                        <?= $caseLocked ? 'disabled title="This case is closed."' : '' ?>><i class="bi bi-person-plus"></i> Assign Coordinator</button>
-                                </div>
-                            </div>
-
-                            <div class="case-action-group">
-                                <h3 class="case-action-label">Case Updates</h3>
-                                <div class="button-row">
-                                    <button type="button" class="btn btn-assign" id="openUpdateModal"><i class="bi bi-plus-circle"></i> Add Case Update</button>
-                                </div>
+                                <button type="button" class="btn btn-assign" id="openAssignModal"
+                                    <?= $caseLocked ? 'disabled title="This case is closed."' : '' ?>><i class="bi bi-person-plus"></i> Assign Coordinator</button>
+                                <button type="button" class="btn btn-assign" id="openUpdateModal"
+                                    <?= in_array($caseStatus, ['Escalated', 'Archived'], true) ? 'disabled title="This case is ' . ($caseStatus === 'Escalated' ? 'escalated' : 'archived') . ' and can no longer be updated."' : '' ?>><i class="bi bi-plus-circle"></i> Add Case Update</button>
                             </div>
 
                             <div class="case-action-group">
@@ -1331,10 +1354,22 @@ function person_name($first, $last) {
                                     </div>
                                     <div class="button-row two">
                                         <button class="btn btn-resolve" type="submit" name="case_action" value="<?= $caseStatus === 'Resolved' ? 'reopen' : 'resolve' ?>"
-                                            <?= ($caseStatus === 'Verified') ? 'data-swal-confirm="Mark this case as resolved?"' : (($caseStatus === 'Resolved') ? 'data-swal-confirm="Unresolve this case? Its status will return to Verified."' : 'disabled title="Available once the case is Verified."') ?>><i class="bi <?= $caseStatus === 'Resolved' ? 'bi-arrow-counterclockwise' : 'bi-check-lg' ?>"></i> <?= $caseStatus === 'Resolved' ? 'Unresolve Case' : 'Resolve Case' ?></button>
-                                        <button class="btn btn-archive" type="submit" name="case_action" value="archive"
-                                            <?= ($caseStatus === 'Resolved') ? 'data-swal-confirm="Archive this case? It will be moved to Archived Cases."' : 'disabled title="Available once the case is Resolved."' ?>>Archive Case</button>
+                                            <?= ($caseStatus === 'Under Investigation') ? 'data-swal-confirm="Mark this case as resolved?"' : (($caseStatus === 'Resolved') ? 'data-swal-confirm="Unresolve this case? Its status will return to Under Investigation."' : 'disabled title="Available once the case is Under Investigation."') ?>><i class="bi <?= $caseStatus === 'Resolved' ? 'bi-arrow-counterclockwise' : 'bi-check-lg' ?>"></i> <?= $caseStatus === 'Resolved' ? 'Unresolve Case' : 'Mark as Resolved' ?></button>
+                                        <?php if ($caseStatus === 'Archived'): ?>
+                                            <button class="btn btn-archive" type="submit" name="case_action" value="unarchive"
+                                                data-swal-confirm="Unarchive this case? Its previous status will be restored.">Unarchive Case</button>
+                                        <?php else: ?>
+                                            <button class="btn btn-archive" type="submit" name="case_action" value="archive"
+                                                <?= in_array($caseStatus, ['Resolved', 'Escalated'], true) ? 'data-swal-confirm="Archive this case? It will be moved to Archived Cases."' : 'disabled title="Available once the case is Resolved or Escalated."' ?>>Archive Case</button>
+                                        <?php endif; ?>
                                     </div>
+                                </form>
+                                <form class="action-form" method="POST"
+                                    action="show.php?id=<?= (int) $case['complaint_id'] ?>">
+                                    <?= Security::csrfField() ?>
+                                    <textarea name="remarks" placeholder="Reason for escalation (required to escalate)."></textarea>
+                                    <button class="btn btn-escalate" type="submit" name="case_action" value="<?= $caseStatus === 'Escalated' ? 'withdraw_escalation' : 'escalate' ?>"
+                                        <?= ($caseStatus === 'Under Investigation') ? 'data-swal-confirm="Mark this case as escalated? All case actions will be locked except archiving."' : (($caseStatus === 'Escalated') ? 'data-swal-confirm="Withdraw the escalation? The case will return to Under Investigation."' : 'disabled title="Available once the case is Under Investigation."') ?>><i class="bi <?= $caseStatus === 'Escalated' ? 'bi-arrow-counterclockwise' : 'bi-arrow-up-circle' ?>"></i> <?= $caseStatus === 'Escalated' ? 'Withdraw Escalation' : 'Mark as Escalated' ?></button>
                                 </form>
                             </div>
                             <?php endif; ?>
@@ -1489,84 +1524,121 @@ function person_name($first, $last) {
     (() => {
         const archivedUrl = <?= json_encode(app_route('archived_cases.index')) ?>;
 
-        document.querySelectorAll('[data-swal-confirm]').forEach(button => {
-            button.addEventListener('click', event => {
-                event.preventDefault();
-                const action = button.value;
-                let config = {
-                    icon: 'question',
-                    title: button.dataset.swalConfirm,
-                    showCancelButton: true,
-                    confirmButtonText: 'Yes, continue',
-                    cancelButtonText: 'Cancel',
-                    reverseButtons: true
-                };
+        document.addEventListener('click', event => {
+            const button = event.target.closest('[data-swal-confirm]');
+            if (!button) return;
+            event.preventDefault();
+            const action = button.value;
+            let config = {
+                icon: 'question',
+                title: button.dataset.swalConfirm,
+                showCancelButton: true,
+                confirmButtonText: 'Yes, continue',
+                cancelButtonText: 'Cancel',
+                reverseButtons: true
+            };
 
-                if (action === 'reject') {
-                    const remarksField = button.form?.querySelector('[name="remarks"]');
-                    const remarks = (remarksField?.value || '').trim();
-                    if (!remarks) {
-                        Swal.fire({
-                            icon: 'warning',
-                            title: 'Rejection note required',
-                            text: 'Please enter a note in the Remarks field explaining why this complaint is being rejected.',
-                            confirmButtonText: 'Okay',
-                            confirmButtonColor: '#c0392b'
-                        });
-                        remarksField?.focus();
-                        return;
-                    }
-                    config.icon = 'warning';
-                    config.confirmButtonText = 'Yes, reject';
-                    config.confirmButtonColor = '#c0392b';
-                } else if (action === 'archive') {
-                    config.icon = 'warning';
-                    config.confirmButtonText = 'Yes, archive';
-                    config.confirmButtonColor = '#9a6b00';
-                } else if (action === 'reopen') {
-                    config.icon = 'warning';
-                    config.confirmButtonText = 'Yes, unresolve';
-                } else if (action === 'reject') {
-                    config.icon = 'warning';
-                    config.confirmButtonText = 'Yes, reject';
-                    config.confirmButtonColor = '#c0392b';
-                } else if (action === 'return') {
-                    config.icon = 'warning';
-                    config.confirmButtonText = 'Yes, return';
-                    config.confirmButtonColor = '#b8860b';
-                } else if (action === 'assign') {
-                    config.confirmButtonText = 'Yes, assign';
-                } else if (action === 'classify') {
-                    config.confirmButtonText = 'Yes, save';
-                } else if (action === 'resolve') {
-                    config.confirmButtonText = 'Yes, resolve';
-                    config.confirmButtonColor = '#157000';
+            if (action === 'reject') {
+                const remarksField = button.form?.querySelector('[name="remarks"]');
+                const remarks = (remarksField?.value || '').trim();
+                if (!remarks) {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'Rejection note required',
+                        text: 'Please enter a note in the Remarks field explaining why this complaint is being rejected.',
+                        confirmButtonText: 'Okay',
+                        confirmButtonColor: '#c0392b'
+                    });
+                    remarksField?.focus();
+                    return;
                 }
+                config.icon = 'warning';
+                config.confirmButtonText = 'Yes, reject';
+                config.confirmButtonColor = '#c0392b';
+            } else if (action === 'archive') {
+                config.icon = 'warning';
+                config.confirmButtonText = 'Yes, archive';
+                config.confirmButtonColor = '#9a6b00';
+            } else if (action === 'unarchive') {
+                config.icon = 'warning';
+                config.confirmButtonText = 'Yes, unarchive';
+                config.confirmButtonColor = '#9a6b00';
+            } else if (action === 'reopen') {
+                config.icon = 'warning';
+                config.confirmButtonText = 'Yes, unresolve';
+            } else if (action === 'return') {
+                config.icon = 'warning';
+                config.confirmButtonText = 'Yes, return';
+                config.confirmButtonColor = '#b8860b';
+            } else if (action === 'assign') {
+                config.confirmButtonText = 'Yes, assign';
+            } else if (action === 'classify') {
+                config.confirmButtonText = 'Yes, save';
+            } else if (action === 'resolve') {
+                config.confirmButtonText = 'Yes, resolve';
+                config.confirmButtonColor = '#157000';
+            } else if (action === 'escalate') {
+                const escalateRemarksField = button.form?.querySelector('[name="remarks"]');
+                const escalateRemarks = (escalateRemarksField?.value || '').trim();
+                if (!escalateRemarks) {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'Escalation reason required',
+                        text: 'Please enter the reason for escalation before marking this case as escalated.',
+                        confirmButtonText: 'Okay',
+                        confirmButtonColor: '#c2410c'
+                    });
+                    escalateRemarksField?.focus();
+                    return;
+                }
+                config.icon = 'warning';
+                config.confirmButtonText = 'Yes, escalate';
+                config.confirmButtonColor = '#c2410c';
+            } else if (action === 'withdraw_escalation') {
+                config.icon = 'warning';
+                config.confirmButtonText = 'Yes, withdraw';
+            }
 
-                Swal.fire(config).then(result => {
-                    if (!result.isConfirmed) return;
+            Swal.fire(config).then(result => {
+                if (!result.isConfirmed) return;
 
-                    if (action === 'archive') {
-                        Swal.fire({
-                            icon: 'success',
-                            title: 'Case archived',
-                            text: 'This case has been moved to Archived Cases. You can find all archived cases under Settings > Archived Cases.',
-                            showCancelButton: true,
-                            confirmButtonText: 'Open Archived Cases',
-                            cancelButtonText: 'Close',
-                            confirmButtonColor: '#1a9d00',
-                            reverseButtons: true
-                        }).then(next => {
-                            if (next.isConfirmed) {
-                                window.location.href = archivedUrl;
+                if (action === 'archive') {
+                    const fd = new FormData(button.form);
+                    if (button.name) fd.set(button.name, button.value);
+                    fetch(button.form.action, {
+                        method: 'POST',
+                        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                        body: fd,
+                        credentials: 'same-origin'
+                    })
+                        .then(resp => resp.json())
+                        .then(data => {
+                            if (data && data.success) {
+                                Swal.fire({
+                                    icon: 'success',
+                                    title: 'Case archived',
+                                    text: 'This case has been moved to Archived Cases.',
+                                    showCancelButton: true,
+                                    confirmButtonText: 'Open Archived Cases',
+                                    cancelButtonText: 'Close',
+                                    confirmButtonColor: '#1a9d00',
+                                    reverseButtons: true
+                                }).then(next => {
+                                    if (next.isConfirmed) {
+                                        window.location.href = archivedUrl;
+                                    } else {
+                                        window.location.reload();
+                                    }
+                                });
                             } else {
-                                button.form.requestSubmit(button);
+                                const msg = (data && data.errors) ? data.errors.join(' ') : 'Please try again.';
+                                Swal.fire({ icon: 'error', title: 'Unable to archive case', text: msg }).then(() => window.location.reload());
                             }
-                        });
-                    } else {
-                        button.form.requestSubmit(button);
-                    }
-                });
+                        })
+                        .catch(() => Swal.fire({ icon: 'error', title: 'Unable to archive case', text: 'Please try again.' }).then(() => window.location.reload()));
+                } else {
+                    button.form.requestSubmit(button);
+                }
             });
         });
 
@@ -1607,19 +1679,19 @@ function person_name($first, $last) {
         const statusPill = document.getElementById('caseStatusPill');
         const statusUpdated = document.getElementById('caseStatusUpdated');
         const statusSlugs = {
-            'Submitted': 'submitted',
-            'Verified': 'verified',
+            'Under Investigation': 'under-investigation',
             'Returned for Revision': 'returned',
             'Rejected': 'rejected',
             'Resolved': 'resolved',
+            'Escalated': 'escalated',
             'Archived': 'archived'
         };
         const statusIcons = {
-            'Submitted': 'bi-send',
-            'Verified': 'bi-shield-check',
+            'Under Investigation': 'bi-search',
             'Returned for Revision': 'bi-arrow-return-left',
             'Rejected': 'bi-x-circle',
             'Resolved': 'bi-check2-circle',
+            'Escalated': 'bi-arrow-up-circle',
             'Archived': 'bi-archive'
         };
         let lastStatus = document.getElementById('caseStatusPill').textContent.trim();
@@ -1639,7 +1711,7 @@ function person_name($first, $last) {
         };
 
         const applyStatus = newStatus => {
-            const slug = statusSlugs[newStatus] || 'submitted';
+            const slug = statusSlugs[newStatus] || 'under-investigation';
             statusPill.textContent = newStatus;
             statusBanner.dataset.status = slug;
             const icon = statusBanner.querySelector('.status-banner-badge i');

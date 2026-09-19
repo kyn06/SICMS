@@ -57,8 +57,8 @@ class Complaint extends Model {
     public static function summaryForStudent($accountId) {
         $sql = "SELECT
                     COUNT(*) AS total_complaints,
-                    SUM(CASE WHEN status IN ('Submitted', 'Returned for Revision') THEN 1 ELSE 0 END) AS pending_cases,
-                    SUM(CASE WHEN status IN ('Verified') OR assigned_coordinator_account_id IS NOT NULL THEN 1 ELSE 0 END) AS ongoing_cases,
+                    SUM(CASE WHEN status IN ('Under Investigation', 'Returned for Revision') THEN 1 ELSE 0 END) AS pending_cases,
+                    SUM(CASE WHEN status IN ('Under Investigation') OR assigned_coordinator_account_id IS NOT NULL THEN 1 ELSE 0 END) AS ongoing_cases,
                     SUM(CASE WHEN status = 'Resolved' THEN 1 ELSE 0 END) AS resolved_cases
                 FROM complaints
                 WHERE submitted_by_account_id = ?";
@@ -359,7 +359,7 @@ class Complaint extends Model {
 
             $revisedFieldList = array_values(array_unique($revisedFields));
 
-            $updates['status'] = 'Submitted';
+            $updates['status'] = 'Under Investigation';
             $updates['updated_at'] = date('Y-m-d H:i:s');
             $set = implode(', ', array_map(fn($column) => "$column = ?", array_keys($updates)));
             $values = array_values($updates);
@@ -414,7 +414,7 @@ class Complaint extends Model {
                 'complaint_id' => $complaintId,
                 'action' => 'Submitted Revised Complaint',
                 'previous_status' => 'Returned for Revision',
-                'new_status' => 'Submitted',
+                'new_status' => 'Under Investigation',
                 'remarks' => 'Student submitted the requested revisions.',
                 'revision_fields' => $revisedFieldList ? json_encode($revisedFieldList) : null,
                 'assigned_coordinator_account_id' => null,

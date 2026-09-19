@@ -589,7 +589,7 @@ $witnessItem = function ($index = null, $old = []) {
             <?php if ($success): ?>
                 <section class="submission-success" aria-live="polite">
                     <i class="bi bi-check2-circle" aria-hidden="true"></i>
-                    <div><h2>Complaint Submitted Successfully</h2><p>Your complaint has been received by the Student Discipline and Reformation Unit (SDRU).</p><div class="success-meta"><span>Case Number <strong><?= h($successCaseNumber) ?></strong></span><span>Current Status <strong>Submitted</strong></span></div><a class="btn btn-primary" href="my_cases.php"><i class="bi bi-folder-check"></i> Track My Complaint</a></div>
+                    <div><h2>Complaint Submitted Successfully</h2><p>Your complaint has been received by the Student Discipline and Reformation Unit (SDRU).</p><div class="success-meta"><span>Case Number <strong><?= h($successCaseNumber) ?></strong></span><span>Current Status <strong>Under Investigation</strong></span></div><a class="btn btn-primary" href="my_cases.php"><i class="bi bi-folder-check"></i> Track My Complaint</a></div>
                 </section>
             <?php endif; ?>
 

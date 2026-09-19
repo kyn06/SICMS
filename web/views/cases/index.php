@@ -212,6 +212,16 @@ function role_key($role) {
                     </tbody>
                 </table>
             </section>
+
+            <section class="table-panel">
+                <div class="table-heading" style="margin-bottom:2px">
+                    <h2><i class="bi bi-archive"></i> Archived Cases</h2>
+                </div>
+                <div class="table-heading table-heading-row">
+                    <p class="muted" style="margin:0">View cases that have been archived. Archived cases are still counted in statistics and reports.</p>
+                    <a class="btn btn-primary" href="<?= h(app_route('archived_cases.index')) ?>"><i class="bi bi-archive-fill"></i> Open Archived Cases</a>
+                </div>
+            </section>
         </main>
         </div>
     </div>

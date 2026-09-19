@@ -66,11 +66,11 @@ class SicmsReportPdf extends FPDF {
         $this->sectionTitle('Executive Summary');
         $labels = [
             'total_cases' => 'Total Cases',
-            'submitted_cases' => 'Submitted',
-            'verified_cases' => 'Verified',
+            'under_investigation_cases' => 'Under Investigation',
             'returned_for_revision_cases' => 'Returned for Revision',
             'rejected_cases' => 'Rejected',
             'resolved_cases' => 'Resolved',
+            'escalated_cases' => 'Escalated',
             'archived_cases' => 'Archived',
             'scheduled_hearings' => 'Scheduled Hearings',
         ];
@@ -152,11 +152,11 @@ class SicmsReportPdf extends FPDF {
             'total_cases' => 'Total Cases',
             'pending_cases' => 'Pending',
             'ongoing_cases' => 'Ongoing',
-            'submitted_cases' => 'Submitted',
-            'verified_cases' => 'Verified',
+            'under_investigation_cases' => 'Under Investigation',
             'returned_for_revision_cases' => 'Returned for Revision',
             'rejected_cases' => 'Rejected',
             'resolved_cases' => 'Resolved',
+            'escalated_cases' => 'Escalated',
             'archived_cases' => 'Archived',
         ];
         $groups = array_chunk($labels, 5, true);
