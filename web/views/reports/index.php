@@ -605,9 +605,9 @@ function applied_filter_labels(array $filters, array $options) {
                     <label for="case_source">Case Source</label>
                     <select id="case_source" name="case_source">
                         <option value="">All Sources</option>
-                        <option value="All" <?= selected($filters['case_source'] ?? '', 'All') ?>>Combined (Online + Legacy)</option>
+                        <option value="All" <?= selected($filters['case_source'] ?? '', 'All') ?>>Combined (Online + Migrated)</option>
                         <option value="Online Submission" <?= selected($filters['case_source'] ?? '', 'Online Submission') ?>>Online Only</option>
-                        <option value="Legacy" <?= selected($filters['case_source'] ?? '', 'Legacy') ?>>Legacy Only</option>
+                        <option value="Legacy" <?= selected($filters['case_source'] ?? '', 'Legacy') ?>>Migrated Only</option>
                     </select>
                 </div>
                 </div>

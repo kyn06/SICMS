@@ -40,19 +40,24 @@ class CaseController {
     public function index() {
         $filters = $this->filters($_GET);
 
-        $assignedCases = $this->roleKey() === 'coordinator'
-            ? CaseRecord::listCases(['assigned_coordinator_account_id' => (int) $this->user['account_id']])
+        $isCoordinator = $this->roleKey() === 'coordinator';
+        $showOnline = $this->showOnlineCases($filters);
+        $showMigrated = $this->showMigratedCases($filters);
+
+        $assignedCases = $isCoordinator && $showOnline
+            ? CaseRecord::listCases(array_merge($filters, ['assigned_coordinator_account_id' => (int) $this->user['account_id']]))
             : [];
 
         return [
             'user' => $this->user,
-            'cases' => CaseRecord::listCases($filters),
+            'cases' => $showOnline ? CaseRecord::listCases($filters) : [],
             'assignedCases' => $assignedCases,
-            'migratedCases' => CaseRecord::listLegacyCases([]),
+            'migratedCases' => $showMigrated ? CaseRecord::listLegacyCases($this->legacyFilters($filters)) : [],
             'canEditMigrated' => in_array($this->roleKey(), ['sdr-staff', 'sdru-staff'], true),
             'filters' => $filters,
             'statuses' => $this->activeStatuses(),
             'classifications' => CaseRecord::getClassifications(),
+            'coordinators' => CaseRecord::getCoordinators(),
         ];
     }
 
@@ -65,12 +70,17 @@ class CaseController {
 
         try {
             $filters = $this->filters($_GET);
-            $cases = CaseRecord::listCases($filters);
-            $migratedCases = CaseRecord::listLegacyCases($this->legacyFilters($filters));
+
             $isCoordinator = $this->roleKey() === 'coordinator';
-            $assignedCases = $isCoordinator
+            $showOnline = $this->showOnlineCases($filters);
+            $showMigrated = $this->showMigratedCases($filters);
+
+            $cases = $showOnline ? CaseRecord::listCases($filters) : [];
+            $migratedCases = $showMigrated ? CaseRecord::listLegacyCases($this->legacyFilters($filters)) : [];
+            $assignedCases = $isCoordinator && $showOnline
                 ? CaseRecord::listCases(array_merge($filters, ['assigned_coordinator_account_id' => (int) $this->user['account_id']]))
                 : [];
+
             echo json_encode([
                 'success' => true,
                 'cases' => $cases,
@@ -89,12 +99,33 @@ class CaseController {
         exit;
     }
 
+    private function showOnlineCases(array $filters) {
+        return in_array(strtolower((string) ($filters['case_source'] ?? '')), ['', 'online'], true);
+    }
+
+    private function showMigratedCases(array $filters) {
+        $source = strtolower((string) ($filters['case_source'] ?? ''));
+
+        if (!in_array($source, ['', 'migrated', 'legacy'], true)) {
+            return false;
+        }
+
+        if (!empty($filters['assigned_coordinator_account_id'])) {
+            return false;
+        }
+
+        return true;
+    }
+
     private function legacyFilters(array $filters) {
         return [
-            'case_number' => $filters['case_number'] ?? '',
-            'complainant_name' => $filters['student_name'] ?? '',
+            'search' => $filters['search'] ?? '',
             'status' => $filters['status'] ?? '',
             'classification' => $filters['classification'] ?? '',
+            'date_from' => $filters['date_from'] ?? '',
+            'date_to' => $filters['date_to'] ?? '',
+            'month' => $filters['month'] ?? 0,
+            'year' => $filters['year'] ?? 0,
         ];
     }
 
@@ -469,10 +500,16 @@ class CaseController {
 
     private function filters(array $input) {
         return [
+            'search' => substr(trim((string) ($input['search'] ?? '')), 0, 255),
             'status' => substr(trim((string) ($input['status'] ?? '')), 0, 50),
             'classification' => substr(trim((string) ($input['classification'] ?? '')), 0, 100),
-            'case_number' => substr(trim((string) ($input['case_number'] ?? '')), 0, 100),
-            'student_name' => substr(trim((string) ($input['student_name'] ?? '')), 0, 255),
+            'case_source' => substr(trim((string) ($input['case_source'] ?? '')), 0, 50),
+            'date_from' => substr(trim((string) ($input['date_from'] ?? '')), 0, 10),
+            'date_to' => substr(trim((string) ($input['date_to'] ?? '')), 0, 10),
+            'month' => ($month = (int) ($input['month'] ?? 0)) >= 1 && $month <= 12 ? $month : '',
+            'year' => ($year = (int) ($input['year'] ?? 0)) >= 2000 && $year <= 2100 ? $year : '',
+            'coordinator' => (int) ($input['coordinator'] ?? 0),
+            'assigned_coordinator_account_id' => (int) ($input['coordinator'] ?? 0),
         ];
     }
 
@@ -480,6 +517,7 @@ class CaseController {
         return [
             'case_number' => substr(trim((string) ($input['case_number'] ?? '')), 0, 100),
             'student_name' => substr(trim((string) ($input['student_name'] ?? '')), 0, 255),
+            'search' => substr(trim((string) ($input['search'] ?? '')), 0, 255),
         ];
     }
 

@@ -572,6 +572,51 @@ body {
     text-align: center;
 }
 
+.status-pill.status-under-investigation {
+    background: #e8f1fb;
+    color: #1d5fa8;
+}
+
+.status-pill.status-returned-for-revision {
+    background: #fdf3e3;
+    color: #9a5b00;
+}
+
+.status-pill.status-rejected {
+    background: #fdeaea;
+    color: #b42318;
+}
+
+.status-pill.status-resolved {
+    background: #e7f6e9;
+    color: #128000;
+}
+
+.status-pill.status-escalated {
+    background: #f3ebfb;
+    color: #7a3ec8;
+}
+
+.status-pill.status-archived {
+    background: #eceff1;
+    color: #5b6470;
+}
+
+.status-pill.status-pending {
+    background: #fdf3e3;
+    color: #9a5b00;
+}
+
+.status-pill.status-completed {
+    background: #e7f6e9;
+    color: #128000;
+}
+
+.status-pill.status-submitted {
+    background: #e8f1fb;
+    color: #1d5fa8;
+}
+
 .student-panel {
     background: var(--surface);
     border: 1px solid var(--line);
@@ -652,6 +697,111 @@ body {
     justify-content: center;
 }
 
+.student-quick-actions-panel .student-actions,
+.student-hero-with-actions .student-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin: 16px 0 2px;
+}
+
+.student-hero-with-actions {
+    grid-template-columns: minmax(0, 1fr);
+    overflow: hidden;
+    position: relative;
+}
+
+.student-hero-glow {
+    background:
+        radial-gradient(circle at 88% 20%, rgba(26, 157, 0, 0.10) 0, transparent 42%),
+        radial-gradient(circle at 96% 88%, rgba(18, 60, 27, 0.08) 0, transparent 38%);
+    bottom: 0;
+    left: 0;
+    pointer-events: none;
+    position: absolute;
+    right: 0;
+    top: 0;
+}
+
+.student-hero-copy {
+    position: relative;
+    z-index: 1;
+}
+
+.student-hero-badge {
+    align-items: center;
+    background: var(--green-100);
+    border: 1px solid #cfe8c9;
+    border-radius: 999px;
+    color: var(--green-700);
+    display: inline-flex;
+    font-size: 11.5px;
+    font-weight: 800;
+    gap: 7px;
+    letter-spacing: .4px;
+    padding: 6px 12px;
+    text-transform: uppercase;
+}
+
+.student-hero .student-hero-badge + .section-title {
+    margin-top: 12px;
+}
+
+.student-hero .activity-description {
+    font-size: 13.5px;
+    margin: 6px 0 0;
+}
+
+.student-quick-actions-panel .section-title {
+    align-items: center;
+    display: flex;
+    font-size: 16px;
+    font-weight: 800;
+    gap: 8px;
+}
+
+.student-quick-actions-panel .student-action,
+.student-hero-with-actions .student-action {
+    justify-content: flex-start;
+    position: relative;
+    width: 100%;
+}
+
+.student-hero-with-actions .student-action {
+    background: linear-gradient(to bottom, #128000 10%, #103719 90%);
+    border: 1px solid #0e5c14;
+    border-radius: 14px;
+    box-shadow: 0 6px 18px rgba(18, 60, 27, 0.22);
+    color: #fff;
+    min-height: 84px;
+    padding: 16px 18px;
+}
+
+.student-hero-with-actions .student-action i {
+    background: rgba(255, 255, 255, 0.16);
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    color: #fff;
+}
+
+.student-hero-with-actions .student-action::after {
+    border-top: 2px solid rgba(255, 255, 255, 0.85);
+    border-right: 2px solid rgba(255, 255, 255, 0.85);
+    content: '';
+    height: 8px;
+    margin-left: auto;
+    transform: rotate(45deg);
+    transition: transform .18s ease;
+    width: 8px;
+}
+
+.student-hero-with-actions .student-action:hover {
+    border-color: #1a9d00;
+    box-shadow: 0 16px 34px rgba(18, 60, 27, 0.30);
+    transform: translateY(-3px);
+}
+
+.student-hero-with-actions .student-action:hover::after {
+    transform: rotate(45deg) translate(-3px, 3px);
+}
+
 .student-dashboard-focused {
     align-items: start;
     grid-template-columns: minmax(0, 1.35fr) minmax(300px, .65fr);
@@ -728,11 +878,20 @@ body {
 .student-case-card {
     background: #fbfdf9;
     border: 1px solid var(--line);
-    border-radius: 8px;
+    border-left: 3px solid var(--green-600);
+    border-radius: 10px;
     display: grid;
     gap: 12px;
     grid-template-columns: minmax(0, 1fr) auto;
-    padding: 14px;
+    padding: 14px 16px;
+    transition: border-color .16s ease, box-shadow .16s ease, transform .16s ease;
+}
+
+.student-case-card:hover {
+    border: 1px solid #c9dfc4;
+    border-left: 3px solid var(--green-700);
+    box-shadow: 0 10px 24px rgba(18, 60, 27, 0.10);
+    transform: translateY(-2px);
 }
 
 .student-case-number {
@@ -942,6 +1101,26 @@ body {
         min-width: min(320px, calc(100vw - 44px));
         right: auto;
     }
+}
+
+.student-panel .section-title i {
+    align-items: center;
+    background: var(--green-100);
+    border-radius: 9px;
+    color: var(--green-700);
+    display: inline-flex;
+    height: 30px;
+    justify-content: center;
+    width: 30px;
+}
+
+.student-panel .section-title {
+    font-size: 16.5px;
+    margin-bottom: 14px;
+}
+
+.student-case-list {
+    gap: 14px;
 }
 
 @media (max-width: 620px) {
