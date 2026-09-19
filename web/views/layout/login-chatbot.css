@@ -11,6 +11,56 @@
     --sicms-muted: #5f6f5c;
 }
 
+body {
+    background-image: linear-gradient(
+            rgba(11, 47, 22, 0.58),
+            rgba(11, 47, 22, 0.66)
+        ),
+        url("../../../public/assets/bg_login.jpg");
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-attachment: fixed;
+}
+
+.seal {
+    filter: drop-shadow(0 4px 12px rgba(0, 0, 0, .25));
+}
+
+.org-name {
+    color: #fff;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, .35);
+}
+
+.form-wrap {
+    background: rgba(244, 250, 243, .9);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, .45);
+    border-radius: 16px;
+    box-shadow:
+        0 20px 50px rgba(0, 0, 0, .25),
+        0 0 0 1px rgba(255, 255, 255, .12) inset;
+    padding: 32px 28px;
+    max-width: 400px;
+}
+
+.auth-footer {
+    color: rgba(255, 255, 255, .8);
+    text-align: center;
+    margin-top: 1.2rem;
+    font-size: 12px;
+}
+
+.auth-footer a {
+    color: rgba(255, 255, 255, .9);
+    text-decoration: none;
+}
+
+.auth-footer a:hover {
+    text-decoration: underline;
+}
+
 .sdruchat-launcher {
     position: fixed;
     right: 28px;
