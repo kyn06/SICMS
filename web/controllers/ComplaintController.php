@@ -213,11 +213,12 @@ class ComplaintController {
             $isStudentComplainant = $complainantType === 'Student';
 
             $complaint = [
-                'complaint_title' => trim($_POST['case_classification']),
+                'complaint_title' => 'Student Complaint',
                 'submitted_by_account_id' => (int) $this->user['account_id'],
                 'complainant_type' => $complainantType,
                 'complainant_name' => $isStudentComplainant ? trim($this->user['first_name'] . ' ' . $this->user['last_name']) : trim($_POST['complainant_name']),
                 'complainant_gender' => $this->normalizedGender($_POST['complainant_gender'] ?? ($isStudentComplainant ? ($this->user['gender'] ?? '') : '')),
+                'complainant_age' => (int) $_POST['complainant_age'],
                 'complainant_relationship' => $complainantType === 'Private Individual' ? trim($_POST['complainant_relationship'] ?? '') : '',
                 'complainant_employee_no' => $complainantType === 'Employee' ? trim($_POST['complainant_employee_no'] ?? '') : '',
                 'complainant_department' => $complainantType === 'Employee' ? trim($_POST['complainant_department'] ?? '') : '',
@@ -232,7 +233,7 @@ class ComplaintController {
                 'complainant_year_level' => $isStudentComplainant ? Courses::yearLevel(trim($_POST['complainant_section'] ?? '')) : '',
                 'complainant_section' => $isStudentComplainant ? trim($_POST['complainant_section'] ?? '') : '',
                 'complainant_course_year' => $isStudentComplainant ? trim($_POST['complainant_course_year'] ?? '') : '',
-                'case_classification' => trim($_POST['case_classification']),
+                'case_classification' => 'Unclassified',
                 'incident_datetime' => date('Y-m-d H:i:s', strtotime($_POST['incident_datetime'])),
                 'incident_location' => trim($_POST['incident_location']),
                 'complaint_details' => trim($_POST['complaint_details']),
@@ -296,7 +297,6 @@ class ComplaintController {
             'complainant_name' => 'Complainant name is required.',
             'complainant_email' => 'Complainant email is required.',
             'complainant_contact' => 'Complainant contact number is required.',
-            'case_classification' => 'Case classification is required.',
             'incident_datetime' => 'Incident date and time is required.',
             'incident_location' => 'Incident location is required.',
             'complaint_details' => 'Complaint details are required.',
@@ -330,12 +330,15 @@ class ComplaintController {
             $errors[] = 'Please select a valid complainant gender.';
         }
 
-        if (!empty($post['complainant_email']) && !filter_var($post['complainant_email'], FILTER_VALIDATE_EMAIL)) {
-            $errors[] = 'Please enter a valid complainant email address.';
+        $age = trim((string) ($post['complainant_age'] ?? ''));
+        if ($age === '') {
+            $errors[] = 'Complainant age is required.';
+        } elseif (!ctype_digit($age) || (int) $age < 1 || (int) $age > 120) {
+            $errors[] = 'Please enter a valid complainant age (1 to 120).';
         }
 
-        if (!empty($post['case_classification']) && !in_array($post['case_classification'], $this->classifications, true)) {
-            $errors[] = 'Please select a valid case classification.';
+        if (!empty($post['complainant_email']) && !filter_var($post['complainant_email'], FILTER_VALIDATE_EMAIL)) {
+            $errors[] = 'Please enter a valid complainant email address.';
         }
 
         $hasEvidence = trim((string) ($post['has_evidence'] ?? '')) === 'yes';
@@ -496,6 +499,7 @@ class ComplaintController {
                 'respondent_type' => $type,
                 'full_name' => $name,
                 'gender' => $this->normalizedGender($post['respondent_gender'][$index] ?? ''),
+                'age' => $this->personAge($post['respondent_age'][$index] ?? ''),
                 'student_no' => trim($post['respondent_student_no'][$index] ?? ''),
                 'employee_no' => trim($post['respondent_employee_no'][$index] ?? ''),
                 'college' => trim($post['respondent_college'][$index] ?? ''),
@@ -504,6 +508,8 @@ class ComplaintController {
                 'position' => trim($post['respondent_position'][$index] ?? ''),
                 'affiliation' => trim($post['respondent_affiliation'][$index] ?? ''),
                 'contact_info' => trim($post['respondent_contact'][$index] ?? ''),
+                'email' => trim($post['respondent_email'][$index] ?? ''),
+                'address' => trim($post['respondent_address'][$index] ?? ''),
                 'details' => trim($post['respondent_details'][$index] ?? ''),
             ];
         }
@@ -515,6 +521,12 @@ class ComplaintController {
         $errors = [];
 
         if (!empty($post['respondent_unknown'])) {
+            return $errors;
+        }
+
+        $respondentNames = array_filter(array_map('trim', (array) ($post['respondent_name'] ?? [])), 'strlen');
+        if (!$respondentNames) {
+            $errors[] = 'At least one respondent is required, or select "I don\'t know the respondent".';
             return $errors;
         }
 
@@ -530,20 +542,71 @@ class ComplaintController {
                 continue;
             }
 
-            $required = $type === 'Employee'
-                ? ['respondent_employee_no' => 'Employee number', 'respondent_position' => 'Position', 'respondent_department' => 'College/Office/Department']
-                : ($type === 'Student'
-                    ? ['respondent_student_no' => 'Student number', 'respondent_college' => 'College', 'respondent_course' => 'Course/Program', 'respondent_section' => 'Section']
-                    : []);
-
-            foreach ($required as $field => $label) {
-                if (trim((string) ($post[$field][$index] ?? '')) === '') {
-                    $errors[] = $label . ' is required for ' . strtolower($type) . ' respondents.';
-                }
-            }
+            $errors = array_merge($errors, $this->validatePerson($post, 'respondent', $index, ucfirst(strtolower($type)) . ' respondent'));
         }
 
         return $errors;
+    }
+
+    private function validateWitnesses(array $post) {
+        $errors = [];
+
+        if (!empty($post['witness_none'])) {
+            return $errors;
+        }
+
+        $witnessNames = array_filter(array_map('trim', (array) ($post['witness_name'] ?? [])), 'strlen');
+        if (!$witnessNames) {
+            $errors[] = 'At least one witness is required, or select "I don\'t have a witness".';
+            return $errors;
+        }
+
+        foreach (($post['witness_name'] ?? []) as $index => $name) {
+            if (trim((string) $name) === '') {
+                continue;
+            }
+
+            $type = trim((string) ($post['witness_type'][$index] ?? ''));
+            if ($type === '') $type = 'Student';
+            if (!in_array($type, ['Student', 'Employee', 'Private Individual', 'Other'], true)) {
+                $errors[] = 'Please select a valid witness type.';
+                continue;
+            }
+
+            $errors = array_merge($errors, $this->validatePerson($post, 'witness', $index, ucfirst(strtolower($type)) . ' witness'));
+        }
+
+        return $errors;
+    }
+
+    private function validatePerson(array $post, $prefix, $index, $label) {
+        $errors = [];
+
+        $gender = trim((string) ($post[$prefix . '_gender'][$index] ?? ''));
+        if ($gender !== '' && !in_array($gender, ['Male', 'Female'], true)) {
+            $errors[] = 'Please select a valid gender for each ' . $label . '.';
+        }
+
+        $age = trim((string) ($post[$prefix . '_age'][$index] ?? ''));
+        if ($age !== '' && $this->personAge($age) === null) {
+            $errors[] = 'Please enter a valid age (1 to 120) for each ' . $label . '.';
+        }
+
+        $email = trim((string) ($post[$prefix . '_email'][$index] ?? ''));
+        if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $errors[] = 'Please enter a valid email address for each ' . $label . '.';
+        }
+
+        return $errors;
+    }
+
+    private function personAge($value) {
+        $value = trim((string) $value);
+        if (!ctype_digit($value)) {
+            return null;
+        }
+        $age = (int) $value;
+        return ($age >= 1 && $age <= 120) ? $age : null;
     }
 
     private function normalizedGender($value) {
@@ -577,8 +640,11 @@ class ComplaintController {
                 'person_type' => $type,
                 'full_name' => $name,
                 'gender' => $this->normalizedGender($post['witness_gender'][$index] ?? ''),
+                'age' => $this->personAge($post['witness_age'][$index] ?? ''),
                 'student_no' => trim($post['witness_student_no'][$index] ?? ''),
                 'contact_info' => trim($post['witness_contact'][$index] ?? ''),
+                'email' => trim($post['witness_email'][$index] ?? ''),
+                'address' => trim($post['witness_address'][$index] ?? ''),
                 'statement' => trim($post['witness_statement'][$index] ?? ''),
                 'employee_no' => trim($post['witness_employee_no'][$index] ?? ''),
                 'college' => trim($post['witness_college'][$index] ?? ''),
@@ -590,41 +656,6 @@ class ComplaintController {
         }
 
         return $witnesses;
-    }
-
-    private function validateWitnesses(array $post) {
-        $errors = [];
-
-        if (!empty($post['witness_none'])) {
-            return $errors;
-        }
-
-        foreach (($post['witness_name'] ?? []) as $index => $name) {
-            if (trim((string) $name) === '') {
-                continue;
-            }
-
-            $type = trim((string) ($post['witness_type'][$index] ?? ''));
-            if ($type === '') $type = 'Student';
-            if (!in_array($type, ['Student', 'Employee', 'Private Individual', 'Other'], true)) {
-                $errors[] = 'Please select a valid witness type.';
-                continue;
-            }
-
-            $required = $type === 'Employee'
-                ? ['witness_employee_no' => 'Employee number', 'witness_position' => 'Position', 'witness_department' => 'College/Office or Department']
-                : ($type === 'Student'
-                    ? ['witness_student_no' => 'Student number', 'witness_college' => 'College', 'witness_course' => 'Course/Program', 'witness_section' => 'Section']
-                    : []);
-
-            foreach ($required as $field => $label) {
-                if (trim((string) ($post[$field][$index] ?? '')) === '') {
-                    $errors[] = $label . ' is required for ' . strtolower($type) . ' witnesses.';
-                }
-            }
-        }
-
-        return $errors;
     }
 
     private function validateEvidenceFiles(array $files) {

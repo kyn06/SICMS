@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 require_once __DIR__ . '/../../controllers/CaseController.php';
 require_once __DIR__ . '/../../../routes.php';
 
@@ -12,11 +12,13 @@ $viewData = $controller->index();
 
 $user = $viewData['user'];
 $cases = $viewData['cases'];
+$assignedCases = $viewData['assignedCases'];
 $filters = $viewData['filters'];
 $statuses = $viewData['statuses'];
 $classifications = $viewData['classifications'];
 $migratedCases = $viewData['migratedCases'];
 $canEditMigrated = $viewData['canEditMigrated'];
+$viewerRoleKey = role_key($user['role'] ?? '');
 
 function h($value) {
     return htmlspecialchars((string) $value);
@@ -85,8 +87,54 @@ function role_key($role) {
                 </form>
             </section>
 
+            <?php if ($viewerRoleKey === 'coordinator'): ?>
             <section class="table-panel">
-                    <div class="empty-state" id="caseEmptyState" <?= empty($cases) ? '' : 'hidden' ?>>No complaints found.</div>
+                    <div class="table-heading table-heading-row">
+                        <h2><i class="bi bi-folder-check"></i> Assigned Cases</h2>
+                    </div>
+                    <div class="empty-state" id="assignedEmptyState" <?= empty($assignedCases) ? '' : 'hidden' ?>>No cases are assigned to you.</div>
+                    <table id="assignedCaseTable" <?= empty($assignedCases) ? 'hidden' : '' ?>>
+                        <thead>
+                            <tr>
+                                <th>Case Number</th>
+                                <th>Complainant Name</th>
+                                <th>Gender</th>
+                                <th>Classification</th>
+                                <th>Status</th>
+                                <th>Date Submitted</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="assignedCaseTableBody">
+                            <?php foreach ($assignedCases as $case): ?>
+                                <tr>
+                                    <td>
+                                        <a class="case-link" href="show.php?id=<?= (int) $case['complaint_id'] ?>">
+                                            <?= h($case['case_number']) ?>
+                                        </a>
+                                    </td>
+                                    <td><?= h($case['complainant_name']) ?></td>
+                                    <td><?= h($case['complainant_gender'] ?: 'Not provided') ?></td>
+                                    <td><?= h($case['case_classification']) ?></td>
+                                    <td><span class="status"><?= h($case['status']) ?></span></td>
+                                    <td><?= h(date('M d, Y h:i A', strtotime($case['submitted_at']))) ?></td>
+                                    <td>
+                                        <div class="row-actions">
+                                            <a class="btn btn-primary" href="show.php?id=<?= (int) $case['complaint_id'] ?>"><i class="bi bi-eye"></i> View Details</a>
+                                        </div>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+            </section>
+            <?php endif; ?>
+
+            <section class="table-panel">
+                    <div class="table-heading table-heading-row">
+                        <h2><i class="bi bi-globe2"></i> Online Cases</h2>
+                    </div>
+                    <div class="empty-state" id="caseEmptyState" <?= empty($cases) ? '' : 'hidden' ?>>No online cases found.</div>
                     <table id="caseTable" <?= empty($cases) ? 'hidden' : '' ?>>
                         <thead>
                             <tr>
@@ -142,7 +190,7 @@ function role_key($role) {
                             <th>Actions</th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody id="migratedCaseTableBody">
                         <?php foreach ($migratedCases as $case): ?>
                             <tr>
                                 <td>
@@ -173,6 +221,12 @@ function role_key($role) {
             const table = document.getElementById('caseTable');
             const tableBody = document.getElementById('caseTableBody');
             const emptyState = document.getElementById('caseEmptyState');
+            const assignedTable = document.getElementById('assignedCaseTable');
+            const assignedBody = document.getElementById('assignedCaseTableBody');
+            const assignedEmptyState = document.getElementById('assignedEmptyState');
+            const migratedTable = document.getElementById('migratedCaseTable');
+            const migratedBody = document.getElementById('migratedCaseTableBody');
+            const migratedEmptyState = document.getElementById('migratedEmptyState');
             const clearButton = document.getElementById('clearFilters');
             const textInputs = [form.elements.case_number, form.elements.student_name];
             const selects = [form.elements.status, form.elements.classification];
@@ -185,6 +239,14 @@ function role_key($role) {
                 return new Intl.DateTimeFormat('en-US', {
                     month: 'short', day: '2-digit', year: 'numeric',
                     hour: '2-digit', minute: '2-digit'
+                }).format(date);
+            };
+
+            const formatDateShort = (value) => {
+                const date = new Date(String(value).replace(' ', 'T'));
+                if (Number.isNaN(date.getTime())) return value || '';
+                return new Intl.DateTimeFormat('en-US', {
+                    month: 'short', day: '2-digit', year: 'numeric'
                 }).format(date);
             };
 
@@ -233,7 +295,87 @@ function role_key($role) {
                 const hasCases = cases.length > 0;
                 table.hidden = !hasCases;
                 emptyState.hidden = hasCases;
-                emptyState.textContent = 'No complaints found.';
+                emptyState.textContent = 'No online cases found.';
+            };
+
+            const renderAssigned = (cases) => {
+                if (!assignedBody) return;
+                assignedBody.replaceChildren();
+
+                cases.forEach((item) => {
+                    const row = document.createElement('tr');
+                    const numberCell = document.createElement('td');
+                    const link = document.createElement('a');
+                    link.className = 'case-link';
+                    link.href = `show.php?id=${encodeURIComponent(item.complaint_id)}`;
+                    link.textContent = item.case_number;
+                    numberCell.appendChild(link);
+                    row.appendChild(numberCell);
+                    appendCell(row, item.complainant_name);
+                    appendCell(row, item.complainant_gender || 'Not provided');
+                    appendCell(row, item.case_classification);
+                    const statusCell = document.createElement('td');
+                    const status = document.createElement('span');
+                    status.className = 'status';
+                    status.textContent = item.status;
+                    statusCell.appendChild(status);
+                    row.appendChild(statusCell);
+                    appendCell(row, formatDate(item.submitted_at));
+                    const actionsCell = document.createElement('td');
+                    const actionsDiv = document.createElement('div');
+                    actionsDiv.className = 'row-actions';
+                    const viewLink = document.createElement('a');
+                    viewLink.className = 'btn btn-primary';
+                    viewLink.href = `show.php?id=${encodeURIComponent(item.complaint_id)}`;
+                    viewLink.innerHTML = '<i class="bi bi-eye"></i> View Details';
+                    actionsDiv.appendChild(viewLink);
+                    actionsCell.appendChild(actionsDiv);
+                    row.appendChild(actionsCell);
+                    assignedBody.appendChild(row);
+                });
+
+                const hasCases = cases.length > 0;
+                assignedTable.hidden = !hasCases;
+                assignedEmptyState.hidden = hasCases;
+            };
+
+            const renderMigrated = (cases) => {
+                migratedBody.replaceChildren();
+
+                cases.forEach((item) => {
+                    const row = document.createElement('tr');
+                    const numberCell = document.createElement('td');
+                    const link = document.createElement('a');
+                    link.className = 'case-link';
+                    link.href = `../legacy_cases/show.php?id=${encodeURIComponent(item.complaint_id)}`;
+                    link.textContent = item.case_number;
+                    numberCell.appendChild(link);
+                    row.appendChild(numberCell);
+                    appendCell(row, item.complainant_name);
+                    appendCell(row, item.case_classification);
+                    appendCell(row, formatDateShort(item.original_case_date || item.submitted_at));
+                    const statusCell = document.createElement('td');
+                    const status = document.createElement('span');
+                    status.className = 'status';
+                    status.textContent = item.status;
+                    statusCell.appendChild(status);
+                    row.appendChild(statusCell);
+                    const actionsCell = document.createElement('td');
+                    const actionsDiv = document.createElement('div');
+                    actionsDiv.className = 'row-actions';
+                    const viewLink = document.createElement('a');
+                    viewLink.className = 'btn btn-primary';
+                    viewLink.href = `../legacy_cases/show.php?id=${encodeURIComponent(item.complaint_id)}`;
+                    viewLink.innerHTML = '<i class="bi bi-eye"></i> View';
+                    actionsDiv.appendChild(viewLink);
+                    actionsCell.appendChild(actionsDiv);
+                    row.appendChild(actionsCell);
+                    migratedBody.appendChild(row);
+                });
+
+                const hasCases = cases.length > 0;
+                migratedTable.hidden = !hasCases;
+                migratedEmptyState.hidden = hasCases;
             };
 
             const updateCases = async () => {
@@ -252,6 +394,8 @@ function role_key($role) {
                     const data = await response.json();
                     if (!response.ok || !data.success) throw new Error(data.message || 'Search failed.');
                     renderCases(data.cases);
+                    renderMigrated(data.migratedCases || []);
+                    renderAssigned(data.assignedCases || []);
                     params.delete('ajax');
                     const query = params.toString();
                     history.replaceState(null, '', query ? `${form.action}?${query}` : form.action);
@@ -260,6 +404,14 @@ function role_key($role) {
                         table.hidden = true;
                         emptyState.hidden = false;
                         emptyState.textContent = 'Unable to filter cases. Please try again.';
+                        if (assignedTable) assignedTable.hidden = true;
+                        if (assignedEmptyState) {
+                            assignedEmptyState.hidden = false;
+                            assignedEmptyState.textContent = 'Unable to filter cases. Please try again.';
+                        }
+                        migratedTable.hidden = true;
+                        migratedEmptyState.hidden = false;
+                        migratedEmptyState.textContent = 'Unable to filter cases. Please try again.';
                     }
                 } finally {
                     form.removeAttribute('aria-busy');

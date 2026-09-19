@@ -203,6 +203,7 @@ class Complaint extends Model {
                     'respondent_type' => $respondent['respondent_type'],
                     'full_name' => $respondent['full_name'],
                     'gender' => $respondent['gender'] ?? '',
+                    'age' => $respondent['age'] ?? null,
                     'student_no' => $respondent['student_no'],
                     'employee_no' => $respondent['employee_no'],
                     'college' => $respondent['college'],
@@ -211,6 +212,8 @@ class Complaint extends Model {
                     'position' => $respondent['position'],
                     'affiliation' => $respondent['affiliation'],
                     'contact_info' => $respondent['contact_info'],
+                    'email' => $respondent['email'] ?? '',
+                    'address' => $respondent['address'] ?? '',
                     'details' => $respondent['details'],
                     'created_at' => date('Y-m-d H:i:s'),
                 ]);
@@ -222,8 +225,11 @@ class Complaint extends Model {
                     'person_type' => $witness['person_type'],
                     'full_name' => $witness['full_name'],
                     'gender' => $witness['gender'] ?? '',
+                    'age' => $witness['age'] ?? null,
                     'student_no' => $witness['student_no'],
                     'contact_info' => $witness['contact_info'],
+                    'email' => $witness['email'] ?? '',
+                    'address' => $witness['address'] ?? '',
                     'statement' => $witness['statement'],
                     'employee_no' => $witness['employee_no'],
                     'college' => $witness['college'],
@@ -315,6 +321,9 @@ class Complaint extends Model {
                             'affiliation' => trim((string) ($row['affiliation'] ?? '')),
                             'contact_info' => trim((string) ($row['contact_info'] ?? '')),
                             'details' => trim((string) ($row['details'] ?? '')),
+                            'age' => trim((string) ($row['age'] ?? '')),
+                            'email' => trim((string) ($row['email'] ?? '')),
+                            'address' => trim((string) ($row['address'] ?? '')),
                         ];
                     }, CaseRecord::getRespondents($complaintId));
                     if (self::peopleChanged($respondents, $storedRespondents)) $revisedFields[] = 'respondents';
@@ -335,6 +344,9 @@ class Complaint extends Model {
                             'position' => trim((string) ($row['position'] ?? '')),
                             'affiliation' => trim((string) ($row['affiliation'] ?? '')),
                             'course_year' => trim((string) ($row['course_year'] ?? '')),
+                            'age' => trim((string) ($row['age'] ?? '')),
+                            'email' => trim((string) ($row['email'] ?? '')),
+                            'address' => trim((string) ($row['address'] ?? '')),
                         ];
                     }, CaseRecord::getWitnesses($complaintId));
                     if (self::peopleChanged($witnesses, $storedWitnesses)) $revisedFields[] = 'witnesses';
@@ -360,15 +372,15 @@ class Complaint extends Model {
 
             if ($respondents !== null) {
                 self::replacePeople('complaint_respondents', 'respondent_id', $complaintId, $respondents, [
-                    'respondent_type', 'full_name', 'gender', 'student_no', 'employee_no', 'college',
-                    'office_department', 'course_year', 'position', 'affiliation', 'contact_info', 'details',
+                    'respondent_type', 'full_name', 'gender', 'age', 'student_no', 'employee_no', 'college',
+                    'office_department', 'course_year', 'position', 'affiliation', 'contact_info', 'email', 'address', 'details',
                 ]);
             }
 
             if ($witnesses !== null) {
                 self::replacePeople('complaint_witnesses', 'witness_id', $complaintId, $witnesses, [
-                    'person_type', 'full_name', 'gender', 'student_no', 'contact_info', 'statement',
-                    'employee_no', 'college', 'office_department', 'position', 'affiliation', 'course_year',
+                    'person_type', 'full_name', 'gender', 'age', 'student_no', 'contact_info', 'email', 'address',
+                    'statement', 'employee_no', 'college', 'office_department', 'position', 'affiliation', 'course_year',
                 ]);
             }
 
@@ -435,6 +447,9 @@ class Complaint extends Model {
         $normalize = static function (array $rows): array {
             $normalized = [];
             foreach ($rows as $row) {
+                foreach ($row as $key => $value) {
+                    $row[$key] = is_scalar($value) ? (string) $value : '';
+                }
                 ksort($row);
                 $normalized[] = $row;
             }

@@ -957,8 +957,4 @@ body {
     .page-title {
         font-size: 21px;
     }
-
-    .datetime-pill {
-        display: none !important;
-    }
 }

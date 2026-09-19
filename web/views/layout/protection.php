@@ -55,7 +55,7 @@ Security::startSession();
     }
 
     @media print {
-        .dashboard-shell {
+        .dashboard-shell:not(.sicms-print-allowed) {
             visibility: hidden;
         }
     }

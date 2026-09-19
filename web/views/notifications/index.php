@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 require_once __DIR__ . '/../../controllers/NotificationController.php';
 $controller = new NotificationController();
 if (($_GET['ajax'] ?? '') === '1') $controller->search();
@@ -29,7 +29,7 @@ function time_ago($date) {
     if ($difference < 60) return 'Just now';
     if ($difference < 3600) return floor($difference / 60) . ' min ago';
     if ($difference < 86400) return floor($difference / 3600) . ' hr ago';
-    return date('M d, Y Â· h:i A', $timestamp);
+    return date('M d, Y · h:i A', $timestamp);
 }
 $currentGroup = null;
 ?>

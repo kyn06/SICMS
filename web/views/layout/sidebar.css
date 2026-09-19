@@ -515,32 +515,4 @@ a.notification-item {
     .nav-list {
         grid-template-columns: 1fr;
     }
-
-    .app-topbar {
-        align-items: center;
-        flex-wrap: wrap;
-        gap: 8px;
-        padding: 12px 14px;
-    }
-
-    .app-topbar-title {
-        flex: 1 1 auto;
-        min-width: 0;
-    }
-
-    .app-topbar-title h1,
-    .app-topbar-title p {
-        max-width: 100%;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
-
-    .app-topbar-actions {
-        flex: 0 0 auto;
-    }
-
-    .topbar-date {
-        display: none !important;
-    }
 }

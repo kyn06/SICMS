@@ -58,7 +58,7 @@ class Hearing extends Model {
     public static function getSchedulableCases(array $user = null) {
         $sql = "SELECT complaint_id, case_number, complainant_name, case_classification, status
                 FROM complaints
-                WHERE (status = 'Verified' OR assigned_coordinator_account_id IS NOT NULL)";
+                WHERE status = 'Verified'";
         $params = [];
         $types = '';
 
@@ -85,7 +85,7 @@ class Hearing extends Model {
     public static function isSchedulableCase($complaintId, array $user = null) {
         $sql = "SELECT complaint_id
                 FROM complaints
-                WHERE complaint_id = ? AND (status = 'Verified' OR assigned_coordinator_account_id IS NOT NULL)";
+                WHERE complaint_id = ? AND status = 'Verified'";
         $params = [(int) $complaintId];
         $types = 'i';
 

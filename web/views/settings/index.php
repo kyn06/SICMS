@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 require_once __DIR__ . '/../../helpers/Security.php';
 Security::startSession();
 
@@ -113,6 +113,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $phone     = trim($_POST['phone_number'] ?? '');
         $gender    = trim($_POST['gender'] ?? '');
         $address   = trim($_POST['address'] ?? '');
+        $birthday  = trim($_POST['birthday'] ?? '');
         $studentNumber = trim($_POST['student_number'] ?? '');
         $college   = trim($_POST['college'] ?? '');
         $course    = trim($_POST['course'] ?? '');
@@ -132,6 +133,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if ($phone !== '' && strlen($phone) > 20) {
             $errors[] = 'Phone number must be 20 characters or fewer.';
+        }
+
+        if ($isStudent) {
+            if ($birthday === '') {
+                $errors[] = 'Birthday is required.';
+            } elseif (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $birthday)) {
+                $errors[] = 'Please select a valid birthday (YYYY-MM-DD).';
+            } elseif ($birthday > date('Y-m-d')) {
+                $errors[] = 'Birthday cannot be in the future.';
+            }
         }
 
         if ($isStudent) {
@@ -180,6 +191,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $updateData['college']        = $college;
                     $updateData['course']         = $course;
                     $updateData['section']        = $section;
+                    $updateData['birthday']       = $birthday !== '' ? $birthday : null;
                 }
 
                 $result = $currentUser->update($updateData);
@@ -340,20 +352,27 @@ unset($_SESSION['cal_message'], $_SESSION['cal_error']);
                                         </select>
                                     </div>
                                 </div>
-                                <div class="settings-field">
-                                    <label for="section">Section <span class="required">*</span></label>
-                                    <select id="section" name="section">
-                                        <option value="">Select your section</option>
-                                        <?php foreach (Courses::sections() as $yearLabel => $sections): ?>
-                                            <optgroup label="<?= h($yearLabel) ?>">
-                                                <?php foreach ($sections as $sectionOption): ?>
-                                                    <option value="<?= h($sectionOption) ?>" <?= ($old['section'] ?? '') === $sectionOption ? 'selected' : '' ?>>
-                                                        <?= h($sectionOption) ?>
-                                                    </option>
-                                                <?php endforeach; ?>
-                                            </optgroup>
-                                        <?php endforeach; ?>
-                                    </select>
+                                <div class="settings-field-row">
+                                    <div class="settings-field">
+                                        <label for="section">Section <span class="required">*</span></label>
+                                        <select id="section" name="section">
+                                            <option value="">Select your section</option>
+                                            <?php foreach (Courses::sections() as $yearLabel => $sections): ?>
+                                                <optgroup label="<?= h($yearLabel) ?>">
+                                                    <?php foreach ($sections as $sectionOption): ?>
+                                                        <option value="<?= h($sectionOption) ?>" <?= ($old['section'] ?? '') === $sectionOption ? 'selected' : '' ?>>
+                                                            <?= h($sectionOption) ?>
+                                                        </option>
+                                                    <?php endforeach; ?>
+                                                </optgroup>
+                                            <?php endforeach; ?>
+                                        </select>
+                                    </div>
+                                    <div class="settings-field">
+                                        <label for="birthday">Birthday / Date of Birth <span class="required">*</span></label>
+                                        <input type="date" id="birthday" name="birthday" value="<?= h($old['birthday'] ?? '') ?>" max="<?= h(date('Y-m-d')) ?>" required>
+                                        <span class="settings-field-note">Cannot be a future date.</span>
+                                    </div>
                                 </div>
                             </div>
                         <?php endif; ?>

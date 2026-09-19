@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 require_once __DIR__ . '/../../helpers/Security.php';
 Security::startSession();
 
@@ -102,7 +102,6 @@ $canViewHearings = in_array($roleKey, $staffHearingRoles, true);
 $studentCases = $roleKey === 'student' ? Complaint::forStudent((int) $user['account_id'], 3) : [];
 
 $filters = Report::normalizeFilters($_GET);
-if ($isCoordinator) $filters['coordinator'] = (int) $user['account_id'];
 $reportData = $canViewAnalytics ? Report::getDashboardData($filters) : [
     'summary' => [],
     'casesByMonth' => [],
@@ -149,6 +148,9 @@ $options = $reportData['options'];
 $today = date('Y-m-d');
 $newComplaintsToday = 0;
 
+$coordinatorAssignedCases = $isCoordinator ? Report::assignedCasesForCoordinator((int) $user['account_id']) : [];
+$coordinatorAssignedCount = count($coordinatorAssignedCases);
+
 foreach ($rows as $row) {
     if (substr((string) ($row['submitted_at'] ?? ''), 0, 10) === $today) {
         $newComplaintsToday++;
@@ -192,7 +194,7 @@ function allowed_for_role(array $item, $roleKey) {
 }
 
 $statCards = $isCoordinator ? [
-    ['key' => 'total_cases', 'label' => 'Total Assigned Cases', 'value' => $summary['total_cases'], 'icon' => 'bi-folder-check', 'accent' => 'green', 'trend' => 'Assigned to you'],
+    ['key' => 'total_cases', 'label' => 'Total Assigned Cases', 'value' => $coordinatorAssignedCount, 'icon' => 'bi-folder-check', 'accent' => 'green', 'trend' => 'Assigned to you'],
     ['key' => 'submitted_cases', 'label' => 'Submitted Cases', 'value' => $summary['submitted_cases'] ?? 0, 'icon' => 'bi-send', 'accent' => 'blue', 'trend' => 'Awaiting action'],
     ['key' => 'verified_cases', 'label' => 'Verified Cases', 'value' => $summary['verified_cases'] ?? 0, 'icon' => 'bi-patch-check', 'accent' => 'teal', 'trend' => 'Verified assignments'],
     ['key' => 'returned_for_revision_cases', 'label' => 'Returned for Revision', 'value' => $summary['returned_for_revision_cases'] ?? 0, 'icon' => 'bi-pencil-square', 'accent' => 'amber', 'trend' => 'Awaiting student revision'],
@@ -222,6 +224,7 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
         'stats' => array_column($statCards, 'value', 'key'),
         'charts' => $chartData,
         'rows' => $rows,
+        'assignedCases' => $coordinatorAssignedCases,
         'filters' => $filters,
     ], JSON_UNESCAPED_SLASHES);
     exit;
@@ -688,6 +691,52 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
             flex: 1 1 0;
         }
     }
+
+    .row-actions-menu .dropdown-menu.case-actions-menu {
+        min-width: 210px;
+        padding: 6px;
+        right: 0;
+    }
+
+    .case-actions-trigger {
+        background: #fff;
+        border: 1.5px solid var(--sicms-green-600, #2e7d32);
+        border-radius: 10px;
+        box-shadow: 0 2px 6px rgba(18, 60, 27, .12);
+        color: var(--sicms-green-700, #1b5e20);
+        height: 40px;
+        min-height: 40px;
+        padding: 0 12px;
+        transition: background-color .15s ease, box-shadow .15s ease, transform .15s ease;
+    }
+
+    .case-actions-trigger:hover {
+        background: var(--green-100, #eaf5ea);
+        box-shadow: 0 4px 12px rgba(18, 60, 27, .22);
+        transform: translateY(-1px);
+    }
+
+    .case-actions-menu a {
+        align-items: center;
+        border-radius: 8px;
+        color: var(--text);
+        display: flex;
+        font-size: 13px;
+        font-weight: 600;
+        gap: 10px;
+        padding: 9px 12px;
+        text-decoration: none;
+    }
+
+    .case-actions-menu a:hover {
+        background: #f4f8f3;
+        color: var(--green-700);
+    }
+
+    .case-actions-menu a i {
+        color: var(--green-600);
+        font-size: 15px;
+    }
     </style>
 </head>
 
@@ -698,9 +747,6 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
 
         <main class="main-panel <?= !$canViewAnalytics ? 'student-main-panel' : '' ?>">
             <header class="topbar">
-                <button class="sidebar-toggle" type="button" aria-label="Toggle navigation" aria-controls="app-sidebar" aria-expanded="false">
-                    <i class="bi bi-list" aria-hidden="true"></i>
-                </button>
                 <div>
                     <div class="welcome-label">Welcome back, <?= h($displayName) ?></div>
                     <h1 class="page-title">
@@ -787,7 +833,7 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
                         Go to Account Settings</a>
                 </div>
                 <div class="student-profile-reminder-missing"><strong>Still missing:</strong>
-                    <?= h(implode(', ', array_slice($profileMissingFields, 0, 5)) . (count($profileMissingFields) > 5 ? ', â€¦' : '')) ?>
+                    <?= h(implode(', ', array_slice($profileMissingFields, 0, 5)) . (count($profileMissingFields) > 5 ? ', …' : '')) ?>
                 </div>
             </section>
             <?php endif; ?>
@@ -817,7 +863,7 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
                             <div>
                                 <a class="student-case-number"
                                     href="web/views/complaints/case_details.php?id=<?= (int) $studentCase['complaint_id'] ?>"><?= h($studentCase['case_classification']) ?></a>
-                                <div class="student-case-meta"><?= h($studentCase['case_number']) ?> Â· Submitted
+                                <div class="student-case-meta"><?= h($studentCase['case_number']) ?> · Submitted
                                     <?= h(date('M d, Y', strtotime($studentCase['submitted_at']))) ?></div>
                             </div>
                             <span class="status-pill"><?= h($studentCase['status']) ?></span>
@@ -1045,10 +1091,10 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
                             </tr>
                         </thead>
                         <tbody id="coordinatorCaseRows">
-                            <?php if (empty($rows)): ?><tr>
+                            <?php if (empty($coordinatorAssignedCases)): ?><tr>
                                 <td colspan="7">No assigned cases match the selected filters.</td>
                             </tr><?php endif; ?>
-                            <?php foreach ($rows as $row): ?>
+                            <?php foreach ($coordinatorAssignedCases as $row): ?>
                             <tr>
                                 <td>
                                     <?= h($row['case_number']) ?>
@@ -1077,30 +1123,36 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
                                 </td>
 
                                 <td>
-                                    <div class="quick-grid" style="width: 160px;">
-                                        <a class=" btn btn-primary"
-                                            href="web/views/cases/show.php?id=<?= (int) $row['complaint_id'] ?>">
-                                            <i class="bi bi-eye"></i>
-                                            View Case
-                                        </a>
-
-                                        <a class="btn btn-primary"
-                                            href="web/views/cases/show.php?id=<?= (int) $row['complaint_id'] ?>#status-actions">
-                                            <i class="bi bi-arrow-repeat"></i>
-                                            Update Status
-                                        </a>
-
-                                        <a class="btn btn-primary"
-                                            href="web/views/messages/index.php?conversation_id=<?= (int) $row['complaint_id'] ?>">
-                                            <i class="bi bi-chat-dots"></i>
-                                            Message
-                                        </a>
-
-                                        <a class="btn btn-primary"
-                                            href="web/views/hearings/create.php?complaint_id=<?= (int) $row['complaint_id'] ?>">
-                                            <i class="bi bi-calendar-plus"></i>
-                                            Hearing
-                                        </a>
+                                    <div class="quick-grid" style="justify-content: center;">
+                                        <details class="dropdown row-actions-menu">
+                                            <summary class="btn btn-secondary case-actions-trigger"
+                                                title="More actions"
+                                                aria-label="More actions">
+                                                <i class="bi bi-three-dots"></i>
+                                            </summary>
+                                            <div class="dropdown-menu case-actions-menu">
+                                                <a
+                                                    href="web/views/cases/show.php?id=<?= (int) $row['complaint_id'] ?>">
+                                                    <i class="bi bi-eye"></i>
+                                                    View Case
+                                                </a>
+                                                <a
+                                                    href="web/views/cases/show.php?id=<?= (int) $row['complaint_id'] ?>#status-actions">
+                                                    <i class="bi bi-arrow-repeat"></i>
+                                                    Update Status
+                                                </a>
+                                                <a
+                                                    href="web/views/messages/index.php?conversation_id=<?= (int) $row['complaint_id'] ?>">
+                                                    <i class="bi bi-chat-dots"></i>
+                                                    Message
+                                                </a>
+                                                <a
+                                                    href="web/views/hearings/create.php?complaint_id=<?= (int) $row['complaint_id'] ?>">
+                                                    <i class="bi bi-calendar-plus"></i>
+                                                    Schedule Hearing
+                                                </a>
+                                            </div>
+                                        </details>
                                     </div>
                                 </td>
                             </tr>
@@ -1619,38 +1671,40 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
                 </td>
 
                 <td>
-                    <div class="quick-grid">
-                        <a
-                            class="btn btn-primary"
-                            href="web/views/cases/show.php?id=${+item.complaint_id}"
-                        >
-                            <i class="bi bi-eye"></i>
-                            View Case
-                        </a>
-
-                        <a
-                            class="btn btn-primary"
-                            href="web/views/cases/show.php?id=${+item.complaint_id}#status-actions"
-                        >
-                            <i class="bi bi-arrow-repeat"></i>
-                            Update Status
-                        </a>
-
-                        <a
-                            class="btn btn-primary"
-                            href="web/views/messages/index.php?conversation_id=${+item.complaint_id}"
-                        >
-                            <i class="bi bi-chat-dots"></i>
-                            Message
-                        </a>
-
-                        <a
-                            class="btn btn-primary"
-                            href="web/views/hearings/create.php?complaint_id=${+item.complaint_id}"
-                        >
-                            <i class="bi bi-calendar-plus"></i>
-                            Hearing
-                        </a>
+                    <div class="quick-grid" style="justify-content: center;">
+                        <details class="dropdown row-actions-menu">
+                            <summary class="btn btn-secondary case-actions-trigger"
+                                title="More actions"
+                                aria-label="More actions">
+                                <i class="bi bi-three-dots"></i>
+                            </summary>
+                            <div class="dropdown-menu case-actions-menu">
+                                <a
+                                    href="web/views/cases/show.php?id=${+item.complaint_id}"
+                                >
+                                    <i class="bi bi-eye"></i>
+                                    View Case
+                                </a>
+                                <a
+                                    href="web/views/cases/show.php?id=${+item.complaint_id}#status-actions"
+                                >
+                                    <i class="bi bi-arrow-repeat"></i>
+                                    Update Status
+                                </a>
+                                <a
+                                    href="web/views/messages/index.php?conversation_id=${+item.complaint_id}"
+                                >
+                                    <i class="bi bi-chat-dots"></i>
+                                    Message
+                                </a>
+                                <a
+                                    href="web/views/hearings/create.php?complaint_id=${+item.complaint_id}"
+                                >
+                                    <i class="bi bi-calendar-plus"></i>
+                                    Schedule Hearing
+                                </a>
+                            </div>
+                        </details>
                     </div>
                 </td>
             </tr>
@@ -1691,7 +1745,7 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
                 const task = document.querySelector(`[data-task-count="${key}"]`);
                 if (task) task.textContent = value;
             });
-            renderCoordinatorCases(payload.rows || []);
+            renderCoordinatorCases(payload.assignedCases || []);
             dashboardChartData = payload.charts;
             makeChart('casesByMonth', 'bar', {
                 showValues: true
@@ -1724,12 +1778,6 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
     resetDashboardFilters?.addEventListener('click', event => {
         event.preventDefault();
         applyDashboardFilters(true);
-    });
-    </script>
-    <script>
-    document.querySelector('.sidebar-toggle')?.addEventListener('click', function () {
-        const open = document.body.classList.toggle('sidebar-open');
-        this.setAttribute('aria-expanded', open ? 'true' : 'false');
     });
     </script>
     <script src="<?= h(app_url('web/views/layout/system.js')) ?>" defer></script>

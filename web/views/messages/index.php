@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 require_once __DIR__ . '/../../controllers/MessageController.php';
 
 header('Cache-Control: no-store, max-age=0');
@@ -539,11 +539,11 @@ function preview_text($text) {
             infoAvatar.textContent = initials(person.name);
             infoName.textContent = person.name;
             infoRole.textContent = selectedRecipient
-                ? `${normalizeRole(selectedRecipient.role)}${selectedRecipient.email ? ' Â· ' + selectedRecipient.email : ''}`
+                ? `${normalizeRole(selectedRecipient.role)}${selectedRecipient.email ? ' · ' + selectedRecipient.email : ''}`
                 : person.role;
 
             if (selectedIsStaff) {
-                infoBody.innerHTML = '<div class="info-note"><i class="bi bi-person-badge"></i>Staff conversation â€” not linked to any case.</div>';
+                infoBody.innerHTML = '<div class="info-note"><i class="bi bi-person-badge"></i>Staff conversation — not linked to any case.</div>';
                 return;
             }
 
