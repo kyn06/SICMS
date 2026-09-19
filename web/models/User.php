@@ -17,6 +17,7 @@ class User extends Model {
     public $status;
     public $college_id;
     public $student_number;
+    public $birthday;
     public $college;
     public $course;
     public $section;

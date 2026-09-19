@@ -63,6 +63,8 @@ class CaseRecord extends Model {
             $sql .= " AND c.status != 'Archived'";
         }
 
+        $sql .= " AND COALESCE(c.case_source, 'Online Submission') <> 'Legacy'";
+
         $sql .= " ORDER BY c.submitted_at DESC";
 
         $stmt = self::$conn->prepare($sql);
@@ -167,7 +169,7 @@ class CaseRecord extends Model {
     }
 
     public static function getEvidence($complaintId) {
-        return self::fetchRelated("SELECT * FROM complaint_evidence WHERE complaint_id = ? ORDER BY uploaded_at DESC", $complaintId);
+        return self::fetchRelated("SELECT * FROM complaint_evidence WHERE complaint_id = ? AND update_id IS NULL ORDER BY uploaded_at DESC", $complaintId);
     }
 
     public static function findEvidence($evidenceId) {
@@ -597,6 +599,41 @@ class CaseRecord extends Model {
                 'You were assigned as coordinator for case ' . $case['case_number'] . '.',
                 'web/views/cases/show.php?id=' . $complaintId
             );
+
+            self::$conn->commit();
+            return true;
+        } catch (Throwable $exception) {
+            self::$conn->rollback();
+            throw $exception;
+        }
+    }
+
+    public static function classifyCase($complaintId, $classification, $remarks, $actorAccountId) {
+        $complaintId = (int) $complaintId;
+        $case = self::findCase($complaintId);
+
+        if (!$case) {
+            return false;
+        }
+
+        self::$conn->begin_transaction();
+
+        try {
+            $now = date('Y-m-d H:i:s');
+            $stmt = self::$conn->prepare("UPDATE complaints SET case_classification = ?, updated_at = ? WHERE complaint_id = ?");
+            $stmt->bind_param("ssi", $classification, $now, $complaintId);
+            $stmt->execute();
+
+            self::createHistory([
+                'complaint_id' => $complaintId,
+                'action' => 'Case Classification',
+                'previous_status' => $case['status'],
+                'new_status' => $case['status'],
+                'remarks' => $remarks,
+                'assigned_coordinator_account_id' => null,
+                'created_by_account_id' => $actorAccountId,
+                'created_at' => $now,
+            ]);
 
             self::$conn->commit();
             return true;

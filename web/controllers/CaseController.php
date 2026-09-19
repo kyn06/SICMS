@@ -7,6 +7,8 @@ require_once __DIR__ . '/../models/Notification.php';
 require_once __DIR__ . '/../models/Message.php';
 require_once __DIR__ . '/../models/AuditLog.php';
 require_once __DIR__ . '/../models/Hearing.php';
+require_once __DIR__ . '/../models/CaseUpdate.php';
+require_once __DIR__ . '/../services/FileUploadService.php';
 require_once __DIR__ . '/../helpers/Security.php';
 
 class CaseController {
@@ -15,6 +17,19 @@ class CaseController {
     private $user;
     private $staffRoles = ['super-admin', 'admin', 'sdr staff', 'sdr-staff', 'sdru-staff', 'coordinator', 'head-of-sdru', 'sdru-head', 'head of sdru'];
     private $revisionFields = ['complaint_details', 'incident_date', 'incident_time', 'incident_location', 'respondents', 'witnesses', 'evidence'];
+    private $classifications = [
+        'Cyberbullying',
+        'Physical Assault',
+        'Intimidation, Threat and Harassment',
+        'Forging, falsifying public documents, and misinterpretation of fact',
+        'Sexual Harassment',
+        'Bringing Intoxicating Beverages/Drinks within the University Premises',
+        'Plagiarism',
+        'Attempted Rape',
+        'Consummated Rape',
+        'Public Disturbance',
+        'Hazing',
+    ];
 
     public function __construct() {
         Security::startSession();
@@ -25,9 +40,14 @@ class CaseController {
     public function index() {
         $filters = $this->filters($_GET);
 
+        $assignedCases = $this->roleKey() === 'coordinator'
+            ? CaseRecord::listCases(['assigned_coordinator_account_id' => (int) $this->user['account_id']])
+            : [];
+
         return [
             'user' => $this->user,
             'cases' => CaseRecord::listCases($filters),
+            'assignedCases' => $assignedCases,
             'migratedCases' => CaseRecord::listLegacyCases([]),
             'canEditMigrated' => in_array($this->roleKey(), ['sdr-staff', 'sdru-staff'], true),
             'filters' => $filters,
@@ -44,10 +64,18 @@ class CaseController {
         header('Content-Type: application/json; charset=utf-8');
 
         try {
-            $cases = CaseRecord::listCases($this->filters($_GET));
+            $filters = $this->filters($_GET);
+            $cases = CaseRecord::listCases($filters);
+            $migratedCases = CaseRecord::listLegacyCases($this->legacyFilters($filters));
+            $isCoordinator = $this->roleKey() === 'coordinator';
+            $assignedCases = $isCoordinator
+                ? CaseRecord::listCases(array_merge($filters, ['assigned_coordinator_account_id' => (int) $this->user['account_id']]))
+                : [];
             echo json_encode([
                 'success' => true,
                 'cases' => $cases,
+                'assignedCases' => $assignedCases,
+                'migratedCases' => $migratedCases,
                 'total' => count($cases),
             ], JSON_THROW_ON_ERROR);
         } catch (Throwable $exception) {
@@ -59,6 +87,15 @@ class CaseController {
         }
 
         exit;
+    }
+
+    private function legacyFilters(array $filters) {
+        return [
+            'case_number' => $filters['case_number'] ?? '',
+            'complainant_name' => $filters['student_name'] ?? '',
+            'status' => $filters['status'] ?? '',
+            'classification' => $filters['classification'] ?? '',
+        ];
     }
 
     public function archivedIndex() {
@@ -110,7 +147,8 @@ class CaseController {
             $this->handleAction($complaintId);
         }
 
-        if (!Message::canAccessCaseMessages($case, $this->user)) {
+        if (!Message::isStaffRole($this->user['role'] ?? '')
+            && !Message::canAccessCaseMessages($case, $this->user)) {
             http_response_code(403);
             echo 'Access denied.';
             exit;
@@ -138,7 +176,14 @@ class CaseController {
             'messageReceiver' => $messageReceiver,
             'message' => $_SESSION['case_message'] ?? null,
             'errors' => $_SESSION['case_errors'] ?? [],
+            'updates' => CaseUpdate::forCase($complaintId),
+            'classificationOptions' => $this->classificationOptions(),
         ];
+    }
+
+    private function classificationOptions() {
+        $existing = is_array(CaseRecord::getClassifications()) ? CaseRecord::getClassifications() : [];
+        return array_values(array_unique(array_merge($this->classifications, $existing)));
     }
 
     public function clearFlash() {
@@ -160,6 +205,7 @@ class CaseController {
         Notification::setConnection($this->db);
         Message::setConnection($this->db);
         AuditLog::setConnection($this->db);
+        CaseUpdate::setConnection($this->db);
 
         $this->user = User::findByEmail($_SESSION['email']);
         $roleKey = strtolower(str_replace(['_', ' '], '-', $this->user['role'] ?? ''));
@@ -182,13 +228,49 @@ class CaseController {
             $caseStatus = $case['status'] ?? '';
             $isClosed = in_array($caseStatus, ['Resolved', 'Archived'], true);
 
-            if (in_array($action, ['verify', 'reject', 'return', 'assign'], true) && $isClosed) {
+            if ($this->roleKey() === 'coordinator'
+                && (int) ($case['assigned_coordinator_account_id'] ?? 0) !== (int) $this->user['account_id']) {
+                $_SESSION['case_errors'] = ['You can only manage cases assigned to you.'];
+                header('Location: show.php?id=' . $complaintId);
+                exit;
+            }
+
+            if (in_array($action, ['verify', 'reject', 'return', 'assign', 'classify'], true) && $isClosed) {
                 $_SESSION['case_errors'] = ['This case is already closed and can no longer be modified.'];
                 header('Location: show.php?id=' . $complaintId);
                 exit;
             }
 
-            if ($action === 'verify') {
+            if ($action === 'classify') {
+                $selected = trim((string) ($_POST['classification'] ?? ''));
+                $classification = $selected;
+
+                if ($selected === 'Others') {
+                    $classification = trim((string) ($_POST['classification_other'] ?? ''));
+                }
+
+                if ($classification === '') {
+                    $_SESSION['case_errors'] = ['Please select or specify a case classification.'];
+                    header('Location: show.php?id=' . $complaintId);
+                    exit;
+                }
+
+                if ($selected !== 'Others' && !in_array($selected, $this->classifications, true)) {
+                    $_SESSION['case_errors'] = ['Please select a valid case classification.'];
+                    header('Location: show.php?id=' . $complaintId);
+                    exit;
+                }
+
+                if (strlen($classification) > 100) {
+                    $_SESSION['case_errors'] = ['The case classification is too long (maximum 100 characters).'];
+                    header('Location: show.php?id=' . $complaintId);
+                    exit;
+                }
+
+                CaseRecord::classifyCase($complaintId, $classification, $remarks, $actorAccountId);
+                AuditLog::record($this->user, 'Case Classification', 'Classified ' . $caseLabel . ' as ' . $classification . '.');
+                $_SESSION['case_message'] = 'Case classification saved.';
+            } elseif ($action === 'verify') {
                 CaseRecord::updateStatus($complaintId, 'Verified', $remarks, $actorAccountId);
                 AuditLog::record($this->user, 'Case Verification', 'Verified complaint ' . $caseLabel . '.');
                 $_SESSION['case_message'] = 'Complaint verified.';
@@ -281,6 +363,39 @@ class CaseController {
                 CaseRecord::assignCoordinator($complaintId, $coordinatorId, $remarks, $actorAccountId);
                 AuditLog::record($this->user, 'Case Assignment', 'Assigned coordinator for ' . $caseLabel . '.');
                 $_SESSION['case_message'] = 'Coordinator assigned.';
+            } elseif ($action === 'case_update') {
+                $updateType = trim((string) ($_POST['update_type'] ?? ''));
+                $details = trim((string) ($_POST['details'] ?? ''));
+                $allowedTypes = array_keys(CaseUpdate::updateTypes());
+
+                if (!in_array($updateType, $allowedTypes, true)) {
+                    $_SESSION['case_errors'] = ['Please select a valid update type.'];
+                    header('Location: show.php?id=' . $complaintId);
+                    exit;
+                }
+
+                if ($details === '') {
+                    $_SESSION['case_errors'] = ['Please provide the details of this case update.'];
+                    header('Location: show.php?id=' . $complaintId);
+                    exit;
+                }
+
+                $attachmentErrors = FileUploadService::validateFiles($_FILES['attachments'] ?? []);
+                $hasAttachments = !empty(array_values(array_filter(($_FILES['attachments']['name'] ?? []), fn($name) => $name !== '')));
+
+                if (!empty($attachmentErrors)) {
+                    $_SESSION['case_errors'] = ['Unable to attach evidence: ' . implode(' ', $attachmentErrors)];
+                    header('Location: show.php?id=' . $complaintId);
+                    exit;
+                }
+
+                $savedFiles = $hasAttachments ? FileUploadService::saveToEvidence($_FILES['attachments']) : [];
+                CaseUpdate::add($complaintId, $actorAccountId, $updateType, $details, $caseStatus, $savedFiles);
+
+                $stageLabel = CaseUpdate::stageLabel($caseStatus);
+                $typeLabel = CaseUpdate::updateTypes()[$updateType] ?? $updateType;
+                AuditLog::record($this->user, 'Case Update', 'Added ' . $stageLabel . ' (' . $typeLabel . ') to ' . $caseLabel . '.');
+                $_SESSION['case_message'] = 'Case update added. The case status was not changed.';
             } else {
                 $_SESSION['case_errors'] = ['Invalid case action.'];
             }
@@ -307,38 +422,22 @@ class CaseController {
     }
 
     private function filters(array $input) {
-        $filters = [
+        return [
             'status' => substr(trim((string) ($input['status'] ?? '')), 0, 50),
             'classification' => substr(trim((string) ($input['classification'] ?? '')), 0, 100),
             'case_number' => substr(trim((string) ($input['case_number'] ?? '')), 0, 100),
             'student_name' => substr(trim((string) ($input['student_name'] ?? '')), 0, 255),
         ];
-
-        if ($this->roleKey() === 'coordinator') {
-            $filters['assigned_coordinator_account_id'] = (int) $this->user['account_id'];
-        }
-
-        return $filters;
     }
 
     private function archivedFilters(array $input) {
-        $filters = [
+        return [
             'case_number' => substr(trim((string) ($input['case_number'] ?? '')), 0, 100),
             'student_name' => substr(trim((string) ($input['student_name'] ?? '')), 0, 255),
         ];
-
-        if ($this->roleKey() === 'coordinator') {
-            $filters['assigned_coordinator_account_id'] = (int) $this->user['account_id'];
-        }
-
-        return $filters;
     }
 
     private function canAccessCaseRecord(array $case) {
-        if ($this->roleKey() !== 'coordinator') {
-            return true;
-        }
-
-        return !empty($case['assigned_coordinator_account_id']) && (int) $case['assigned_coordinator_account_id'] === (int) $this->user['account_id'];
+        return true;
     }
 }

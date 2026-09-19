@@ -20,6 +20,7 @@ class ProfileCompletion {
             'college' => 'College',
             'course' => 'Course',
             'section' => 'Section',
+            'birthday' => 'Birthday',
         ];
     }
 

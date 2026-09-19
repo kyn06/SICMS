@@ -20,8 +20,11 @@ class LegacyCase extends Model {
     // Roles that may VIEW the Legacy Cases module.
     public const VIEW_ROLES = ['sdr-staff', 'sdru-staff', 'super-admin', 'admin', 'head-of-sdru', 'coordinator'];
 
-    // Roles that may CREATE / EDIT / UPLOAD legacy cases (staff only).
-    public const EDIT_ROLES = ['sdr-staff', 'sdru-staff'];
+    // Roles that may CREATE / EDIT / UPLOAD legacy cases (staff + SDRU head).
+    public const EDIT_ROLES = ['sdr-staff', 'sdru-staff', 'head-of-sdru', 'sdru-head'];
+
+    // Roles that may ADD / DIGITIZE new legacy cases (staff only).
+    public const ADD_ROLES = ['sdr-staff', 'sdru-staff'];
 
     public static function statuses(): array {
         return ['Submitted', 'Verified', 'Returned for Revision', 'Rejected', 'Resolved', 'Archived'];
@@ -33,6 +36,10 @@ class LegacyCase extends Model {
 
     public static function canEdit(array $user): bool {
         return in_array(self::roleKey($user['role'] ?? ''), self::EDIT_ROLES, true);
+    }
+
+    public static function canAdd(array $user): bool {
+        return in_array(self::roleKey($user['role'] ?? ''), self::ADD_ROLES, true);
     }
 
     public static function roleKey($role): string {

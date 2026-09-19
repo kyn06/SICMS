@@ -181,7 +181,7 @@ $oldTime = $oldIncident ? date('H:i', $oldIncident) : '';
                                     <div class="form-grid">
 
                                         <div class="field full">
-                                            <label>Respondent Type</label>
+                                            <label>Respondent Type <span class="required">*</span></label>
                                             <select
                                                 name="respondent_type[]"
                                                 <?= editable('respondents', $allowed) ? '' : 'disabled' ?>
@@ -196,7 +196,7 @@ $oldTime = $oldIncident ? date('H:i', $oldIncident) : '';
                                         </div>
 
                                         <div class="field">
-                                            <label>Full Name</label>
+                                            <label>Full Name <span class="required">*</span></label>
                                             <input
                                                 name="respondent_name[]"
                                                 value="<?= h($person['full_name'] ?? '') ?>"
@@ -204,8 +204,32 @@ $oldTime = $oldIncident ? date('H:i', $oldIncident) : '';
                                             >
                                         </div>
 
+                                        <div class="field">
+                                            <label>Age <span class="optional">if applicable</span></label>
+                                            <input
+                                                type="number"
+                                                name="respondent_age[]"
+                                                min="1"
+                                                max="120"
+                                                value="<?= h($person['age'] ?? '') ?>"
+                                                <?= editable('respondents', $allowed) ? '' : 'readonly' ?>
+                                            >
+                                        </div>
+
+                                        <div class="field">
+                                            <label>Gender <span class="optional">if applicable</span></label>
+                                            <select
+                                                name="respondent_gender[]"
+                                                <?= editable('respondents', $allowed) ? '' : 'disabled' ?>
+                                            >
+                                                <option value="">Select Gender</option>
+                                                <option value="Male" <?= ($person['gender'] ?? '') === 'Male' ? 'selected' : '' ?>>Male</option>
+                                                <option value="Female" <?= ($person['gender'] ?? '') === 'Female' ? 'selected' : '' ?>>Female</option>
+                                            </select>
+                                        </div>
+
                                         <div class="field" data-respondent-types="Student" <?= $personType === 'Student' ? '' : 'hidden' ?>>
-                                            <label>Student Number</label>
+                                            <label>Student Number <span class="optional">if applicable</span></label>
                                             <input
                                                 name="respondent_student_no[]"
                                                 value="<?= h($person['student_no'] ?? '') ?>"
@@ -215,7 +239,7 @@ $oldTime = $oldIncident ? date('H:i', $oldIncident) : '';
                                         </div>
 
                                         <div class="field" data-respondent-types="Student" <?= $personType === 'Student' ? '' : 'hidden' ?>>
-                                            <label>College</label>
+                                            <label>College <span class="optional">if applicable</span></label>
                                             <input
                                                 name="respondent_college[]"
                                                 value="<?= h($person['college'] ?? '') ?>"
@@ -225,7 +249,7 @@ $oldTime = $oldIncident ? date('H:i', $oldIncident) : '';
                                         </div>
 
                                         <div class="field" data-respondent-types="Student" <?= $personType === 'Student' ? '' : 'hidden' ?>>
-                                            <label>Course/Program</label>
+                                            <label>Course/Program <span class="optional">if applicable</span></label>
                                             <input
                                                 name="respondent_course[]"
                                                 value="<?= h($rCourse) ?>"
@@ -235,7 +259,7 @@ $oldTime = $oldIncident ? date('H:i', $oldIncident) : '';
                                         </div>
 
                                         <div class="field" data-respondent-types="Student" <?= $personType === 'Student' ? '' : 'hidden' ?>>
-                                            <label>Section</label>
+                                            <label>Section <span class="optional">if applicable</span></label>
                                             <input
                                                 name="respondent_section[]"
                                                 value="<?= h($rSection) ?>"
@@ -246,7 +270,7 @@ $oldTime = $oldIncident ? date('H:i', $oldIncident) : '';
                                         </div>
 
                                         <div class="field" data-respondent-types="Employee" <?= $personType === 'Employee' ? '' : 'hidden' ?>>
-                                            <label>Employee Number</label>
+                                            <label>Employee Number <span class="optional">if applicable</span></label>
                                             <input
                                                 name="respondent_employee_no[]"
                                                 value="<?= h($person['employee_no'] ?? '') ?>"
@@ -256,7 +280,7 @@ $oldTime = $oldIncident ? date('H:i', $oldIncident) : '';
                                         </div>
 
                                         <div class="field" data-respondent-types="Employee" <?= $personType === 'Employee' ? '' : 'hidden' ?>>
-                                            <label>Position</label>
+                                            <label>Position <span class="optional">if applicable</span></label>
                                             <input
                                                 name="respondent_position[]"
                                                 value="<?= h($person['position'] ?? '') ?>"
@@ -267,7 +291,7 @@ $oldTime = $oldIncident ? date('H:i', $oldIncident) : '';
                                         </div>
 
                                         <div class="field" data-respondent-types="Employee" <?= $personType === 'Employee' ? '' : 'hidden' ?>>
-                                            <label>College/Office/Department</label>
+                                            <label>College/Office/Department <span class="optional">if applicable</span></label>
                                             <input
                                                 name="respondent_department[]"
                                                 value="<?= h($person['office_department'] ?? '') ?>"
@@ -276,18 +300,8 @@ $oldTime = $oldIncident ? date('H:i', $oldIncident) : '';
                                             >
                                         </div>
 
-                                        <div class="field" data-respondent-types="Private Individual,Other" <?= in_array($personType, ['Private Individual', 'Other'], true) ? '' : 'hidden' ?>>
-                                            <label>Contact Information <span>if applicable</span></label>
-                                            <input
-                                                name="respondent_contact[]"
-                                                value="<?= h($person['contact_info'] ?? '') ?>"
-                                                <?= editable('respondents', $allowed) ? '' : 'readonly' ?>
-                                                <?= in_array($personType, ['Private Individual', 'Other'], true) ? '' : 'disabled' ?>
-                                            >
-                                        </div>
-
                                         <div class="field" data-respondent-types="Other" <?= $personType === 'Other' ? '' : 'hidden' ?>>
-                                            <label>Affiliation/Organization <span>if applicable</span></label>
+                                            <label>Affiliation/Organization <span class="optional">if applicable</span></label>
                                             <input
                                                 name="respondent_affiliation[]"
                                                 value="<?= h($person['affiliation'] ?? '') ?>"
@@ -297,15 +311,32 @@ $oldTime = $oldIncident ? date('H:i', $oldIncident) : '';
                                         </div>
 
                                         <div class="field">
-                                            <label>Gender</label>
-                                            <select
-                                                name="respondent_gender[]"
-                                                <?= editable('respondents', $allowed) ? '' : 'disabled' ?>
+                                            <label>Contact Number <span class="optional">if applicable</span></label>
+                                            <input
+                                                name="respondent_contact[]"
+                                                value="<?= h($person['contact_info'] ?? '') ?>"
+                                                <?= editable('respondents', $allowed) ? '' : 'readonly' ?>
                                             >
-                                                <option value="">Select Gender</option>
-                                                <option value="Male" <?= ($person['gender'] ?? '') === 'Male' ? 'selected' : '' ?>>Male</option>
-                                                <option value="Female" <?= ($person['gender'] ?? '') === 'Female' ? 'selected' : '' ?>>Female</option>
-                                            </select>
+                                        </div>
+
+                                        <div class="field">
+                                            <label>Email <span class="optional">if applicable</span></label>
+                                            <input
+                                                type="email"
+                                                name="respondent_email[]"
+                                                value="<?= h($person['email'] ?? '') ?>"
+                                                <?= editable('respondents', $allowed) ? '' : 'readonly' ?>
+                                            >
+                                        </div>
+
+                                        <div class="field">
+                                            <label>Address <span class="optional">if applicable</span></label>
+                                            <input
+                                                name="respondent_address[]"
+                                                value="<?= h($person['address'] ?? '') ?>"
+                                                placeholder="Example: Barangay, City/Municipality"
+                                                <?= editable('respondents', $allowed) ? '' : 'readonly' ?>
+                                            >
                                         </div>
 
                                         <div class="field">
@@ -400,11 +431,11 @@ $oldTime = $oldIncident ? date('H:i', $oldIncident) : '';
 
                                         <div class="field full">
 
-                                            <label>Witness Type</label>
+                                            <label>Witness Type <span class="required">*</span></label>
 
                                             <select
                                                 name="witness_type[]"
-                                                <?= editable('witnesses', $allowed) ? '' : 'disabled' ?>
+                                                <?= editable('witnesses', $allowed) ? 'required' : 'disabled' ?>
                                             >
                                                 <option value="">Select Witness Type</option>
                                                 <option value="Student" <?= $personType === 'Student' ? 'selected' : '' ?>>Student</option>
@@ -417,20 +448,34 @@ $oldTime = $oldIncident ? date('H:i', $oldIncident) : '';
 
                                         <div class="field">
 
-                                            <label>Full Name</label>
+                                            <label>Full Name <span class="required">*</span></label>
 
                                             <input
                                                 name="witness_name[]"
                                                 value="<?= h($person['full_name'] ?? '') ?>"
-                                                <?= editable('witnesses', $allowed) ? '' : 'readonly' ?>
-                                                <?= editable('witnesses', $allowed) ? 'required' : '' ?>
+                                                <?= editable('witnesses', $allowed) ? 'required' : 'readonly' ?>
                                             >
 
                                         </div>
 
                                         <div class="field">
 
-                                            <label>Gender</label>
+                                            <label>Age <span class="optional">if applicable</span></label>
+
+                                            <input
+                                                type="number"
+                                                name="witness_age[]"
+                                                min="1"
+                                                max="120"
+                                                value="<?= h($person['age'] ?? '') ?>"
+                                                <?= editable('witnesses', $allowed) ? '' : 'readonly' ?>
+                                            >
+
+                                        </div>
+
+                                        <div class="field">
+
+                                            <label>Gender <span class="optional">if applicable</span></label>
 
                                             <select
                                                 name="witness_gender[]"
@@ -445,7 +490,7 @@ $oldTime = $oldIncident ? date('H:i', $oldIncident) : '';
 
                                         <div class="field" data-witness-types="Student" <?= $personType === 'Student' ? '' : 'hidden' ?>>
 
-                                            <label>Student Number</label>
+                                            <label>Student Number <span class="optional">if applicable</span></label>
 
                                             <input
                                                 name="witness_student_no[]"
@@ -458,7 +503,7 @@ $oldTime = $oldIncident ? date('H:i', $oldIncident) : '';
 
                                         <div class="field" data-witness-types="Student" <?= $personType === 'Student' ? '' : 'hidden' ?>>
 
-                                            <label>College</label>
+                                            <label>College <span class="optional">if applicable</span></label>
 
                                             <input
                                                 name="witness_college[]"
@@ -471,7 +516,7 @@ $oldTime = $oldIncident ? date('H:i', $oldIncident) : '';
 
                                         <div class="field" data-witness-types="Student" <?= $personType === 'Student' ? '' : 'hidden' ?>>
 
-                                            <label>Course/Program</label>
+                                            <label>Course/Program <span class="optional">if applicable</span></label>
 
                                             <input
                                                 name="witness_course[]"
@@ -484,7 +529,7 @@ $oldTime = $oldIncident ? date('H:i', $oldIncident) : '';
 
                                         <div class="field" data-witness-types="Student" <?= $personType === 'Student' ? '' : 'hidden' ?>>
 
-                                            <label>Section</label>
+                                            <label>Section <span class="optional">if applicable</span></label>
 
                                             <input
                                                 name="witness_section[]"
@@ -497,7 +542,7 @@ $oldTime = $oldIncident ? date('H:i', $oldIncident) : '';
 
                                         <div class="field" data-witness-types="Employee" <?= $personType === 'Employee' ? '' : 'hidden' ?>>
 
-                                            <label>Employee Number</label>
+                                            <label>Employee Number <span class="optional">if applicable</span></label>
 
                                             <input
                                                 name="witness_employee_no[]"
@@ -510,7 +555,7 @@ $oldTime = $oldIncident ? date('H:i', $oldIncident) : '';
 
                                         <div class="field" data-witness-types="Employee" <?= $personType === 'Employee' ? '' : 'hidden' ?>>
 
-                                            <label>Position</label>
+                                            <label>Position <span class="optional">if applicable</span></label>
 
                                             <input
                                                 name="witness_position[]"
@@ -524,7 +569,7 @@ $oldTime = $oldIncident ? date('H:i', $oldIncident) : '';
 
                                         <div class="field" data-witness-types="Employee" <?= $personType === 'Employee' ? '' : 'hidden' ?>>
 
-                                            <label>College/Office or Department</label>
+                                            <label>College/Office or Department <span class="optional">if applicable</span></label>
 
                                             <input
                                                 name="witness_department[]"
@@ -537,7 +582,7 @@ $oldTime = $oldIncident ? date('H:i', $oldIncident) : '';
 
                                         <div class="field" data-witness-types="Other" <?= $personType === 'Other' ? '' : 'hidden' ?>>
 
-                                            <label>Affiliation/Organization <span>if applicable</span></label>
+                                            <label>Affiliation/Organization <span class="optional">if applicable</span></label>
 
                                             <input
                                                 name="witness_affiliation[]"
@@ -548,15 +593,40 @@ $oldTime = $oldIncident ? date('H:i', $oldIncident) : '';
 
                                         </div>
 
-                                        <div class="field" data-witness-types="Private Individual,Other" <?= in_array($personType, ['Private Individual', 'Other'], true) ? '' : 'hidden' ?>>
+                                        <div class="field">
 
-                                            <label>Contact Information</label>
+                                            <label>Contact Number <span class="optional">if applicable</span></label>
 
                                             <input
                                                 name="witness_contact[]"
                                                 value="<?= h($person['contact_info'] ?? '') ?>"
                                                 <?= editable('witnesses', $allowed) ? '' : 'readonly' ?>
-                                                <?= in_array($personType, ['Private Individual', 'Other'], true) ? '' : 'disabled' ?>
+                                            >
+
+                                        </div>
+
+                                        <div class="field">
+
+                                            <label>Email <span class="optional">if applicable</span></label>
+
+                                            <input
+                                                type="email"
+                                                name="witness_email[]"
+                                                value="<?= h($person['email'] ?? '') ?>"
+                                                <?= editable('witnesses', $allowed) ? '' : 'readonly' ?>
+                                            >
+
+                                        </div>
+
+                                        <div class="field">
+
+                                            <label>Address <span class="optional">if applicable</span></label>
+
+                                            <input
+                                                name="witness_address[]"
+                                                value="<?= h($person['address'] ?? '') ?>"
+                                                placeholder="Example: Barangay, City/Municipality"
+                                                <?= editable('witnesses', $allowed) ? '' : 'readonly' ?>
                                             >
 
                                         </div>
@@ -735,6 +805,8 @@ $oldTime = $oldIncident ? date('H:i', $oldIncident) : '';
             respondents: [
                 ['type', 'Respondent Type', 'required', 'respondentType'],
                 ['name', 'Full Name', 'required', 'text'],
+                ['age', 'Age', '', 'number'],
+                ['gender', 'Gender', '', 'select'],
                 ['student_no', 'Student Number', '', 'text', 'Student'],
                 ['college', 'College', '', 'text', 'Student'],
                 ['course', 'Course/Program', '', 'text', 'Student'],
@@ -742,15 +814,17 @@ $oldTime = $oldIncident ? date('H:i', $oldIncident) : '';
                 ['employee_no', 'Employee Number', '', 'text', 'Employee'],
                 ['position', 'Position', '', 'text', 'Employee'],
                 ['department', 'College/Office/Department', '', 'text', 'Employee'],
-                ['contact', 'Contact Information', '', 'text', 'Private Individual,Other'],
                 ['affiliation', 'Affiliation/Organization', '', 'text', 'Other'],
-                ['gender', 'Gender', '', 'select'],
+                ['contact', 'Contact Number', '', 'text'],
+                ['email', 'Email', '', 'email'],
+                ['address', 'Address', '', 'text'],
                 ['details', 'Details', '']
             ],
 
             witnesses: [
-                ['type', 'Witness Type', '', 'witnessType'],
+                ['type', 'Witness Type', 'required', 'witnessType'],
                 ['name', 'Full Name', 'required', 'text'],
+                ['age', 'Age', '', 'number'],
                 ['gender', 'Gender', '', 'select'],
                 ['student_no', 'Student Number', '', 'text', 'Student'],
                 ['college', 'College', '', 'text', 'Student'],
@@ -760,7 +834,9 @@ $oldTime = $oldIncident ? date('H:i', $oldIncident) : '';
                 ['position', 'Position', '', 'text', 'Employee'],
                 ['department', 'College/Office or Department', '', 'text', 'Employee'],
                 ['affiliation', 'Affiliation/Organization', '', 'text', 'Other'],
-                ['contact', 'Contact Information', '', 'text', 'Private Individual,Other'],
+                ['contact', 'Contact Number', '', 'text'],
+                ['email', 'Email', '', 'email'],
+                ['address', 'Address', '', 'text'],
                 ['statement', 'Statement', '']
             ]
         };
@@ -773,6 +849,7 @@ $oldTime = $oldIncident ? date('H:i', $oldIncident) : '';
         function buildPersonItem(type) {
             const fields = personFieldSets[type] || [];
             const isWitness = type === 'witnesses';
+            const prefix = isWitness ? 'witness' : 'respondent';
 
             return `
                 <div class="repeat-item ${isWitness ? 'witness-repeat-item' : ''}">
@@ -786,7 +863,7 @@ $oldTime = $oldIncident ? date('H:i', $oldIncident) : '';
 
                                 if (controlType === 'select') {
                                     control = `
-                                        <select name="${type}_${key}[]">
+                                        <select name="${prefix}_${key}[]">
                                             <option value="">Select Gender</option>
                                             <option value="Male">Male</option>
                                             <option value="Female">Female</option>
@@ -804,7 +881,7 @@ $oldTime = $oldIncident ? date('H:i', $oldIncident) : '';
                                     `;
                                 } else if (controlType === 'witnessType') {
                                     control = `
-                                        <select name="witness_type[]">
+                                        <select name="witness_type[]" required>
                                             <option value="">Select Witness Type</option>
                                             <option value="Student" selected>Student</option>
                                             <option value="Employee">Employee</option>
@@ -813,12 +890,22 @@ $oldTime = $oldIncident ? date('H:i', $oldIncident) : '';
                                         </select>
                                     `;
                                 } else {
+                                    const inputType = ['number', 'date', 'email'].includes(controlType) ? controlType : 'text';
                                     const placeholder = (type === 'respondents' && key === 'details')
                                         ? ' placeholder="Example: relationship, social media, or other relevant details."'
                                         : (type === 'witnesses' && key === 'statement')
                                             ? ' placeholder="Example: explain what the witness saw/heard during the incident."'
+                                            : (key === 'address')
+                                                ? ' placeholder="Example: Barangay, City/Municipality"'
+                                                : (key === 'position')
+                                                    ? ' placeholder="Example: Instructor, Administrative Assistant, Security Officer"'
+                                                    : '';
+                                    const constraints = inputType === 'number'
+                                        ? ' min="1" max="120"'
+                                        : inputType === 'date'
+                                            ? ` max="${new Date().toISOString().slice(0, 10)}"`
                                             : '';
-                                    control = `<input name="${type}_${key}[]"${placeholder} ${rule === 'required' ? 'required' : ''}>`;
+                                    control = `<input type="${inputType}" name="${prefix}_${key}[]"${placeholder}${constraints} ${rule === 'required' ? 'required' : ''}>`;
                                 }
 
                                 return `
@@ -875,8 +962,8 @@ $oldTime = $oldIncident ? date('H:i', $oldIncident) : '';
             const typeSelect = item.querySelector('[name="witness_type[]"]');
             const type = (typeSelect && typeSelect.value) ? typeSelect.value : 'Student';
             const requiredByType = {
-                Student: ['witness_student_no[]', 'witness_college[]', 'witness_course[]', 'witness_section[]'],
-                Employee: ['witness_employee_no[]', 'witness_position[]', 'witness_department[]'],
+                Student: [],
+                Employee: [],
                 'Private Individual': [],
                 Other: []
             };
@@ -909,8 +996,8 @@ $oldTime = $oldIncident ? date('H:i', $oldIncident) : '';
             const typeSelect = item.querySelector('[name="respondent_type[]"]');
             const type = (typeSelect && typeSelect.value) ? typeSelect.value : 'Student';
             const requiredByType = {
-                Student: ['respondent_student_no[]', 'respondent_college[]', 'respondent_course[]', 'respondent_section[]'],
-                Employee: ['respondent_employee_no[]', 'respondent_position[]', 'respondent_department[]'],
+                Student: [],
+                Employee: [],
                 'Private Individual': [],
                 Other: []
             };

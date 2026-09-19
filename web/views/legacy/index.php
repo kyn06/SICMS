@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 require_once __DIR__ . '/../../controllers/LegacyController.php';
 require_once __DIR__ . '/../../../routes.php';
 
@@ -167,7 +167,7 @@ function legacy_photo_url(?string $photoPath): string {
                                 <i class="bi bi-image" aria-hidden="true"></i> Choose Photo
                                 <input type="file" name="photo" id="legacyPhotoInput" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" hidden>
                             </label>
-                            <small>JPG, PNG, or WebP Â· up to 5 MB Â· square works best</small>
+                            <small>JPG, PNG, or WebP · up to 5 MB · square works best</small>
                         </div>
                     </div>
 
@@ -183,7 +183,7 @@ function legacy_photo_url(?string $photoPath): string {
                             </div>
                             <div class="settings-field">
                                 <label for="legacyTenure">Tenure</label>
-                                <input type="text" id="legacyTenureField" name="tenure" maxlength="50" placeholder="e.g., 2018 â€“ 2023">
+                                <input type="text" id="legacyTenureField" name="tenure" maxlength="50" placeholder="e.g., 2018 – 2023">
                             </div>
                         </div>
                         <div class="settings-field">

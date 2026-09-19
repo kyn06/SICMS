@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 require_once __DIR__ . '/../../controllers/ComplaintController.php';
 $controller = new ComplaintController();
 $viewData = $controller->handleStudentCaseDetails((int) ($_GET['id'] ?? 0));
@@ -86,6 +86,7 @@ $studentRemarks = array_values(array_filter($history, fn($item) =>
                             <div><div class="label">Complainant Type</div><div class="value"><?= h($case['complainant_type'] ?? 'Student') ?></div></div>
                             <div><div class="label">Complainant</div><div class="value"><?= h($case['complainant_name']) ?></div></div>
                             <div><div class="label">Gender</div><div class="value"><?= h($case['complainant_gender'] ?: 'Not provided') ?></div></div>
+                            <div><div class="label">Age</div><div class="value"><?= h($case['complainant_age'] ?? 'Not provided') ?></div></div>
                             <?php if (($case['complainant_type'] ?? 'Student') === 'Student'): ?>
                                 <div><div class="label">Student Number</div><div class="value"><?= h($case['complainant_student_no']) ?></div></div>
                                 <div><div class="label">Academic Information</div><div class="value"><?= h(trim(($case['complainant_college'] ?? '') . ' | ' . ($case['complainant_course'] ?? '') . ' | ' . (($case['complainant_year_level'] ?? '') ?: Courses::yearLevel($case['complainant_section'] ?? '')) . ' | ' . ($case['complainant_section'] ?? ''), ' |') ?: $case['complainant_course_year']) ?></div></div>
@@ -133,7 +134,7 @@ $studentRemarks = array_values(array_filter($history, fn($item) =>
                                 <?php foreach ($pastHearings as $hearing): ?>
                                     <div class="mini-item">
                                         <strong><?= h(date('M d, Y - h:i A', strtotime($hearing['hearing_datetime']))) ?></strong>
-                                        <div class="timeline-note"><?= h($hearing['status']) ?> Â· <?= h($hearing['venue']) ?></div>
+                                        <div class="timeline-note"><?= h($hearing['status']) ?> · <?= h($hearing['venue']) ?></div>
                                     </div>
                                 <?php endforeach; ?>
                             <?php endif; ?>
@@ -156,7 +157,7 @@ $studentRemarks = array_values(array_filter($history, fn($item) =>
                         <h2>Uploaded Evidence</h2>
                         <div class="mini-list">
                             <?php if (empty($evidence)): ?><div class="empty-state">No evidence files recorded.</div><?php endif; ?>
-                            <?php foreach ($evidence as $file): ?><div class="mini-item"><strong><i class="bi bi-paperclip"></i> <?= h($file['original_filename']) ?></strong><div class="timeline-note"><?= h($file['mime_type']) ?> Â· <?= h(number_format((int) $file['file_size'] / 1024, 1)) ?> KB Â· <?= h(date('M d, Y', strtotime($file['uploaded_at']))) ?></div><div style="display:flex;gap:7px;margin-top:9px"><a class="btn btn-secondary" target="_blank" href="attachment.php?id=<?= (int) $file['evidence_id'] ?>&amp;mode=view">View</a><a class="btn btn-secondary" href="attachment.php?id=<?= (int) $file['evidence_id'] ?>&amp;mode=download">Download</a></div></div><?php endforeach; ?>
+                            <?php foreach ($evidence as $file): ?><div class="mini-item"><strong><i class="bi bi-paperclip"></i> <?= h($file['original_filename']) ?></strong><div class="timeline-note"><?= h($file['mime_type']) ?> · <?= h(number_format((int) $file['file_size'] / 1024, 1)) ?> KB · <?= h(date('M d, Y', strtotime($file['uploaded_at']))) ?></div><div style="display:flex;gap:7px;margin-top:9px"><a class="btn btn-secondary" target="_blank" href="attachment.php?id=<?= (int) $file['evidence_id'] ?>&amp;mode=view">View</a><a class="btn btn-secondary" href="attachment.php?id=<?= (int) $file['evidence_id'] ?>&amp;mode=download">Download</a></div></div><?php endforeach; ?>
                         </div>
                     </section>
                 </aside>

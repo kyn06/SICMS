@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 require_once __DIR__ . '/../../controllers/ComplaintController.php';
 require_once __DIR__ . '/../../../routes.php';
 require_once __DIR__ . '/../../helpers/ProfileCompletion.php';
@@ -179,7 +179,7 @@ rsort($years);
             : 'You have not submitted any complaints yet. Click Submit Complaint to file your first complaint.';
         document.querySelector('.table-scroll').hidden = cases.length === 0;
         pagination.hidden = cases.length === 0;
-        paginationInfo.textContent = cases.length ? `Page ${currentPage} of ${totalPages} Â· ${cases.length} complaint${cases.length === 1 ? '' : 's'}` : '';
+        paginationInfo.textContent = cases.length ? `Page ${currentPage} of ${totalPages} · ${cases.length} complaint${cases.length === 1 ? '' : 's'}` : '';
         paginationButtons.replaceChildren();
         for (let page = 1; page <= totalPages; page++) {
             const button = document.createElement('button'); button.type = 'button'; button.className = `btn ${page === currentPage ? 'btn-primary' : 'btn-secondary'}`; button.textContent = page;

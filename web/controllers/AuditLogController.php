@@ -4,12 +4,13 @@ require_once __DIR__ . '/../config/Database.php';
 require_once __DIR__ . '/../models/User.php';
 require_once __DIR__ . '/../models/AuditLog.php';
 require_once __DIR__ . '/../helpers/Security.php';
+require_once __DIR__ . '/../services/AuditLogPdf.php';
 
 class AuditLogController {
     private $database;
     private $db;
     private $user;
-    private $headRoles = ['head-of-sdru', 'sdru-head'];
+    private $headRoles = ['head-of-sdru', 'sdru-head', 'super-admin'];
 
     public function __construct() {
         Security::startSession();
@@ -28,7 +29,7 @@ class AuditLogController {
         }
 
         if (($_GET['export'] ?? '') === 'pdf') {
-            $this->exportPdf(AuditLog::exportRows($filters));
+            $this->exportPdf(AuditLog::exportRows($filters), $filters);
         }
 
         return [
@@ -67,71 +68,28 @@ class AuditLogController {
         }
     }
 
-    private function exportPdf(array $rows) {
+    private function exportPdf(array $rows, array $filters = []) {
         AuditLog::record($this->user, 'Audit Log Export', 'Generated audit logs PDF export.');
 
-        $lines = [
-            'SICMS Audit Logs',
-            'Generated: ' . date('F d, Y h:i A'),
-            '',
-        ];
+        $logoPath = __DIR__ . '/../../public/assets/clsulogo.png';
+        $generatedBy = trim(($this->user['first_name'] ?? '') . ' ' . ($this->user['last_name'] ?? '')) ?: ($this->user['email'] ?? 'User');
 
-        foreach (array_slice($rows, 0, 40) as $row) {
-            $lines[] = date('Y-m-d H:i', strtotime($row['created_at'])) . ' | ' .
-                $row['user_name'] . ' | ' .
-                $row['action'] . ' | ' .
-                $row['description'];
+        $pdf = new AuditLogPdf($logoPath, $generatedBy);
+        $pdf->AddPage();
+        $pdf->reportHeading($filters);
+        $pdf->tableHeader();
+
+        $rowNumber = 0;
+        foreach ($rows as $row) {
+            $rowNumber++;
+            $pdf->tableRow($rowNumber, $row);
         }
 
-        $pdf = $this->simplePdf($lines);
+        $pdf->recordCount(count($rows));
+
         header('Content-Type: application/pdf');
         header('Content-Disposition: attachment; filename="sicms-audit-logs-' . date('Y-m-d') . '.pdf"');
-        echo $pdf;
+        $pdf->Output('D', 'sicms-audit-logs-' . date('Y-m-d') . '.pdf');
         exit;
-    }
-
-    private function simplePdf(array $lines) {
-        $content = "BT\n/F1 10 Tf\n40 790 Td\n";
-
-        foreach ($lines as $index => $line) {
-            if ($index > 0) {
-                $content .= "0 -15 Td\n";
-            }
-
-            $content .= '(' . $this->pdfText($line) . ") Tj\n";
-        }
-
-        $content .= "ET";
-        $objects = [];
-        $objects[] = "<< /Type /Catalog /Pages 2 0 R >>";
-        $objects[] = "<< /Type /Pages /Kids [3 0 R] /Count 1 >>";
-        $objects[] = "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>";
-        $objects[] = "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>";
-        $objects[] = "<< /Length " . strlen($content) . " >>\nstream\n$content\nendstream";
-
-        $pdf = "%PDF-1.4\n";
-        $offsets = [0];
-
-        foreach ($objects as $index => $object) {
-            $offsets[] = strlen($pdf);
-            $pdf .= ($index + 1) . " 0 obj\n$object\nendobj\n";
-        }
-
-        $xref = strlen($pdf);
-        $pdf .= "xref\n0 " . (count($objects) + 1) . "\n";
-        $pdf .= "0000000000 65535 f \n";
-
-        for ($i = 1; $i <= count($objects); $i++) {
-            $pdf .= str_pad((string) $offsets[$i], 10, '0', STR_PAD_LEFT) . " 00000 n \n";
-        }
-
-        $pdf .= "trailer\n<< /Size " . (count($objects) + 1) . " /Root 1 0 R >>\n";
-        $pdf .= "startxref\n$xref\n%%EOF";
-
-        return $pdf;
-    }
-
-    private function pdfText($value) {
-        return str_replace(['\\', '(', ')'], ['\\\\', '\\(', '\\)'], substr((string) $value, 0, 130));
     }
 }

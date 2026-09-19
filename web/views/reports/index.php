@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 require_once __DIR__ . '/../../controllers/ReportController.php';
 
 $controller = new ReportController();
@@ -111,7 +111,7 @@ function applied_filter_labels(array $filters, array $options) {
         }
         @media print {
             .sidebar, .app-topbar, .filters, .actions, .reports-toolbar, .report-tabs, .sicms-pagination, script { display: none !important; }
-            .dashboard-shell { display: block; }
+            .dashboard-shell { display: block; visibility: visible !important; }
             body { background: #fff; }
             .wrap { max-width: none; padding: 0; }
             .print-report-header { display: block !important; margin-bottom: 18px; }
@@ -517,7 +517,7 @@ function applied_filter_labels(array $filters, array $options) {
 </head>
 
 <body>
-    <div class="dashboard-shell">
+    <div class="dashboard-shell <?= $isPrint ? 'sicms-print-allowed' : '' ?>">
         <?php require __DIR__ . '/../layout/sidebar.php'; ?>
         <div class="app-content">
             <?php $pageTitle = 'Reports and Dashboard Analytics'; require __DIR__ . '/../layout/topbar.php'; ?>
@@ -645,7 +645,6 @@ function applied_filter_labels(array $filters, array $options) {
                 </div>
             </form>
             <div class="export-group">
-                <span class="export-label"><i class="bi bi-download"></i> Export</span>
                 <a class="btn btn-primary" data-export="pdf" href="<?= h(query_with(['export' => 'pdf', 'csrf_token' => Security::csrfToken()])) ?>"><i class="bi bi-file-earmark-pdf"></i> Generate PDF</a>
                 <a class="btn btn-primary" data-export="excel" href="<?= h(query_with(['export' => 'excel', 'csrf_token' => Security::csrfToken()])) ?>"><i class="bi bi-file-earmark-spreadsheet"></i> Generate Excel</a>
                 <a class="btn btn-primary" data-export="print" href="<?= h(query_with(['export' => 'print', 'csrf_token' => Security::csrfToken()])) ?>" target="_blank"><i class="bi bi-printer"></i> Print Report</a>
@@ -1239,7 +1238,7 @@ function applied_filter_labels(array $filters, array $options) {
                 const selectedYear = yearSelect ? yearSelect.value : '';
                 if (selectedYear) rangeEl.textContent = 'Year ' + selectedYear;
                 else if (yearly.trend.labels && yearly.trend.labels.length) {
-                    rangeEl.textContent = 'All Years Â· ' + yearly.trend.labels[0] + ' â€“ ' + yearly.trend.labels[yearly.trend.labels.length - 1];
+                    rangeEl.textContent = 'All Years · ' + yearly.trend.labels[0] + ' – ' + yearly.trend.labels[yearly.trend.labels.length - 1];
                 } else {
                     rangeEl.textContent = 'No case records';
                 }
