@@ -58,8 +58,8 @@ class Complaint extends Model {
         $sql = "SELECT
                     COUNT(*) AS total_complaints,
                     SUM(CASE WHEN status IN ('Under Investigation', 'Returned for Revision') THEN 1 ELSE 0 END) AS pending_cases,
-                    SUM(CASE WHEN status IN ('Under Investigation') OR assigned_coordinator_account_id IS NOT NULL THEN 1 ELSE 0 END) AS ongoing_cases,
-                    SUM(CASE WHEN status = 'Resolved' THEN 1 ELSE 0 END) AS resolved_cases
+                    SUM(CASE WHEN (status IN ('Under Investigation') OR assigned_coordinator_account_id IS NOT NULL) AND status NOT IN ('Resolved', 'Reformation in Progress', 'Reformation Completed') THEN 1 ELSE 0 END) AS ongoing_cases,
+                    SUM(CASE WHEN status IN ('Resolved', 'Reformation in Progress', 'Reformation Completed') THEN 1 ELSE 0 END) AS resolved_cases
                 FROM complaints
                 WHERE submitted_by_account_id = ?";
         $rows = self::fetchAll($sql, [(int) $accountId], 'i');

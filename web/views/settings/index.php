@@ -5,6 +5,7 @@ Security::startSession();
 require_once __DIR__ . '/../../config/Database.php';
 require_once __DIR__ . '/../../models/User.php';
 require_once __DIR__ . '/../../models/AuditLog.php';
+require_once __DIR__ . '/../../models/LoginSession.php';
 require_once __DIR__ . '/../../../routes.php';
 require_once __DIR__ . '/../../services/GoogleCalendarService.php';
 require_once __DIR__ . '/../../helpers/ProfileCompletion.php';
@@ -21,6 +22,7 @@ $db = $database->getConnection();
 
 User::setConnection($db);
 AuditLog::setConnection($db);
+LoginSession::setConnection($db);
 
 $user = User::findByEmail($_SESSION['email']);
 
@@ -33,6 +35,11 @@ if (!$user || $user['status'] !== 'active') {
 
 function h($value) {
     return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
+}
+
+function session_location($ipAddress) {
+    $ipAddress = trim((string) $ipAddress);
+    return in_array($ipAddress, ['', '::1', '127.0.0.1'], true) ? 'Localhost (this computer)' : $ipAddress;
 }
 
 $isStudent = ProfileCompletion::isStudentAccount($user);
@@ -52,6 +59,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $service = GoogleCalendarService::instance($db);
         $service->disconnect();
         $calSuccess = 'Google Calendar disconnected. Hearing events will no longer be synced.';
+    } elseif ($formAction === 'logout_device') {
+        $targetSession = trim((string) ($_POST['session_id'] ?? ''));
+        if ($targetSession === session_id()) {
+            $errors[] = 'Use the main Log Out link to end your current session.';
+        } elseif (LoginSession::revoke($targetSession, (int) $user['account_id'])) {
+            LoginSession::destroyPhpSession($targetSession);
+            $success = 'The selected device was logged out.';
+        } else {
+            $errors[] = 'That device session is no longer active.';
+        }
     } else if ($formAction === 'change_password') {
         $currentPassword = (string) ($_POST['current_password'] ?? '');
         $newPassword     = (string) ($_POST['new_password'] ?? '');
@@ -218,6 +235,14 @@ $calEmail = $calendarService->connectedEmail();
 $calMessage = $_SESSION['cal_message'] ?? null;
 $calError = $_SESSION['cal_error'] ?? null;
 unset($_SESSION['cal_message'], $_SESSION['cal_error']);
+LoginSession::ensureCurrent(
+    (int) $user['account_id'],
+    session_id(),
+    $_SERVER['HTTP_USER_AGENT'] ?? '',
+    $_SERVER['REMOTE_ADDR'] ?? 'unknown'
+);
+LoginSession::touch(session_id());
+$loginSessions = LoginSession::forAccount((int) $user['account_id'], session_id());
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -544,6 +569,29 @@ unset($_SESSION['cal_message'], $_SESSION['cal_error']);
                     </div>
                 </div>
                 <?php endif; ?>
+                <div class="settings-group">
+                    <div class="settings-group-header">
+                        <h3 class="settings-group-title"><i class="bi bi-laptop"></i> Logged-in Devices</h3>
+                        <p class="settings-group-desc">Review where your account is signed in and end sessions you no longer recognize.</p>
+                    </div>
+                    <div class="settings-device-list">
+                        <?php foreach ($loginSessions as $loginSession): ?>
+                        <div class="settings-device-row">
+                            <div class="settings-device-icon"><i class="bi <?= stripos($loginSession['device_type'], 'mobile') !== false ? 'bi-phone' : 'bi-display' ?>"></i></div>
+                            <div class="settings-device-info">
+                                <strong><?= h($loginSession['device_type']) ?></strong>
+                                <?php if ((int) $loginSession['is_current'] === 1): ?><span class="settings-device-current"><i class="bi bi-check-circle-fill"></i> Currently logged in here</span><?php endif; ?>
+                                <span>Location: <?= h($loginSession['location'] ?: session_location($loginSession['ip_address'])) ?><?= (int) $loginSession['is_current'] === 1 ? ' · Current connection' : '' ?></span>
+                                <span>Last login: <?= h(date('M d, Y h:i A', strtotime($loginSession['last_login_at']))) ?></span>
+                            </div>
+                            <?php if ((int) $loginSession['is_current'] !== 1): ?>
+                            <form method="POST" action="<?= h(app_url('web/views/settings/index.php')) ?>" data-no-ajax="true" data-confirm="Log out this device?"><input type="hidden" name="csrf_token" value="<?= h(Security::csrfToken()) ?>"><input type="hidden" name="action" value="logout_device"><input type="hidden" name="session_id" value="<?= h($loginSession['session_id']) ?>"><button class="btn btn-danger" type="submit"><i class="bi bi-box-arrow-right"></i> Log Out</button></form>
+                            <?php endif; ?>
+                        </div>
+                        <?php endforeach; ?>
+                        <?php if (empty($loginSessions)): ?><p class="settings-field-note">No active devices were found.</p><?php endif; ?>
+                    </div>
+                </div>
                 </div> 
             </section>
         </div>

@@ -70,7 +70,7 @@ class ComplaintController {
             'page' => $page,
             'perPage' => $perPage,
             'totalPages' => max(1, (int) ceil($total / $perPage)),
-            'statuses' => ['Under Investigation', 'Returned for Revision', 'Rejected', 'Resolved', 'Escalated', 'Archived'],
+            'statuses' => ['Under Investigation', 'Returned for Revision', 'Rejected', 'Resolved', 'Reformation in Progress', 'Reformation Completed', 'Escalated', 'Archived'],
             'classifications' => $this->classifications,
         ];
     }

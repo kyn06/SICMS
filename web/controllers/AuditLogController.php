@@ -3,6 +3,7 @@
 require_once __DIR__ . '/../config/Database.php';
 require_once __DIR__ . '/../models/User.php';
 require_once __DIR__ . '/../models/AuditLog.php';
+require_once __DIR__ . '/../models/CaseApproval.php';
 require_once __DIR__ . '/../helpers/Security.php';
 require_once __DIR__ . '/../services/AuditLogPdf.php';
 
@@ -36,6 +37,7 @@ class AuditLogController {
             'user' => $this->user,
             'filters' => $filters,
             'logs' => AuditLog::listLogs($filters, $perPage),
+            'approvals' => CaseApproval::pendingForHead(),
             'options' => AuditLog::filterOptions(),
             'pagination' => [
                 'total' => $total,
@@ -57,6 +59,7 @@ class AuditLogController {
 
         User::setConnection($this->db);
         AuditLog::setConnection($this->db);
+        CaseApproval::setConnection($this->db);
 
         $this->user = User::findByEmail($_SESSION['email']);
         $roleKey = strtolower(str_replace(['_', ' '], '-', $this->user['role'] ?? ''));

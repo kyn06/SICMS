@@ -7,6 +7,7 @@ $viewData = $controller->index();
 $user = $viewData['user'];
 $filters = $viewData['filters'];
 $logs = $viewData['logs'];
+$approvals = $viewData['approvals'] ?? [];
 $options = $viewData['options'];
 $pagination = $viewData['pagination'];
 
@@ -280,6 +281,33 @@ function user_initials($name) {
                 <a class="btn btn-primary" href="<?= h(with_query(['export' => 'pdf'])) ?>"><i class="bi bi-file-earmark-pdf"></i> Export PDF</a>
             </div>
         </div>
+
+        <section class="panel audit-table-panel">
+            <div class="audit-table-heading">
+                <div>
+                    <h2>Case Activity Approval</h2>
+                    <p>Review coordinator actions before they are applied to a case.</p>
+                </div>
+                <span class="audit-page-indicator"><?= count($approvals) ?> pending</span>
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead><tr><th>Activity</th><th>Date</th><th>Performed By</th><th>Status</th><th>Action</th></tr></thead>
+                    <tbody>
+                    <?php if (empty($approvals)): ?><tr><td colspan="5">No case activities are waiting for approval.</td></tr><?php endif; ?>
+                    <?php foreach ($approvals as $approval): ?>
+                    <tr>
+                        <td><strong><?= h($approval['action_label']) ?></strong><div class="muted">Case <?= h($approval['case_number']) ?> · <?= h($approval['complainant_name']) ?></div><div><?= h(CaseApproval::description($approval)) ?></div></td>
+                        <td><?= h(date('M d, Y', strtotime($approval['created_at']))) ?></td>
+                        <td><?= h(trim($approval['requester_first_name'] . ' ' . $approval['requester_last_name'])) ?></td>
+                        <td><span class="audit-role">Pending</span></td>
+                        <td><a class="btn btn-secondary" href="../cases/show.php?id=<?= (int) $approval['complaint_id'] ?>&amp;approval_id=<?= (int) $approval['approval_id'] ?>#case-status">View</a></td>
+                    </tr>
+                    <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        </section>
 
         <section class="panel audit-table-panel">
             <div class="audit-table-heading">

@@ -2,6 +2,7 @@
 
 require_once 'Model.php';
 require_once 'AuditLog.php';
+require_once 'LoginSession.php';
 
 class User extends Model {
     protected static $table = 'accounts';
@@ -73,6 +74,8 @@ class User extends Model {
                 session_regenerate_id(true);
                 $_SESSION['email'] = $email;
                 $_SESSION['role']  = $userData['role'];
+                LoginSession::setConnection(self::$conn);
+                LoginSession::register($userData['account_id'], session_id(), $_SERVER['HTTP_USER_AGENT'] ?? '', $_SERVER['REMOTE_ADDR'] ?? 'unknown');
                 AuditLog::record($userData, 'User Login', 'User logged in successfully.');
                 return true;
             }
@@ -141,6 +144,8 @@ class User extends Model {
         session_regenerate_id(true);
         $_SESSION['email'] = $userData['email'];
         $_SESSION['role']  = $userData['role'];
+        LoginSession::setConnection(self::$conn);
+        LoginSession::register($userData['account_id'], session_id(), $_SERVER['HTTP_USER_AGENT'] ?? '', $_SERVER['REMOTE_ADDR'] ?? 'unknown');
 
         AuditLog::record($userData, 'User Login', 'User logged in with Google.');
 

@@ -8,14 +8,14 @@ $viewData = $controller->handleTrackingRequest();
 $user = $viewData['user'];
 $profileIncomplete = ProfileCompletion::isStudentAccount($user) && !ProfileCompletion::isComplete($user);
 $profileMissingFields = ProfileCompletion::isStudentAccount($user) ? ProfileCompletion::missingFields($user) : [];
-$statuses = ['Under Investigation', 'Returned for Revision', 'Rejected', 'Resolved', 'Escalated', 'Archived'];
+$statuses = ['Under Investigation', 'Returned for Revision', 'Rejected', 'Resolved', 'Reformation in Progress', 'Reformation Completed', 'Escalated', 'Archived'];
 $allCases = Complaint::forStudent((int) $user['account_id'], 10000, ['sort' => 'newest'], 0);
 
 function h($value) { return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8'); }
 function status_class($status) { return strtolower(str_replace(' ', '-', $status)); }
 function filtered_student_cases(array $cases, array $input) {
     $search = trim((string) ($input['search'] ?? ''));
-    $status = in_array(($input['status'] ?? ''), ['Under Investigation', 'Returned for Revision', 'Rejected', 'Resolved', 'Escalated', 'Archived'], true) ? $input['status'] : '';
+    $status = in_array(($input['status'] ?? ''), ['Under Investigation', 'Returned for Revision', 'Rejected', 'Resolved', 'Reformation in Progress', 'Reformation Completed', 'Escalated', 'Archived'], true) ? $input['status'] : '';
     $year = preg_match('/^\d{4}$/', (string) ($input['year'] ?? '')) ? (string) $input['year'] : '';
 
     return array_values(array_filter($cases, function ($case) use ($search, $status, $year) {
@@ -94,6 +94,8 @@ rsort($years);
         .status-under-investigation { background: #e7f0ff; color: #275ca8; }
         .status-returned-for-revision { background: #fff5d8; color: #825e00; }
         .status-resolved { background: #e5f6e3; color: #157000; }
+        .status-reformation-in-progress { background: #fff4d6; color: #8a5a00; }
+        .status-reformation-completed { background: #e1f6ef; color: #087f5b; }
         .status-escalated { background: #fdeee3; color: #c2410c; }
         .status-rejected { background: #fff0ef; color: #a92c23; }
         .status-archived { background: #edf0ed; color: #59635a; }

@@ -11,7 +11,7 @@ class ReportController {
     private $database;
     private $db;
     private $user;
-    private $allowedRoles = ['super-admin', 'admin', 'sdr-staff', 'sdru-staff', 'coordinator', 'head-of-sdru', 'sdru-head'];
+    private $allowedRoles = ['super-admin', 'admin', 'sdr-staff', 'sdru-staff', 'coordinator', 'reformation-coordinator', 'head-of-sdru', 'sdru-head'];
 
     public function __construct() {
         Security::startSession();

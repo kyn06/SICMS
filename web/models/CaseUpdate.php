@@ -7,7 +7,7 @@ class CaseUpdate extends Model {
     protected static $primaryKey = 'update_id';
 
     public const TYPES = [
-        'additional_details' => 'Additional Details',
+        'additional_details' => 'Update Respondent Details',
         'additional_evidence' => 'Additional Evidence',
         'investigation_update' => 'Investigation Update',
         'clarification' => 'Clarification',
