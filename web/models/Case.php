@@ -657,11 +657,16 @@ class CaseRecord extends Model {
         return array_fill_keys(self::RESPONDENT_VISIBILITY_KEYS, true);
     }
 
-    /* Coordinator/head releases permitted case info to all linked respondents. */
-    public static function releaseToRespondents($complaintId, $actorAccountId, array $visibility = []) {
+    /* Coordinator/head releases permitted case info to the selected linked respondents.
+     * Pass $recipientIds (account IDs) to notify only those; null forwards to all. */
+    public static function releaseToRespondents($complaintId, $actorAccountId, array $visibility = [], $recipientIds = null) {
         $complaintId = (int) $complaintId;
         $case = self::findCase($complaintId);
         if (!$case) return false;
+
+        $selected = is_array($recipientIds)
+            ? array_map('intval', array_values(array_filter($recipientIds, fn($id) => (int) $id > 0)))
+            : null;
 
         $now = date('Y-m-d H:i:s');
 
@@ -703,6 +708,9 @@ class CaseRecord extends Model {
             );
 
             foreach (self::linkedRespondentAccounts($complaintId) as $account) {
+                if ($selected !== null && !in_array((int) $account['account_id'], $selected, true)) {
+                    continue;
+                }
                 Notification::createForUser(
                     (int) $account['account_id'],
                     'respondent_case_released',

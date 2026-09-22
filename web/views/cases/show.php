@@ -29,6 +29,7 @@ $errors = $viewData['errors'];
 $resubmission = $viewData['resubmission'];
 $classificationOptions = $viewData['classificationOptions'];
 $respondentAccounts = $viewData['respondentAccounts'] ?? [];
+$forwardPending = $viewData['forwardPending'] ?? null;
 $counterStatements = $viewData['counterStatements'] ?? [];
 $pendingApproval = $viewData['pendingApproval'] ?? null;
 $caseStatus = $case['status'] ?? '';
@@ -1253,10 +1254,12 @@ function person_name($first, $last) {
                                         <?php endif; ?>
                                     </div>
                                 </div>
-                                <div class="detail full">
-                                    <div class="label">Details</div>
-                                    <div class="value long-case-text"><?= nl2br(h($case['complaint_details'])) ?></div>
-                                </div>
+                                <details class="respondent-record" style="grid-column:1 / -1">
+                                    <summary>Details</summary>
+                                    <div class="respondent-record-body">
+                                        <div class="value long-case-text"><?= nl2br(h($case['complaint_details'])) ?></div>
+                                    </div>
+                                </details>
                             </div>
                         </section>
 
@@ -1425,6 +1428,53 @@ function person_name($first, $last) {
                                             <button class="btn btn-secondary" type="submit" data-sicms-processing-label="Linking account..."><i class="bi bi-link-45deg"></i> Link Existing Account</button>
                                             <p class="muted" style="font-size:11px;margin:6px 0 0">Only active accounts whose email matches the recorded email can be linked.</p>
                                         </form>
+                                        <?php if ($forwardPending && (int) ($forwardPending['complaint_id'] ?? 0) === (int) $case['complaint_id'] && (int) ($forwardPending['respondent_id'] ?? 0) === (int) $ra['respondent_id']): ?>
+                                        <div class="case-forward-pending" style="margin-top:12px;border:1px solid #cfe2cb;background:#f4faf2;border-radius:8px;padding:12px 14px">
+                                            <h3 class="case-action-label"><i class="bi bi-search-check"></i> Matching Existing Account</h3>
+                                            <p class="muted" style="font-size:11px;margin:4px 0 8px">An existing Complainant account was found using the recorded Student Number<?= trim((string) ($ra['student_no'] ?? '')) !== '' ? ' (' . h($ra['student_no']) . ')' : '' ?><?= trim((string) ($ra['full_name'] ?? '')) !== '' ? ' of ' . h($ra['full_name']) : '' ?>. Confirm to link this respondent to that account and forward the case information to them.</p>
+                                            <?php foreach ($forwardPending['candidates'] as $candidate): ?>
+                                            <?php $accountName = trim((string) (($candidate['first_name'] ?? '') . ' ' . ($candidate['last_name'] ?? ''))); ?>
+                                            <div class="respondent-details-card" style="margin:8px 0;padding:10px 12px">
+                                                <div class="details-grid">
+                                                    <?php if ($accountName !== ''): ?>
+                                                    <div class="detail"><div class="label">Account Name</div><div class="value"><strong><?= h($accountName) ?></strong><?= $candidate['name_matches'] ? ' <span class="badge-status active">Name Matches</span>' : ' <span class="badge-status inactive">Name Differs</span>' ?></div></div>
+                                                    <?php endif; ?>
+                                                    <div class="detail"><div class="label">Email</div><div class="value"><?= h($candidate['email'] ?? '-') ?></div></div>
+                                                    <div class="detail"><div class="label">Student Number</div><div class="value"><?= h($candidate['student_number'] ?? '-') ?></div></div>
+                                                    <?php if (!empty($candidate['college'])): ?>
+                                                    <div class="detail"><div class="label">College</div><div class="value"><?= h($candidate['college']) ?></div></div>
+                                                    <?php endif; ?>
+                                                    <?php if (!empty($candidate['course'])): ?>
+                                                    <div class="detail"><div class="label">Course</div><div class="value"><?= h($candidate['course']) ?></div></div>
+                                                    <?php endif; ?>
+                                                    <div class="detail"><div class="label">Status</div><div class="value"><?= ($candidate['status'] ?? '') === 'active' ? '<span class="badge-status active">Active</span>' : '<span class="badge-status inactive">' . h($candidate['status'] ?? 'unknown') . '</span>' ?></div></div>
+                                                </div>
+                                                <form class="action-form" method="POST" action="show.php?id=<?= (int) $case['complaint_id'] ?>" style="margin-top:10px">
+                                                    <?= Security::csrfField() ?>
+                                                    <input type="hidden" name="respondent_id" value="<?= (int) $ra['respondent_id'] ?>">
+                                                    <input type="hidden" name="account_id" value="<?= (int) $candidate['account_id'] ?>">
+                                                    <div class="button-row">
+                                                        <button class="btn btn-assign" type="submit" name="case_action" value="confirm_forward_case_to_respondent" data-sicms-processing-label="Linking and forwarding..." data-swal-confirm="Link this respondent to this existing account and forward the case information to them?"><i class="bi bi-send-check"></i> Confirm Link &amp; Forward to Respondent</button>
+                                                        <button class="btn btn-secondary" type="submit" name="case_action" value="cancel_forward_case_to_respondent" data-sicms-processing-label="Cancelling...">Cancel Search</button>
+                                                    </div>
+                                                </form>
+                                            </div>
+                                            <?php endforeach; ?>
+                                        </div>
+                                        <?php else: ?>
+                                        <h3 class="case-action-label" style="margin-top:10px">Forward Case to Respondent</h3>
+                                        <form class="action-form" method="POST" action="show.php?id=<?= (int) $case['complaint_id'] ?>">
+                                            <?= Security::csrfField() ?>
+                                            <input type="hidden" name="case_action" value="forward_case_to_respondent">
+                                            <input type="hidden" name="respondent_id" value="<?= (int) $ra['respondent_id'] ?>">
+                                            <div class="form-group">
+                                                <label>Recorded Student Number</label>
+                                                <input type="text" value="<?= h($ra['student_no'] ?? '') ?>" placeholder="No student number recorded" readonly>
+                                            </div>
+                                            <button class="btn btn-assign" type="submit" data-sicms-processing-label="Searching for account..."><i class="bi bi-send"></i> Forward Case to Respondent</button>
+                                            <p class="muted" style="font-size:11px;margin:6px 0 0">Searches the existing Complainant accounts using the recorded Student Number and full name. No new account is created.</p>
+                                        </form>
+                                        <?php endif; ?>
                                     </div>
                                     <?php elseif (($ra['account_status'] ?? '') !== 'active'): ?>
                                     <div class="case-action-group" style="margin-top:10px">
@@ -1444,44 +1494,6 @@ function person_name($first, $last) {
                         </section>
                         <?php endif; ?>
 
-                        <?php if ($canManageRespondentAccounts): ?>
-                        <?php
-                        $released = !empty($case['respondent_released_at']);
-                        $visibility = CaseRecord::respondentVisibility($complaintId);
-                        $visibilityLabels = [
-                            'complaint_details' => 'Complaint Details (narrative)',
-                            'incident' => 'Incident date, time, and location',
-                            'hearings' => 'Scheduled hearings',
-                            'final_information' => 'Final information (outcome / action taken / remarks)',
-                        ];
-                        ?>
-                        <section class="panel" id="forward-respondent">
-                            <h2><i class="bi bi-send"></i> Forward Case Information to Respondent</h2>
-                            <?php if ($released): ?>
-                                <p class="muted" style="font-size:12px;margin:0 0 12px">Permitted case information was released to the respondent(s) on <?= h(date('M d, Y h:i A', strtotime($case['respondent_released_at']))) ?>. Respondents see only what is checked below; evidence, witnesses, and internal notes are never shown to them.</p>
-                            <?php else: ?>
-                                <p class="muted" style="font-size:12px;margin:0 0 12px">The respondent(s) can only view the case once you forward it. Select which information the respondent(s) may see, then forward. Evidence, witnesses, and internal notes are never shown to respondents. Re-forwarding updates the permitted sections.</p>
-                            <?php endif; ?>
-                            <form class="action-form" method="POST" action="show.php?id=<?= (int) $case['complaint_id'] ?>">
-                                <?= Security::csrfField() ?>
-                                <input type="hidden" name="case_action" value="forward_to_respondents">
-                                <div class="form-group">
-                                    <label>Permitted Respondent Information</label>
-                                    <?php foreach ($visibilityLabels as $key => $label): ?>
-                                        <?php if ($key === 'complaint_details') continue; ?>
-                                        <label style="display:flex;gap:8px;align-items:center;font-weight:400;margin:4px 0">
-                                            <input type="checkbox" name="respondent_visibility[]" value="<?= h($key) ?>" <?= $visibility[$key] ? 'checked' : '' ?>>
-                                            <?= h($label) ?>
-                                        </label>
-                                    <?php endforeach; ?>
-                                    <p class="muted" style="font-size:11px;margin:6px 0 0">Complaint Details (narrative) is always included as the basis of the respondent&rsquo;s counter-statement.</p>
-                                </div>
-                                <div>
-                                    <button class="btn btn-assign" type="submit" data-sicms-processing-label="<?= $released ? 'Updating release...' : 'Forwarding case...' ?>"><i class="bi bi-send"></i> <?= $released ? 'Update &amp; Re-Forward' : 'Forward to Respondent' ?></button>
-                                </div>
-                            </form>
-                        </section>
-                        <?php endif; ?>
                         <section class="panel case-content-section" id="witnesses">
                             <h2>Witnesses</h2>
                             <div class="list">
@@ -1530,7 +1542,12 @@ function person_name($first, $last) {
                                         <div class="muted">Address: <?= h($witness['address']) ?></div>
                                     <?php endif; ?>
                                     <?php if (($witness['statement'] ?? '') !== ''): ?>
-                                        <div class="value"><?= h($witness['statement']) ?></div>
+                                        <details class="respondent-record">
+                                            <summary>Statement</summary>
+                                            <div class="respondent-record-body">
+                                                <div class="value"><?= h($witness['statement']) ?></div>
+                                            </div>
+                                        </details>
                                     <?php endif; ?>
                                 </div>
                                 <?php endforeach; ?>
@@ -1583,14 +1600,16 @@ function person_name($first, $last) {
                                     </div>
                                     <?php if (!empty($statement['account_first_name'])): ?>
                                     <div class="detail">
-                                        <div class="label">Submitted by Account</div>
+                                        <div class="label">Submitted by</div>
                                         <div class="value"><?= h(trim($statement['account_first_name'] . ' ' . $statement['account_last_name'])) ?> (<?= h($statement['respondent_account_id'] ?? '-') ?>)</div>
                                     </div>
                                     <?php endif; ?>
-                                    <div class="detail full">
-                                        <div class="label">Statement Content</div>
-                                        <div class="value" style="white-space:pre-wrap"><?= nl2br(h($statement['content'] ?? '')) ?></div>
-                                    </div>
+                                    <details class="respondent-record" style="grid-column:1 / -1">
+                                        <summary>Statement Content</summary>
+                                        <div class="respondent-record-body">
+                                            <div class="value long-case-text" style="white-space:pre-wrap"><?= nl2br(h($statement['content'] ?? '')) ?></div>
+                                        </div>
+                                    </details>
                                     <?php if (!empty($statementAttachments)): ?>
                                     <div class="detail full">
                                         <div class="label">Evidence Attachments</div>
@@ -1629,16 +1648,18 @@ function person_name($first, $last) {
                                             </div>
                                         </div>
                                         <?php if (trim((string) ($statement['complaint_response_content'] ?? '')) !== ''): ?>
-                                        <div class="detail full">
-                                            <div class="label">Complainant Response
+                                        <details class="respondent-record" style="grid-column:1 / -1">
+                                            <summary>Complainant Response
                                                 <?php if (!empty($statement['complaint_response_submitted_at'])): ?>
                                                     <span class="badge-status active">Submitted <?= h(date('M d, Y h:i A', strtotime($statement['complaint_response_submitted_at']))) ?></span>
                                                 <?php else: ?>
                                                     <span class="badge-status inactive">Draft</span>
                                                 <?php endif; ?>
+                                            </summary>
+                                            <div class="respondent-record-body">
+                                                <div class="value long-case-text" style="white-space:pre-wrap"><?= nl2br(h($statement['complaint_response_content'])) ?></div>
                                             </div>
-                                            <div class="value" style="white-space:pre-wrap"><?= nl2br(h($statement['complaint_response_content'])) ?></div>
-                                        </div>
+                                        </details>
                                         <?php endif; ?>
                                     </div>
                                     <?php if ($statement['coordinator_action'] === 'forwarded_to_complainant' && $canDecideCounterStatement): ?>
@@ -2000,6 +2021,74 @@ function person_name($first, $last) {
                             <?php endif; ?>
                         </section>
                         <?php endif; ?>
+                        <?php endif; ?>
+
+                        <?php if ($canManageRespondentAccounts): ?>
+                        <?php
+                        $released = !empty($case['respondent_released_at']);
+                        $visibility = CaseRecord::respondentVisibility($complaintId);
+                        $visibilityLabels = [
+                            'complaint_details' => 'Complaint Details (narrative)',
+                            'incident' => 'Incident date, time, and location',
+                            'hearings' => 'Scheduled hearings',
+                            'final_information' => 'Final information (outcome / action taken / remarks)',
+                        ];
+                        ?>
+                        <section class="panel" id="forward-respondent">
+                            <h2><i class="bi bi-send"></i> Forward Case Information to Respondent</h2>
+                            <?php
+                            $linkedForwardAccounts = array_values(array_filter(
+                                $respondentAccounts,
+                                fn($ra) => !empty($ra['linked_account_id']) && ($ra['account_status'] ?? '') === 'active'
+                            ));
+                            $hasLinkedAccounts = !empty($linkedForwardAccounts);
+                            ?>
+                            <?php if ($released): ?>
+                                <p class="muted" style="font-size:12px;margin:0 0 12px">Permitted case information was released to the respondent(s) on <?= h(date('M d, Y h:i A', strtotime($case['respondent_released_at']))) ?>. Respondents see only what is checked below; evidence, witnesses, and internal notes are never shown to them.</p>
+                            <?php else: ?>
+                                <p class="muted" style="font-size:12px;margin:0 0 12px">The respondent(s) can only view the case once you forward it. Tick the linked student(s) below, select which information they may see, then forward. Evidence, witnesses, and internal notes are never shown to respondents. Re-forwarding updates the permitted sections.</p>
+                            <?php endif; ?>
+                            <form class="action-form" method="POST" action="show.php?id=<?= (int) $case['complaint_id'] ?>">
+                                <?= Security::csrfField() ?>
+                                <input type="hidden" name="case_action" value="forward_to_respondents">
+                                <div class="form-group">
+                                    <label>Linked Respondent(s) to Receive the Case</label>
+                                    <?php if (!$hasLinkedAccounts): ?>
+                                        <p class="muted" style="font-size:11px;margin:6px 0 0">No linked respondent accounts yet. Link a respondent first (e.g. using "Forward Case to Respondent"), then come back here to forward the case.</p>
+                                    <?php else: ?>
+                                        <?php foreach ($linkedForwardAccounts as $ra): ?>
+                                        <label style="display:flex;gap:8px;align-items:flex-start;font-weight:400;margin:4px 0">
+                                            <input type="checkbox" name="respondent_ids[]" value="<?= (int) $ra['linked_account_id'] ?>" checked>
+                                            <span>
+                                                <strong><?= h($ra['full_name']) ?></strong>
+                                                <?php if (!empty($ra['student_no'])): ?> &middot; <?= h($ra['student_no']) ?><?php endif; ?>
+                                                <br>
+                                                <span class="muted" style="font-size:11px"><?= h($ra['account_email']) ?> &middot; Linked &amp; active</span>
+                                            </span>
+                                        </label>
+                                        <?php endforeach; ?>
+                                        <p class="muted" style="font-size:11px;margin:6px 0 0">Only ticked respondent(s) will receive the case. Untick a respondent to leave the case hidden from them.</p>
+                                    <?php endif; ?>
+                                </div>
+                                <div class="form-group">
+                                    <label>Permitted Respondent Information</label>
+                                    <?php foreach ($visibilityLabels as $key => $label): ?>
+                                        <?php if ($key === 'complaint_details') continue; ?>
+                                        <label style="display:flex;gap:8px;align-items:center;font-weight:400;margin:4px 0">
+                                            <input type="checkbox" name="respondent_visibility[]" value="<?= h($key) ?>" <?= $visibility[$key] ? 'checked' : '' ?>>
+                                            <?= h($label) ?>
+                                        </label>
+                                    <?php endforeach; ?>
+                                    <p class="muted" style="font-size:11px;margin:6px 0 0">Complaint Details (narrative) is always included as the basis of the respondent&rsquo;s counter-statement.</p>
+                                </div>
+                                <div class="notice" style="font-size:12px;margin:0 0 12px;background:#fffdf5;border:1px solid #ead9a5;border-left:4px solid #b57600;border-radius:8px;color:#6a614c;padding:12px 14px">
+                                    <i class="bi bi-info-circle"></i> When you click <strong>Forward</strong>, the selected respondent(s) will be sent the case through <strong>Gmail</strong> and receive an <strong>in-app notification inside SICMS</strong>, so they can review the case and file their counter-statement.
+                                </div>
+                                <div>
+                                    <button class="btn btn-assign" type="submit" data-sicms-processing-label="<?= $released ? 'Updating release...' : 'Forwarding case...' ?>"><i class="bi bi-send"></i> <?= $released ? 'Update &amp; Re-Forward' : 'Forward to Respondent' ?></button>
+                                </div>
+                            </form>
+                        </section>
                         <?php endif; ?>
 
                         <section class="panel case-content-section" id="case-timeline">
