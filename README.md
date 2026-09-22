@@ -23,7 +23,7 @@ SICMS is a web-based case management system built for the Office of Student Affa
 | ------------------------- | --------------------------------------------------------------- |
 | Student                   | Submit complaints, track own cases, chat, receive notifications |
 | Coordinator               | Handle assigned cases, schedule hearings, chat                  |
-| SDRU Staff (`sdru-staff`) | Case processing, coordinator assignment, hearings, reports      |
+| SDRU Staff (`sdru-staff`) | Case migration, hearings, reports                               |
 | Admin / Super Admin       | Full access including user management and audit logs            |
 | Head SDRU                 | Full access including user management and audit logs            |
 
