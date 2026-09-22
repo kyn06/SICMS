@@ -217,18 +217,22 @@ class CaseRecord extends Model {
     public static function createRespondent($complaintId, array $data) {
         $stmt = self::$conn->prepare(
                 "INSERT INTO complaint_respondents
-                    (complaint_id, respondent_type, full_name, gender, student_no, employee_no, college, office_department, course_year, position, affiliation, contact_info, details, created_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                    (complaint_id, respondent_type, full_name, gender, age, student_no, employee_no, college, office_department, course_year, position, affiliation, contact_info, email, address, details, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
         );
         if (!$stmt) throw new Exception('Unable to prepare respondent creation.');
 
         $createdAt = date('Y-m-d H:i:s');
+        $age = ($data['age'] ?? '') !== '' && (int) $data['age'] > 0 ? (int) $data['age'] : null;
+        $email = (string) ($data['email'] ?? '');
+        $address = (string) ($data['address'] ?? '');
         $stmt->bind_param(
-            'isssssssssssss',
+            'isssissssssssssss',
             $complaintId,
             $data['respondent_type'],
             $data['full_name'],
             $data['gender'],
+            $age,
             $data['student_no'],
             $data['employee_no'],
             $data['college'],
@@ -237,6 +241,8 @@ class CaseRecord extends Model {
             $data['position'],
             $data['affiliation'],
             $data['contact_info'],
+            $email,
+            $address,
             $data['details'],
             $createdAt
         );
@@ -245,7 +251,7 @@ class CaseRecord extends Model {
     }
 
     public static function updateRespondent($respondentId, $complaintId, array $data) {
-        $allowed = ['respondent_type', 'full_name', 'gender', 'student_no', 'employee_no', 'college', 'office_department', 'course_year', 'position', 'affiliation', 'contact_info', 'details'];
+        $allowed = ['respondent_type', 'full_name', 'gender', 'age', 'student_no', 'employee_no', 'college', 'office_department', 'course_year', 'position', 'affiliation', 'contact_info', 'email', 'address', 'details'];
         $changes = array_intersect_key($data, array_flip($allowed));
         if (empty($changes)) return false;
 

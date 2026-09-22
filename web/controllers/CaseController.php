@@ -467,11 +467,12 @@ class CaseController {
 
                 $fieldMap = [
                     'respondent_type' => 'respondent_type', 'respondent_name' => 'full_name',
-                    'respondent_gender' => 'gender',
+                    'respondent_gender' => 'gender', 'respondent_age' => 'age',
                     'respondent_student_no' => 'student_no', 'respondent_employee_no' => 'employee_no',
                     'respondent_college' => 'college', 'respondent_department' => 'office_department',
                     'respondent_course_year' => 'course_year', 'respondent_position' => 'position',
                     'respondent_affiliation' => 'affiliation', 'respondent_contact' => 'contact_info',
+                    'respondent_email' => 'email', 'respondent_address' => 'address',
                     'respondent_details' => 'details',
                 ];
                 $course = trim((string) ($_POST['respondent_course'] ?? ''));
@@ -493,30 +494,30 @@ class CaseController {
                     header('Location: show.php?id=' . $complaintId);
                     exit;
                 }
-                if ($approvalExecution) {
-                    if (!$existing) {
-                        $newRespondent = [
-                            'respondent_type' => $respondentType,
-                            'full_name' => $respondentName,
-                            'gender' => trim((string) ($_POST['respondent_gender'] ?? '')),
-                            'student_no' => trim((string) ($_POST['respondent_student_no'] ?? '')),
-                            'employee_no' => trim((string) ($_POST['respondent_employee_no'] ?? '')),
-                            'college' => trim((string) ($_POST['respondent_college'] ?? '')),
-                            'office_department' => trim((string) ($_POST['respondent_department'] ?? '')),
-                            'course_year' => trim((string) ($_POST['respondent_course_year'] ?? '')),
-                            'position' => trim((string) ($_POST['respondent_position'] ?? '')),
-                            'affiliation' => trim((string) ($_POST['respondent_affiliation'] ?? '')),
-                            'contact_info' => trim((string) ($_POST['respondent_contact'] ?? '')),
-                            'details' => trim((string) ($_POST['respondent_details'] ?? '')),
-                        ];
-                        CaseRecord::createRespondent($complaintId, $newRespondent);
-                    } else {
-                        CaseRecord::updateRespondent($respondentId, $complaintId, $changes);
-                    }
-                    $_POST['details'] = 'Added the following respondent details: ' . implode(', ', $changedLabels) . '.';
+                if (!$existing) {
+                    $newRespondent = [
+                        'respondent_type' => $respondentType,
+                        'full_name' => $respondentName,
+                        'gender' => trim((string) ($_POST['respondent_gender'] ?? '')),
+                        'age' => trim((string) ($_POST['respondent_age'] ?? '')),
+                        'student_no' => trim((string) ($_POST['respondent_student_no'] ?? '')),
+                        'employee_no' => trim((string) ($_POST['respondent_employee_no'] ?? '')),
+                        'college' => trim((string) ($_POST['respondent_college'] ?? '')),
+                        'office_department' => trim((string) ($_POST['respondent_department'] ?? '')),
+                        'course_year' => trim((string) ($_POST['respondent_course_year'] ?? '')),
+                        'position' => trim((string) ($_POST['respondent_position'] ?? '')),
+                        'affiliation' => trim((string) ($_POST['respondent_affiliation'] ?? '')),
+                        'contact_info' => trim((string) ($_POST['respondent_contact'] ?? '')),
+                        'email' => trim((string) ($_POST['respondent_email'] ?? '')),
+                        'address' => trim((string) ($_POST['respondent_address'] ?? '')),
+                        'details' => trim((string) ($_POST['respondent_details'] ?? '')),
+                    ];
+                    $respondentId = CaseRecord::createRespondent($complaintId, $newRespondent);
                 } else {
-                    $_POST['details'] = 'Added the following respondent details: ' . implode(', ', $changedLabels) . '.';
+                    CaseRecord::updateRespondent($respondentId, $complaintId, $changes);
                 }
+                $_POST['details'] = 'Added the following respondent details: ' . implode(', ', $changedLabels) . '.';
+                $this->autoLinkRespondent($complaintId, $respondentId, $caseLabel, (int) ($_POST['respondent_linked_account_id'] ?? 0));
             }
 
             if ($action === 'classify') {
@@ -533,7 +534,7 @@ class CaseController {
                     exit;
                 }
 
-                if ($selected !== 'Others' && !in_array($selected, $this->classifications, true)) {
+                if ($selected !== 'Others' && !in_array($selected, $this->classificationOptions(), true)) {
                     $_SESSION['case_errors'] = ['Please select a valid case classification.'];
                     header('Location: show.php?id=' . $complaintId);
                     exit;
@@ -1300,7 +1301,7 @@ class CaseController {
         return true;
     }
 
-    private function respondentRowForAction($complaintId, $respondentId) {
+private function respondentRowForAction($complaintId, $respondentId) {
         if ($respondentId <= 0) return null;
         foreach (CaseRecord::respondentsWithAccounts($complaintId) as $row) {
             if ((int) $row['respondent_id'] === $respondentId) {
@@ -1308,6 +1309,79 @@ class CaseController {
             }
         }
         return null;
+    }
+
+    /* Automatic account linking whenever a respondent's details are added or
+     * updated. Links only when an active SICMS account already exists with the
+     * exact recorded email or student number. Never auto-creates accounts:
+     * if only an email is present and no account matches, the respondent is
+     * sent an external notice that they are named on the case. When an account
+     * id was explicitly chosen in the respondent details form, that account is
+     * linked directly instead of being resolved by email or student number. */
+    private function autoLinkRespondent($complaintId, $respondentId, $caseLabel, $preferredAccountId = 0) {
+        if ($respondentId <= 0) return;
+        $respondent = $this->respondentRowForAction($complaintId, $respondentId);
+        if (!$respondent) return;
+
+        if (!empty($respondent['linked_account_id'])) return;
+
+        $account = null;
+
+        if ((int) $preferredAccountId > 0) {
+            $candidate = User::findRow((int) $preferredAccountId);
+            if ($candidate && ($candidate['status'] ?? '') === 'active'
+                && Security::normalizeRole($candidate['role'] ?? '') === 'student') {
+                $account = $candidate;
+            }
+        }
+
+        $email = strtolower(trim((string) ($respondent['email'] ?? '')));
+        $studentNo = trim((string) ($respondent['student_no'] ?? ''));
+
+        if (!$account && $email !== '') {
+            $candidate = User::findByEmailInexact($email);
+            if ($candidate && ($candidate['status'] ?? '') === 'active') {
+                $account = $candidate;
+            }
+        }
+        if (!$account && $studentNo !== '') {
+            $candidate = User::findActiveByStudentNumber($studentNo);
+            if ($candidate) {
+                $account = $candidate;
+            }
+        }
+
+        if (!$account) {
+            if ($email !== '') {
+                Mailer::send(
+                    $email,
+                    'You Are Named as a Respondent on ' . $caseLabel,
+                    Mailer::respondentNoticeEmailBody((string) ($respondent['full_name'] ?? 'A Respondent'), $caseLabel)
+                );
+                AuditLog::record($this->user, 'Respondent Notice Sent', 'Sent external respondent notice to ' . $email . ' for ' . ($respondent['full_name'] ?? '') . ' on ' . $caseLabel . '. No matching active account was available for automatic linking.');
+                $_POST['details'] = trim((string) ($_POST['details'] ?? '')) . ' An external notice was sent to ' . $email . ' (no matching account was available for automatic linking).';
+            }
+            return;
+        }
+
+        CaseRecord::linkRespondent($complaintId, $respondentId, (int) $account['account_id']);
+        $accountName = trim(($account['first_name'] ?? '') . ' ' . ($account['last_name'] ?? ''));
+        Notification::createForUser(
+            (int) $account['account_id'],
+            'case_respondent_linked',
+            'Linked as Respondent on ' . $caseLabel,
+            'Your SICMS account has been automatically linked to case ' . $caseLabel . ' as the respondent. You can now view the case and submit a response.',
+            'web/views/respondent/case_show.php?id=' . $complaintId
+        );
+        if ((int) $this->user['account_id'] !== (int) $account['account_id']) {
+            Message::createMessage(
+                (int) $this->user['account_id'],
+                (int) $account['account_id'],
+                'Your SICMS account has been automatically linked to case ' . $caseLabel . ' as the respondent. You can view the case and submit a response there.'
+            );
+        }
+        AuditLog::record($this->user, 'Respondent Account Auto-Linked', 'Automatically linked account ' . $accountName . ' (' . $account['email'] . ') to respondent ' . ($respondent['full_name'] ?? '') . ' on ' . $caseLabel . '.');
+        $_POST['details'] = trim((string) ($_POST['details'] ?? '')) . ' The respondent was automatically linked to the active SICMS account ' . $account['email'] . '.';
     }
 
     private function siteUrl($path) {
