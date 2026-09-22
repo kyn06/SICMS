@@ -96,6 +96,279 @@
     document.querySelectorAll('table').forEach(initializeTable);
     decorateStatuses();
 
+    const SICMS_PHONE_RE = /^[0-9+()\-\s.]{7,20}$/;
+
+    const cleanLabelText = (raw) => String(raw || '')
+        .replace(/<[^>]*>/g, ' ')
+        .replace(/\s*[·*:]\s*$/g, '')
+        .replace(/\s*(\(required\)|\(optional\))\s*$/i, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    const sentenceCase = (str) => String(str || '').replace(/^./, (char) => char.toUpperCase());
+
+    const lowerFirst = (str) => String(str || '').replace(/^./, (char) => char.toLowerCase());
+
+    const withArticle = (label) => /^(your|my|their|our|his|her|its)\b/i.test(label) ? label : `the ${label}`;
+
+    const fieldLabel = (control) => {
+        const field = control.closest('.field') || control.closest('.form-group') || control.closest('.settings-field');
+        if (field) {
+            const label = field.querySelector('label');
+            const inside = label && cleanLabelText(label.textContent);
+            if (inside) return inside;
+        }
+        if (control.id) {
+            const label = document.querySelector('label[for="' + CSS.escape(control.id) + '"]');
+            const linked = label && cleanLabelText(label.textContent);
+            if (linked) return linked;
+        }
+        const fromData = cleanLabelText(control.dataset.label);
+        if (fromData) return fromData;
+        const fromAria = cleanLabelText(control.getAttribute('aria-label'));
+        if (fromAria) return fromAria;
+        const fromPlaceholder = cleanLabelText(control.getAttribute('placeholder'));
+        if (fromPlaceholder) return fromPlaceholder;
+        const fromName = control.getAttribute('name');
+        if (fromName) return sentenceCase(fromName.replace(/[_-]+/g, ' '));
+        return 'this field';
+    };
+
+    const renderable = (control) => {
+        if (control.disabled || control.type === 'hidden') return false;
+        if (control.closest('[hidden], .d-none, .d-none-inverse, .hidden')) return false;
+        return true;
+    };
+
+    const hasCustomRule = (control) => {
+        const dataset = control.dataset;
+        return dataset.sicmsFuture !== undefined
+            || dataset.sicmsPast !== undefined
+            || dataset.sicmsPhone !== undefined
+            || dataset.sicmsMatch !== undefined
+            || dataset.sicmsSizeMb !== undefined
+            || dataset.sicmsAcceptExt !== undefined;
+    };
+
+    const todayLocal = () => {
+        const now = new Date();
+        return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+    };
+
+    const constraintMessage = (control) => {
+        const validity = control.validity;
+        const label = sentenceCase(String(fieldLabel(control)).toLowerCase());
+
+        if (validity.valueMissing) {
+            const question = /[?]$/.test(label) || /^(do|are|was|were|is|has|have|did|does|should|would|can|will)\s/i.test(label);
+            if (question) return 'Please make a selection.';
+            if (control.type === 'file') return `Please choose ${withArticle(lowerFirst(label))}.`;
+            if (control.type === 'checkbox') return `Please check ${withArticle(lowerFirst(label))}.`;
+            if (control.type === 'radio') return `Please select ${withArticle(lowerFirst(label))}.`;
+            if (control instanceof HTMLSelectElement) return `Please select ${withArticle(lowerFirst(label))}.`;
+            return `Please enter ${withArticle(lowerFirst(label))}.`;
+        }
+        if (validity.typeMismatch) {
+            if (control.type === 'email') return 'Please enter a valid email address.';
+            if (control.type === 'url') return 'Please enter a valid URL.';
+            return `Please enter a valid ${lowerFirst(label)}.`;
+        }
+        if (validity.tooShort) {
+            return `Please enter at least ${control.minLength} characters for the ${lowerFirst(label)}.`;
+        }
+        if (validity.tooLong) {
+            return `Please enter no more than ${control.maxLength} characters for the ${lowerFirst(label)}.`;
+        }
+        if (validity.rangeUnderflow) {
+            if (control.type === 'date' || control.type === 'datetime-local' || control.type === 'month') {
+                return `The ${lowerFirst(label)} cannot be earlier than ${control.min}.`;
+            }
+            return `Please enter a value of at least ${control.min} for the ${lowerFirst(label)}.`;
+        }
+        if (validity.rangeOverflow) {
+            if ((control.type === 'date' || control.type === 'datetime-local' || control.type === 'month')
+                && control.max === todayLocal()) {
+                return `The ${lowerFirst(label)} cannot be in the future.`;
+            }
+            if (control.type === 'date' || control.type === 'datetime-local' || control.type === 'month') {
+                return `The ${lowerFirst(label)} cannot be later than ${control.max}.`;
+            }
+            return `Please enter a value of at most ${control.max} for the ${lowerFirst(label)}.`;
+        }
+        if (validity.stepMismatch) {
+            return `Please enter a valid value for the ${lowerFirst(label)}.`;
+        }
+        if (validity.patternMismatch) {
+            return control.title || `Please enter a valid value for the ${lowerFirst(label)}.`;
+        }
+        if (validity.badInput) {
+            return `Please enter a valid value for the ${lowerFirst(label)}.`;
+        }
+        return '';
+    };
+
+    const validationError = (control, message) => {
+        const field = control.closest('.field') || control.closest('.form-group') || control.closest('.settings-field');
+        if (field) {
+            let box = field.querySelector('.field-error') || field.querySelector('.error-message');
+            if (!box) {
+                box = document.createElement('div');
+                box.className = 'field-error';
+                field.appendChild(box);
+            }
+            box.textContent = message;
+            field.classList.add('is-invalid');
+            control.setAttribute('aria-invalid', 'true');
+        } else {
+            let box = control.nextElementSibling;
+            if (!box || !box.classList.contains('field-error')) {
+                box = document.createElement('div');
+                box.className = 'field-error';
+                control.parentNode.insertBefore(box, control.nextSibling);
+            }
+            box.textContent = message;
+            control.classList.add('is-invalid');
+        }
+        return false;
+    };
+
+    const clearValidationError = (control) => {
+        const field = control.closest('.field') || control.closest('.form-group') || control.closest('.settings-field');
+        const box = field ? (field.querySelector('.field-error') || field.querySelector('.error-message')) : null;
+        if (box) box.remove();
+        if (field) field.classList.remove('is-invalid');
+        control.classList.remove('is-invalid');
+        control.removeAttribute('aria-invalid');
+    };
+
+    const validateRuleControl = (control) => {
+        clearValidationError(control);
+        if (!renderable(control)) return true;
+        const rules = control.dataset;
+        const value = String(control.value || '').trim();
+        const label = sentenceCase(String(fieldLabel(control)).toLowerCase());
+
+        if (rules.sicmsFuture === '0' && value) {
+            const parsed = new Date(value);
+            if (!isNaN(parsed.getTime()) && parsed > new Date()) {
+                return validationError(control, `The ${lowerFirst(label)} cannot be in the future.`);
+            }
+        }
+        if (rules.sicmsPast === '0' && value) {
+            const parsed = new Date(value);
+            if (!isNaN(parsed.getTime()) && parsed < new Date()) {
+                return validationError(control, `The ${lowerFirst(label)} cannot be in the past.`);
+            }
+        }
+        if (rules.sicmsPhone !== undefined && value && !SICMS_PHONE_RE.test(value)) {
+            return validationError(control, 'Please enter a valid phone number (digits, spaces, +, -, or parentheses).');
+        }
+        if (rules.sicmsMatch && value) {
+            const target = document.querySelector(rules.sicmsMatch);
+            if (target && target.value && value !== target.value) {
+                const targetLabel = sentenceCase(String(fieldLabel(target)).toLowerCase());
+                return validationError(control, `Please make the ${lowerFirst(label)} match the ${lowerFirst(targetLabel)}.`);
+            }
+        }
+        if (control.type === 'file' && control.files && control.files.length) {
+            const maxMb = Number(rules.sicmsSizeMb) || 0;
+            const accepted = String(rules.sicmsAcceptExt || '')
+                .split(',')
+                .map((ext) => ext.trim().toLowerCase().replace(/^\./, ''))
+                .filter(Boolean);
+            for (const file of control.files) {
+                if (maxMb && file.size > maxMb * 1024 * 1024) {
+                    return validationError(control, `${file.name} is larger than ${maxMb}MB. Please choose a smaller file.`);
+                }
+                if (accepted.length && !accepted.includes((file.name.split('.').pop() || '').toLowerCase())) {
+                    return validationError(control, `${file.name} has an invalid file type. Allowed: ${String(rules.sicmsAcceptExt || '')}`);
+                }
+            }
+        }
+        if (!control.willValidate || control.validity.valid) return true;
+        const message = constraintMessage(control);
+        return message ? validationError(control, message) : true;
+    };
+
+    const validateRuleForm = (form) => {
+        let firstInvalid = null;
+        let valid = true;
+
+        form.querySelectorAll('input, select, textarea').forEach((control) => {
+            if (!renderable(control) || (!hasCustomRule(control) && !control.willValidate)) return;
+            if (!validateRuleControl(control)) {
+                valid = false;
+                if (!firstInvalid) firstInvalid = control;
+            }
+        });
+
+        const fromName = form.dataset.sicmsDatefrom;
+        const toName = form.dataset.sicmsDateto;
+        if (fromName && toName) {
+            const fromEl = form.elements.namedItem(fromName);
+            const toEl = form.elements.namedItem(toName);
+            const fromValue = fromEl ? String(fromEl.value || '').trim() : '';
+            const toValue = toEl ? String(toEl.value || '').trim() : '';
+            if (fromValue && toValue) {
+                const fromDate = new Date(fromValue);
+                const toDate = new Date(toValue);
+                if (!isNaN(fromDate.getTime()) && !isNaN(toDate.getTime()) && fromDate.getTime() > toDate.getTime()) {
+                    const fromLabel = sentenceCase(String(fieldLabel(fromEl)).toLowerCase());
+                    const toLabel = sentenceCase(String(fieldLabel(toEl)).toLowerCase());
+                    validationError(toEl, `The ${lowerFirst(toLabel)} cannot be earlier than the ${lowerFirst(fromLabel)}.`);
+                    valid = false;
+                    if (!firstInvalid) firstInvalid = toEl;
+                }
+            }
+        }
+
+        if (!valid) form.dataset.sicmsTouched = 'true';
+        return { valid, firstInvalid };
+    };
+
+    const wireValidation = (form) => {
+        if (form.dataset.sicmsValidationWired === 'true') return;
+        form.dataset.sicmsValidationWired = 'true';
+
+        form.setAttribute('novalidate', 'novalidate');
+        form.addEventListener('invalid', (event) => event.preventDefault(), true);
+
+        const liveValidate = (event) => {
+            const control = event.target;
+            if (!(control instanceof HTMLInputElement)
+                && !(control instanceof HTMLSelectElement)
+                && !(control instanceof HTMLTextAreaElement)) return;
+            if (!renderable(control)) return;
+            const touched = form.dataset.sicmsTouched === 'true'
+                || control.classList.contains('is-invalid')
+                || hasCustomRule(control);
+            if (touched) validateRuleControl(control);
+        };
+        form.addEventListener('input', liveValidate);
+        form.addEventListener('change', liveValidate);
+        form.addEventListener('submit', (event) => {
+            const result = validateRuleForm(form);
+            if (!result.valid) {
+                event.preventDefault();
+                if (result.firstInvalid) result.firstInvalid.focus();
+                if (event.submitter) event.submitter.disabled = false;
+            }
+        });
+    };
+
+    document.querySelectorAll('form[data-sicms-validate]').forEach(wireValidation);
+
+    window.SICMSValidation = {
+        run: (form) => {
+            const result = validateRuleForm(form);
+            if (!result.valid && result.firstInvalid) result.firstInvalid.focus();
+            return result.valid;
+        },
+        valid: (control) => validateRuleControl(control),
+        error: validationError,
+        clear: clearValidationError,
+    };
+
     const showAjaxNotice = (message, type = 'success') => {
         let notice = document.getElementById('sicms-ajax-notice');
         if (!notice) {
@@ -110,6 +383,30 @@
         requestAnimationFrame(() => notice.classList.add('show'));
         clearTimeout(notice.hideTimer);
         notice.hideTimer = setTimeout(() => notice.classList.remove('show'), 3500);
+    };
+
+    const setProcessingState = (form, submitter) => {
+        const label = submitter?.dataset.sicmsProcessingLabel || form.dataset.sicmsProcessingLabel;
+        if (!label || !submitter || submitter.dataset.sicmsProcessing === 'true') return () => {};
+
+        submitter.dataset.sicmsProcessing = 'true';
+        if (submitter instanceof HTMLInputElement) {
+            const originalValue = submitter.value;
+            submitter.value = label;
+            return () => {
+                submitter.value = originalValue;
+                delete submitter.dataset.sicmsProcessing;
+            };
+        }
+
+        const originalHtml = submitter.innerHTML;
+        submitter.innerHTML = `<span class="sicms-processing-spinner" aria-hidden="true"></span> ${label}`;
+        submitter.setAttribute('aria-busy', 'true');
+        return () => {
+            submitter.innerHTML = originalHtml;
+            submitter.removeAttribute('aria-busy');
+            delete submitter.dataset.sicmsProcessing;
+        };
     };
 
     const renderAjaxDocument = (html, url) => {
@@ -178,6 +475,7 @@
         const controls = Array.from(form.querySelectorAll('button[type="submit"], input[type="submit"]'));
         controls.forEach(control => { control.disabled = true; });
         form.classList.add('sicms-ajax-loading');
+        const restoreProcessingState = setProcessingState(form, submitter);
 
         try {
             let requestUrl = window.location.href;
@@ -217,6 +515,7 @@
             showAjaxNotice(error.message || 'The request could not be completed.', 'error');
             controls.forEach(control => { control.disabled = false; });
             form.classList.remove('sicms-ajax-loading');
+            restoreProcessingState();
         }
     });
 

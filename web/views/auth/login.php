@@ -156,8 +156,6 @@ if ($requestMethod == 'POST') {
             });
         </script>
 
-        <a class="create-link" href="create_acc.php">Create an account.</a>
-
         <button type="submit" class="btn-login">Log In</button>
 
         <div class="divider">

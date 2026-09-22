@@ -277,7 +277,7 @@ $hearingTemplate = function () {
                 </div>
             <?php endif; ?>
 
-            <form id="legacyCreateForm" method="POST" action="index.php" enctype="multipart/form-data">
+            <form id="legacyCreateForm" method="POST" action="index.php" enctype="multipart/form-data" data-sicms-validate>
                 <?= Security::csrfField() ?>
                 <input type="hidden" name="legacy_action" value="create">
 
@@ -466,7 +466,7 @@ $hearingTemplate = function () {
                     <h2>Evidence / Attachments</h2>
                     <div id="evidenceList" class="evidence-list"></div>
                     <div class="evidence-file-row">
-                        <input type="file" name="evidence[]" id="evidenceInput" multiple>
+                        <input type="file" name="evidence[]" id="evidenceInput" multiple accept=".pdf,.jpg,.jpeg,.png,.docx" data-sicms-size-mb="5" data-sicms-accept-ext="pdf,jpg,jpeg,png,docx">
                         <span id="evidenceFileNames"></span>
                         <button type="button" class="btn btn-secondary add-evidence" id="addEvidenceBtn">Add Evidence File</button>
                     </div>

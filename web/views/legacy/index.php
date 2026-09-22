@@ -9,6 +9,7 @@ $user = $viewData['user'];
 $entries = $viewData['entries'];
 $message = $viewData['message'];
 $errors = $viewData['errors'];
+$canManage = (bool) ($viewData['canManage'] ?? false);
 
 $controller->clearFlash();
 
@@ -71,9 +72,11 @@ function legacy_photo_url(?string $photoPath): string {
                         <h2><i class="bi bi-award" aria-hidden="true"></i> Legacy of SDRU In-Charge</h2>
                         <p>Honoring the leaders who have served as heads of the Student Discipline and Reformation Unit.</p>
                     </div>
-                    <button type="button" class="btn btn-primary legacy-add-open">
-                        <i class="bi bi-plus-lg" aria-hidden="true"></i> Add In-Charge
-                    </button>
+                    <?php if ($canManage): ?>
+                        <button type="button" class="btn btn-primary legacy-add-open">
+                            <i class="bi bi-plus-lg" aria-hidden="true"></i> Add In-Charge
+                        </button>
+                    <?php endif; ?>
                 </section>
 
                 <?php if (empty($entries)): ?>
@@ -109,14 +112,16 @@ function legacy_photo_url(?string $photoPath): string {
                                         <button type="button" class="icon-action legacy-view-open" title="View profile" aria-label="View profile of <?= h($entry['full_name']) ?>">
                                             <i class="bi bi-eye" aria-hidden="true"></i>
                                         </button>
-                                        <form method="POST" action="index.php" data-entry-name="<?= h($entry['full_name']) ?>">
-                                            <?= Security::csrfField() ?>
-                                            <input type="hidden" name="legacy_action" value="delete">
-                                            <input type="hidden" name="legacy_id" value="<?= (int) $entry['legacy_id'] ?>">
-                                            <button type="submit" class="icon-action icon-danger" title="Delete entry" aria-label="Delete entry of <?= h($entry['full_name']) ?>">
-                                                <i class="bi bi-trash3" aria-hidden="true"></i>
-                                            </button>
-                                        </form>
+                                        <?php if ($canManage): ?>
+                                            <form method="POST" action="index.php" data-entry-name="<?= h($entry['full_name']) ?>">
+                                                <?= Security::csrfField() ?>
+                                                <input type="hidden" name="legacy_action" value="delete">
+                                                <input type="hidden" name="legacy_id" value="<?= (int) $entry['legacy_id'] ?>">
+                                                <button type="submit" class="icon-action icon-danger" title="Delete entry" aria-label="Delete entry of <?= h($entry['full_name']) ?>">
+                                                    <i class="bi bi-trash3" aria-hidden="true"></i>
+                                                </button>
+                                            </form>
+                                        <?php endif; ?>
                                     </div>
                                 </div>
                             </article>
@@ -135,9 +140,11 @@ function legacy_photo_url(?string $photoPath): string {
 
             <!-- View (banner) mode -->
             <div class="legacy-modal-view" id="legacyModalView">
-                <button type="button" class="icon-action legacy-edit-open" id="legacyEditOpen" title="Edit entry" aria-label="Edit entry">
-                    <i class="bi bi-pencil-square" aria-hidden="true"></i>
-                </button>
+                <?php if ($canManage): ?>
+                    <button type="button" class="icon-action legacy-edit-open" id="legacyEditOpen" title="Edit entry" aria-label="Edit entry">
+                        <i class="bi bi-pencil-square" aria-hidden="true"></i>
+                    </button>
+                <?php endif; ?>
                 <div class="legacy-banner-photo">
                     <img id="legacyBannerPhoto" src="" alt="" hidden>
                     <span class="legacy-photo-fallback legacy-photo-fallback-lg" id="legacyBannerFallback"></span>
@@ -150,6 +157,7 @@ function legacy_photo_url(?string $photoPath): string {
                 <p class="legacy-banner-description" id="legacyModalDescription"></p>
             </div>
 
+            <?php if ($canManage): ?>
             <!-- Add/Edit form mode -->
             <div class="legacy-modal-form" id="legacyModalForm" hidden>
                 <h3 id="legacyFormTitle">Add SDRU In-Charge</h3>
@@ -200,9 +208,11 @@ function legacy_photo_url(?string $photoPath): string {
                     </div>
                 </form>
             </div>
+            <?php endif; ?>
         </div>
     </div>
 
+    <?php if ($canManage): ?>
     <!-- Delete confirmation popup -->
     <div class="legacy-modal-overlay" id="legacyDeleteOverlay" hidden>
         <div class="legacy-modal legacy-modal-sm" role="alertdialog" aria-modal="true" aria-labelledby="legacyDeleteTitle">
@@ -217,6 +227,7 @@ function legacy_photo_url(?string $photoPath): string {
             </div>
         </div>
     </div>
+    <?php endif; ?>
 
     <script>
     (() => {
@@ -251,11 +262,12 @@ function legacy_photo_url(?string $photoPath): string {
         };
 
         const showViewMode = () => {
-            formMode.hidden = true;
+            if (formMode) formMode.hidden = true;
             viewMode.hidden = false;
         };
 
         const showFormMode = () => {
+            if (!formMode) return;
             viewMode.hidden = true;
             formMode.hidden = false;
         };
@@ -302,7 +314,8 @@ function legacy_photo_url(?string $photoPath): string {
                 ? entry.description.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>')
                 : '<em>No description provided.</em>';
 
-            document.getElementById('legacyEditOpen').dataset.id = entry.id;
+            const editButton = document.getElementById('legacyEditOpen');
+            if (editButton) editButton.dataset.id = entry.id;
             showViewMode();
             openOverlay();
         };
@@ -334,13 +347,13 @@ function legacy_photo_url(?string $photoPath): string {
             });
         });
 
-        document.getElementById('legacyEditOpen').addEventListener('click', function () {
+        document.getElementById('legacyEditOpen')?.addEventListener('click', function () {
             const entry = entries.find((item) => item.id === Number(this.dataset.id));
             if (entry) openForm('edit', entry);
         });
 
         document.getElementById('legacyModalClose').addEventListener('click', closeModal);
-        document.getElementById('legacyFormCancel').addEventListener('click', closeModal);
+        document.getElementById('legacyFormCancel')?.addEventListener('click', closeModal);
         overlay.addEventListener('mousedown', (event) => {
             if (event.target === overlay) closeModal();
         });
@@ -354,7 +367,7 @@ function legacy_photo_url(?string $photoPath): string {
             }
         });
 
-        document.getElementById('legacyPhotoInput').addEventListener('change', function () {
+        document.getElementById('legacyPhotoInput')?.addEventListener('change', function () {
             const file = this.files && this.files[0];
             if (!file) return;
             const reader = new FileReader();
@@ -375,27 +388,29 @@ function legacy_photo_url(?string $photoPath): string {
             pendingDeleteForm = event.target;
             document.getElementById('legacyDeleteName').textContent =
                 event.target.dataset.entryName || 'this entry';
+            if (!deleteOverlay) return;
             deleteOverlay.hidden = false;
             document.body.classList.add('legacy-modal-open');
         }, true);
 
         const closeDeleteModal = () => {
+            if (!deleteOverlay) return;
             deleteOverlay.hidden = true;
             pendingDeleteForm = null;
             document.body.classList.remove('legacy-modal-open');
         };
 
-        document.getElementById('legacyDeleteCancel').addEventListener('click', closeDeleteModal);
-        document.getElementById('legacyDeleteConfirm').addEventListener('click', () => {
+        document.getElementById('legacyDeleteCancel')?.addEventListener('click', closeDeleteModal);
+        document.getElementById('legacyDeleteConfirm')?.addEventListener('click', () => {
             if (!pendingDeleteForm) { closeDeleteModal(); return; }
             document.getElementById('legacyDeleteConfirm').disabled = true;
             pendingDeleteForm.submit();
         });
-        deleteOverlay.addEventListener('mousedown', (event) => {
+        deleteOverlay?.addEventListener('mousedown', (event) => {
             if (event.target === deleteOverlay) closeDeleteModal();
         });
     })();
     </script>
-    <script src="<?= h(app_url('web/views/layout/system.js')) ?>" defer></script>
+    <script src="<?= h(app_url('web/views/layout/system.js')) ?>?v=20260922a" defer></script>
 </body>
 </html>

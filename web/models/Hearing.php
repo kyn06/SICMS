@@ -1,6 +1,8 @@
 <?php
 
 require_once 'Model.php';
+require_once 'Case.php';
+require_once 'Notification.php';
 
 class Hearing extends Model {
     protected static $table = 'hearings';
@@ -134,18 +136,97 @@ class Hearing extends Model {
     }
 
     public static function schedule(array $data) {
-        return parent::create($data);
+        $hearing = parent::create($data);
+        if ($hearing) {
+            self::notifyHearingChange((int) $hearing['complaint_id'], 'scheduled', $hearing['hearing_datetime'] ?? '');
+        }
+        return $hearing;
     }
 
     public static function updateHearing($hearingId, array $data) {
-        return parent::updateById($hearingId, $data);
+        $hearing = self::findHearing($hearingId);
+        $updated = parent::updateById($hearingId, $data);
+        if ($updated && $hearing) {
+            self::notifyHearingChange(
+                (int) $hearing['complaint_id'],
+                'updated',
+                $data['hearing_datetime'] ?? ($hearing['hearing_datetime'] ?? '')
+            );
+        }
+        return $updated;
     }
 
     public static function updateStatus($hearingId, $status) {
-        return parent::updateById($hearingId, [
+        $hearing = self::findHearing($hearingId);
+        $updated = parent::updateById($hearingId, [
             'status' => $status,
             'updated_at' => date('Y-m-d H:i:s'),
         ]);
+        if ($updated && $hearing && in_array($status, ['Cancelled', 'Completed'], true)) {
+            self::notifyHearingChange((int) $hearing['complaint_id'], strtolower($status), $hearing['hearing_datetime'] ?? '');
+        }
+        return $updated;
+    }
+
+    /*
+     * ---- Respondent hearing views ----
+     */
+
+    public static function forRespondent($accountId) {
+        $sql = "SELECT h.*, c.case_number
+                FROM hearings h
+                INNER JOIN complaints c ON h.complaint_id = c.complaint_id
+                INNER JOIN complaint_respondents r ON r.complaint_id = c.complaint_id AND r.account_id = ?
+                WHERE (c.case_source IS NULL OR c.case_source <> 'Legacy')
+                  AND c.respondent_released_at IS NOT NULL
+                ORDER BY h.hearing_datetime DESC";
+        $stmt = self::$conn->prepare($sql);
+        if (!$stmt) return [];
+        $stmt->bind_param('i', $accountId);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        return $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
+    }
+
+    public static function getUpcomingForRespondent($accountId, $limit = 5) {
+        $sql = "SELECT h.*, c.case_number
+                FROM hearings h
+                INNER JOIN complaints c ON h.complaint_id = c.complaint_id
+                INNER JOIN complaint_respondents r ON r.complaint_id = c.complaint_id AND r.account_id = ?
+                WHERE (c.case_source IS NULL OR c.case_source <> 'Legacy')
+                  AND c.respondent_released_at IS NOT NULL
+                  AND h.status = 'Scheduled' AND h.hearing_datetime >= NOW()
+                ORDER BY h.hearing_datetime ASC
+                LIMIT ?";
+        try {
+            $stmt = self::$conn->prepare($sql);
+            $stmt->bind_param("ii", $accountId, $limit);
+            $stmt->execute();
+            $result = $stmt->get_result();
+        } catch (Throwable $exception) {
+            return [];
+        }
+        return $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
+    }
+
+    /* In-app notification to every linked active respondent on the case's hearings. */
+    private static function notifyHearingChange($complaintId, $verb, $scheduleText = '') {
+        try {
+            $case = CaseRecord::findCase($complaintId);
+            if (!$case) return;
+            $schedulePart = $scheduleText !== '' ? ' for ' . date('M d, Y h:i A', strtotime($scheduleText)) : '';
+            foreach (CaseRecord::linkedRespondentAccounts($complaintId) as $account) {
+                Notification::createForUser(
+                    (int) $account['account_id'],
+                    'hearing_updated',
+                    'Hearing ' . ucfirst($verb),
+                    'A hearing' . $schedulePart . ' on case ' . $case['case_number'] . ' was ' . $verb . '.',
+                    'web/views/respondent/case_show.php?id=' . $complaintId
+                );
+            }
+        } catch (Throwable $exception) {
+            return;
+        }
     }
 
     private static function roleKey(array $user) {

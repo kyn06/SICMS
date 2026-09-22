@@ -8,6 +8,7 @@ class SicmsReportPdf extends FPDF {
     private $printedAt;
     private $rowIndex = 0;
     private $widths = [32, 36, 20, 36, 24, 40, 49, 30];
+    private $caseHeadings = ['Case Number', 'Student Name', 'Gender', 'Classification', 'Status', 'Coordinator', 'College', 'Submitted Date'];
 
     public function __construct($logoPath, $generatedBy) {
         parent::__construct('L', 'mm', 'A4');
@@ -97,11 +98,33 @@ class SicmsReportPdf extends FPDF {
         $this->SetFillColor(18, 60, 27);
         $this->SetTextColor(255, 255, 255);
         $this->SetFont('Helvetica', 'B', 8);
-        foreach (['Case Number', 'Student Name', 'Gender', 'Classification', 'Status', 'Coordinator', 'College', 'Submitted'] as $index => $heading) {
+        foreach ($this->caseHeadings as $index => $heading) {
             $this->Cell($this->widths[$index], 8, $heading, 1, 0, 'C', true);
         }
         $this->Ln();
         $this->SetTextColor(23, 32, 23);
+    }
+
+    public function setCaseColumns(array $columns): void {
+        $weights = [
+            'case_number' => 1.1,
+            'student_name' => 1.9,
+            'gender' => 0.85,
+            'classification' => 1.75,
+            'status' => 1.05,
+            'coordinator' => 1.55,
+            'college' => 1.7,
+            'submitted_date' => 1.2,
+        ];
+        $selected = [];
+        foreach ($columns as $key => $label) {
+            if (isset($weights[$key])) $selected[$key] = $label;
+        }
+        if (!$selected) return;
+
+        $totalWeight = array_sum(array_map(fn($key) => $weights[$key], array_keys($selected)));
+        $this->caseHeadings = array_values($selected);
+        $this->widths = array_map(fn($key) => 273 * ($weights[$key] / $totalWeight), array_keys($selected));
     }
 
     public function caseRow(array $values) {

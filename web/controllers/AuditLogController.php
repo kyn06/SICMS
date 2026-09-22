@@ -11,7 +11,7 @@ class AuditLogController {
     private $database;
     private $db;
     private $user;
-    private $headRoles = ['head-of-sdru', 'sdru-head', 'super-admin'];
+    private $headRoles = ['head-of-sdru', 'sdru-head'];
 
     public function __construct() {
         Security::startSession();
@@ -21,6 +21,14 @@ class AuditLogController {
 
     public function index() {
         $filters = AuditLog::filters($_GET);
+
+        $filterError = '';
+        if (!empty($filters['date_from']) && !empty($filters['date_to']) && $filters['date_from'] > $filters['date_to']) {
+            $filterError = 'The start date must be on or before the end date.';
+            $filters['date_from'] = '';
+            $filters['date_to'] = '';
+        }
+
         $perPage = 10;
         $total = AuditLog::countLogs($filters);
         $totalPages = max(1, (int) ceil($total / $perPage));
@@ -45,6 +53,7 @@ class AuditLogController {
                 'currentPage' => $filters['page'],
                 'totalPages' => $totalPages,
             ],
+            'filterError' => $filterError,
         ];
     }
 

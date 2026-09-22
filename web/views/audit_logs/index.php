@@ -10,6 +10,7 @@ $logs = $viewData['logs'];
 $approvals = $viewData['approvals'] ?? [];
 $options = $viewData['options'];
 $pagination = $viewData['pagination'];
+$filterError = $viewData['filterError'] ?? '';
 
 function h($value) {
     return htmlspecialchars((string) $value);
@@ -218,7 +219,7 @@ function user_initials($name) {
         </section>
 
         <div class="audit-toolbar">
-            <form id="auditFilters" class="filters-host" method="GET" action="index.php" data-no-ajax="true">
+            <form id="auditFilters" class="filters-host" method="GET" action="index.php" data-no-ajax="true" data-sicms-validate data-sicms-datefrom="date_from" data-sicms-dateto="date_to">
                 <button type="button" class="filters-toggle-btn" id="auditFiltersToggle" aria-expanded="false" aria-controls="auditFiltersPanel">
                     <i class="bi bi-funnel"></i> Filters
                     <span class="filters-count" id="auditFiltersCount" hidden></span>
@@ -277,6 +278,9 @@ function user_initials($name) {
                     </div>
                 </div>
             </form>
+            <?php if ($filterError): ?>
+                <div class="filter-error" role="alert"><?= h($filterError) ?></div>
+            <?php endif; ?>
             <div class="export-group">
                 <a class="btn btn-primary" href="<?= h(with_query(['export' => 'pdf'])) ?>"><i class="bi bi-file-earmark-pdf"></i> Export PDF</a>
             </div>

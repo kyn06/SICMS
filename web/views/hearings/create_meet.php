@@ -31,7 +31,7 @@ CaseRecord::setConnection($db);
 
 $user = User::findByEmail($_SESSION['email']);
 
-$staffRoles = ['super-admin', 'admin', 'sdr-staff', 'sdru-staff', 'coordinator', 'head-of-sdru', 'sdru-head'];
+$staffRoles = ['admin', 'sdr-staff', 'sdru-staff', 'coordinator', 'head-of-sdru', 'sdru-head'];
 $roleKey = strtolower(str_replace(['_', ' '], '-', $user['role'] ?? ''));
 
 if (!$user || $user['status'] !== 'active' || !in_array($roleKey, $staffRoles, true)) {

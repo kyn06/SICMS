@@ -29,7 +29,7 @@ function calendar_redirect_to_settings() {
     exit;
 }
 
-$staffRoles = ['super-admin', 'admin', 'sdr-staff', 'sdru-staff', 'coordinator', 'head-of-sdru', 'sdru-head'];
+$staffRoles = ['admin', 'sdr-staff', 'sdru-staff', 'coordinator', 'head-of-sdru', 'sdru-head'];
 $roleKey = strtolower(str_replace(['_', ' '], '-', $user['role'] ?? ''));
 
 if (!in_array($roleKey, $staffRoles, true)) {

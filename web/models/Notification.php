@@ -2,12 +2,13 @@
 
 require_once 'Model.php';
 require_once 'AuditLog.php';
+require_once __DIR__ . '/../services/Mailer.php';
 
 class Notification extends Model {
     protected static $table = 'notifications';
     protected static $primaryKey = 'notification_id';
 
-    private static $staffRoles = ['super-admin', 'admin', 'sdr staff', 'sdr-staff', 'sdru-staff', 'coordinator', 'reformation-coordinator', 'head-of-sdru', 'sdru-head', 'head of sdru'];
+    private static $staffRoles = ['admin', 'sdr staff', 'sdr-staff', 'sdru-staff', 'coordinator', 'reformation-coordinator', 'head-of-sdru', 'sdru-head', 'head of sdru'];
     private static $headRoles = ['head-of-sdru', 'sdru-head', 'head of sdru'];
 
     public static function createForUser($accountId, $type, $title, $message, $link = null) {
@@ -25,6 +26,10 @@ class Notification extends Model {
                 'is_read' => 0,
                 'created_at' => date('Y-m-d H:i:s'),
             ]);
+
+            if ($notification) {
+                self::sendEmailForNotification((int) $accountId, $title, $message, $link);
+            }
 
             return $notification;
         } catch (Throwable $exception) {
@@ -131,6 +136,28 @@ class Notification extends Model {
         $stmt = self::$conn->prepare("UPDATE notifications SET is_read = 1, read_at = ? WHERE account_id = ? AND is_read = 0");
         $stmt->bind_param("si", $now, $accountId);
         return $stmt->execute();
+    }
+
+    private static function sendEmailForNotification($accountId, $title, $message, $link = null) {
+        try {
+            $stmt = self::$conn->prepare("SELECT email, first_name, last_name FROM accounts WHERE account_id = ? AND status = 'active' LIMIT 1");
+            if (!$stmt) return false;
+            $stmt->bind_param('i', $accountId);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            $account = $result ? $result->fetch_assoc() : null;
+            if (!$account || empty($account['email'])) return false;
+
+            $actionUrl = trim((string) $link);
+            $actionUrl = $actionUrl !== '' ? Mailer::applicationUrl($actionUrl) : '';
+
+            $name = trim(($account['first_name'] ?? '') . ' ' . ($account['last_name'] ?? ''));
+            $greeting = $name !== '' ? 'Dear ' . $name : 'Hello';
+            $body = Mailer::noticeEmailBody($greeting, $message, $actionUrl, 'Open SICMS');
+            return Mailer::send($account['email'], $title, $body);
+        } catch (Throwable $exception) {
+            return false;
+        }
     }
 
     private static function getStaffAccounts() {

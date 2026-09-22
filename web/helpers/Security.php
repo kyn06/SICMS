@@ -2,6 +2,12 @@
 
 class Security {
     public static function startSession(array $options = []) {
+        if (!headers_sent()) {
+            header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+            header('Pragma: no-cache');
+            header('Expires: 0');
+        }
+
         if (session_status() === PHP_SESSION_ACTIVE) {
             self::ensureCsrfToken();
             return;
@@ -15,6 +21,7 @@ class Security {
             'cookie_samesite' => 'Lax',
         ];
 
+        session_cache_limiter('nocache');
         session_start(array_merge($defaults, $options));
         self::ensureCsrfToken();
     }

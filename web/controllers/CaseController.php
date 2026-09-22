@@ -11,14 +11,16 @@ require_once __DIR__ . '/../models/CaseUpdate.php';
 require_once __DIR__ . '/../models/ReformationRecord.php';
 require_once __DIR__ . '/../models/ReformationReport.php';
 require_once __DIR__ . '/../models/CaseApproval.php';
+require_once __DIR__ . '/../models/CounterStatement.php';
 require_once __DIR__ . '/../services/FileUploadService.php';
+require_once __DIR__ . '/../services/Mailer.php';
 require_once __DIR__ . '/../helpers/Security.php';
 
 class CaseController {
     private $database;
     private $db;
     private $user;
-    private $staffRoles = ['super-admin', 'admin', 'sdr staff', 'sdr-staff', 'sdru-staff', 'coordinator', 'reformation-coordinator', 'head-of-sdru', 'sdru-head', 'head of sdru'];
+    private $staffRoles = ['admin', 'sdr staff', 'sdr-staff', 'sdru-staff', 'coordinator', 'reformation-coordinator', 'head-of-sdru', 'sdru-head', 'head of sdru'];
     private $revisionFields = ['complaint_details', 'incident_date', 'incident_time', 'incident_location', 'respondents', 'witnesses', 'evidence'];
     private $classifications = [
         'Cyberbullying',
@@ -58,6 +60,9 @@ class CaseController {
                     : [])
                 : []);
 
+        $filterError = $_SESSION['case_filter_error'] ?? '';
+        unset($_SESSION['case_filter_error']);
+
         return [
             'user' => $this->user,
             'cases' => $showOnline ? CaseRecord::listCases($filters) : [],
@@ -68,6 +73,7 @@ class CaseController {
             'statuses' => $this->activeStatuses(),
             'classifications' => CaseRecord::getClassifications(),
             'coordinators' => CaseRecord::getCoordinators(),
+            'filterError' => $filterError,
         ];
     }
 
@@ -98,12 +104,16 @@ class CaseController {
                         : [])
                     : []);
 
+            $filterError = $_SESSION['case_filter_error'] ?? '';
+            unset($_SESSION['case_filter_error']);
+
             echo json_encode([
                 'success' => true,
                 'cases' => $cases,
                 'assignedCases' => $assignedCases,
                 'migratedCases' => $migratedCases,
                 'total' => count($cases),
+                'filterError' => $filterError,
             ], JSON_THROW_ON_ERROR);
         } catch (Throwable $exception) {
             http_response_code(500);
@@ -229,7 +239,9 @@ class CaseController {
             'errors' => $_SESSION['case_errors'] ?? [],
             'updates' => CaseUpdate::forCase($complaintId),
             'classificationOptions' => $this->classificationOptions(),
-            'pendingApproval' => in_array($this->roleKey(), ['super-admin', 'head-of-sdru', 'sdru-head'], true)
+            'respondentAccounts' => CaseRecord::respondentsWithAccounts($complaintId),
+            'counterStatements' => CounterStatement::forCase($complaintId),
+            'pendingApproval' => in_array($this->roleKey(), ['head-of-sdru', 'sdru-head'], true)
                 ? CaseApproval::findForCase((int) ($_GET['approval_id'] ?? 0), $complaintId)
                 : null,
         ];
@@ -261,6 +273,7 @@ class CaseController {
         AuditLog::setConnection($this->db);
         CaseUpdate::setConnection($this->db);
         CaseApproval::setConnection($this->db);
+        CounterStatement::setConnection($this->db);
 
         $this->user = User::findByEmail($_SESSION['email']);
         $roleKey = strtolower(str_replace(['_', ' '], '-', $this->user['role'] ?? ''));
@@ -281,7 +294,7 @@ class CaseController {
 
         try {
             if ($action === 'approval_decision') {
-                $headRoles = ['super-admin', 'head-of-sdru', 'sdru-head'];
+                $headRoles = ['head-of-sdru', 'sdru-head'];
                 if (!in_array($this->roleKey(), $headRoles, true)) {
                     throw new Exception('Only the SDRU head can review case approvals.');
                 }
@@ -364,6 +377,17 @@ class CaseController {
             if ($this->roleKey() === 'coordinator'
                 && (int) ($case['assigned_coordinator_account_id'] ?? 0) !== (int) $this->user['account_id']) {
                 $_SESSION['case_errors'] = ['You can only manage cases assigned to you.'];
+                header('Location: show.php?id=' . $complaintId);
+                exit;
+            }
+
+            $headRoles = ['head-of-sdru', 'sdru-head'];
+            $respondentManagerRoles = ['coordinator', 'reformation-coordinator', 'head-of-sdru', 'sdru-head'];
+            $respondentInvitationActions = ['create_respondent_account', 'link_respondent_account', 'resend_respondent_invite', 'toggle_respondent_account', 'forward_to_respondents'];
+            if (in_array($action, $respondentInvitationActions, true)
+                && !in_array($this->roleKey(), $respondentManagerRoles, true)
+            ) {
+                $_SESSION['case_errors'] = ['Only the assigned coordinator, assigned reformation coordinator, or SDRU head can manage respondents or forward case information to them.'];
                 header('Location: show.php?id=' . $complaintId);
                 exit;
             }
@@ -696,7 +720,7 @@ class CaseController {
                 AuditLog::record($this->user, 'Case Update', 'Added ' . $stageLabel . ' (' . $typeLabel . ') to ' . $caseLabel . '.');
                 $_SESSION['case_message'] = 'Case update added. The case status was not changed.';
             } elseif ($action === 'assign_reformation') {
-                $isHeadRole = in_array($this->roleKey(), ['super-admin', 'head-of-sdru', 'sdru-head'], true);
+                $isHeadRole = in_array($this->roleKey(), ['head-of-sdru', 'sdru-head'], true);
 
                 if (!$isHeadRole) {
                     $_SESSION['case_errors'] = ['Only the SDRU head can assign a reformation coordinator.'];
@@ -769,6 +793,249 @@ class CaseController {
                 CaseRecord::markReformationCompleted($complaintId, $actorAccountId);
                 AuditLog::record($this->user, 'Reformation Progress', 'Marked reformation as completed for ' . $caseLabel . '.');
                 $_SESSION['case_message'] = 'Reformation marked as completed.';
+            } elseif ($action === 'create_respondent_account') {
+                $respondent = $this->respondentRowForAction($complaintId, (int) ($_POST['respondent_id'] ?? 0));
+                if (!$respondent) {
+                    $_SESSION['case_errors'] = ['Please select a valid respondent.'];
+                    header('Location: show.php?id=' . $complaintId); exit;
+                }
+                if (!empty($respondent['linked_account_id'])) {
+                    $_SESSION['case_errors'] = ['This respondent already has a linked account.'];
+                    header('Location: show.php?id=' . $complaintId); exit;
+                }
+
+                $email = strtolower(trim((string) ($_POST['account_email'] ?? ($respondent['email'] ?? ''))));
+                if ($email === '') {
+                    $_SESSION['case_errors'] = ['Respondent email is required before sending the invitation.'];
+                    header('Location: show.php?id=' . $complaintId); exit;
+                }
+                if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                    $_SESSION['case_errors'] = ['Please provide a valid email address for the respondent invitation.'];
+                    header('Location: show.php?id=' . $complaintId); exit;
+                }
+                if (User::findByEmailInexact($email)) {
+                    $_SESSION['case_errors'] = ['An account already exists with that email. Use "Link Existing Account" instead.'];
+                    header('Location: show.php?id=' . $complaintId); exit;
+                }
+
+                $firstName = trim((string) ($_POST['account_first_name'] ?? ''));
+                $lastName = trim((string) ($_POST['account_last_name'] ?? ''));
+                if ($firstName === '' || $lastName === '') {
+                    $_SESSION['case_errors'] = ['First name and last name are required for the new account.'];
+                    header('Location: show.php?id=' . $complaintId); exit;
+                }
+
+                $accountData = [
+                    'first_name' => $firstName,
+                    'last_name' => $lastName,
+                    'email' => $email,
+                    'password_hash' => null,
+                    'role' => 'respondent',
+                    'status' => 'inactive',
+                    'phone_number' => (string) ($respondent['contact_info'] ?? '') !== '' ? substr($respondent['contact_info'], 0, 20) : '',
+                    'gender' => (string) ($respondent['gender'] ?? '') !== '' ? $respondent['gender'] : '',
+                    'birthday' => (string) ($respondent['birthday'] ?? '') !== '' ? $respondent['birthday'] : null,
+                    'address' => (string) ($respondent['address'] ?? '') !== '' ? $respondent['address'] : '',
+                    'student_number' => (string) ($respondent['student_no'] ?? '') !== '' ? $respondent['student_no'] : null,
+                    'college' => (string) ($respondent['college'] ?? '') !== '' ? $respondent['college'] : null,
+                    'course' => (string) ($respondent['course_year'] ?? '') !== '' ? $respondent['course_year'] : null,
+                ];
+                $createdAccount = User::create($accountData);
+                if (!$createdAccount) {
+                    $_SESSION['case_errors'] = ['Could not create the respondent account. Please try again.'];
+                    header('Location: show.php?id=' . $complaintId); exit;
+                }
+
+                CaseRecord::linkRespondent($complaintId, $respondent['respondent_id'], (int) $createdAccount->account_id);
+
+                $token = bin2hex(random_bytes(32));
+                CaseRecord::storeRespondentInvitation($complaintId, $respondent['respondent_id'], $token);
+                $activationUrl = $this->siteUrl('web/views/auth/activate.php?token=' . $token);
+                $invitationSent = Mailer::send(
+                    $email,
+                    'Activate Your SICMS Respondent Account',
+                    Mailer::invitationEmailBody($firstName . ' ' . $lastName, $activationUrl, $caseLabel)
+                );
+                AuditLog::record($this->user, 'Respondent Account Created', 'Created respondent account ' . $email . ' for ' . $respondent['full_name'] . ' on ' . $caseLabel . '.');
+                $_SESSION['case_message'] = $invitationSent
+                    ? 'Respondent account created. Activation invitation sent to ' . $email . '.'
+                    : 'Respondent account created. Invitation prepared for ' . $email . '; delivery to a mail server could not be confirmed on this host. A copy is kept in storage/outbound_emails.';
+            } elseif ($action === 'link_respondent_account') {
+                $respondent = $this->respondentRowForAction($complaintId, (int) ($_POST['respondent_id'] ?? 0));
+                if (!$respondent) {
+                    $_SESSION['case_errors'] = ['Please select a valid respondent.'];
+                    header('Location: show.php?id=' . $complaintId); exit;
+                }
+                if (!empty($respondent['linked_account_id'])) {
+                    $_SESSION['case_errors'] = ['This respondent already has a linked account.'];
+                    header('Location: show.php?id=' . $complaintId); exit;
+                }
+
+                $query = trim((string) ($_POST['account_search'] ?? ''));
+                if ($query === '') {
+                    $_SESSION['case_errors'] = ['Please enter an account email or full name to search for.'];
+                    header('Location: show.php?id=' . $complaintId); exit;
+                }
+
+                $account = User::findByEmailInexact($query);
+                if (!$account) {
+                    $matches = array_values(array_filter(
+                        User::searchAccounts($query, 10),
+                        fn($candidate) => strcasecmp(trim(($candidate['first_name'] ?? '') . ' ' . ($candidate['last_name'] ?? '')), $query) === 0
+                    ));
+                    if (count($matches) !== 1) {
+                        $_SESSION['case_errors'] = ['No unique existing account matched. Provide the exact account email.'];
+                        header('Location: show.php?id=' . $complaintId); exit;
+                    }
+                    $account = $matches[0];
+                }
+
+                if (($account['status'] ?? '') !== 'active') {
+                    $_SESSION['case_errors'] = ['Only active accounts can be linked to a respondent.'];
+                    header('Location: show.php?id=' . $complaintId); exit;
+                }
+                if (strtolower((string) ($account['email'] ?? '')) !== strtolower((string) trim((string) ($respondent['email'] ?? '')))) {
+                    $_SESSION['case_errors'] = ['The account email does not match this respondent\'s recorded email. Update the respondent\'s email first, or create a new account.'];
+                    header('Location: show.php?id=' . $complaintId); exit;
+                }
+
+                CaseRecord::linkRespondent($complaintId, $respondent['respondent_id'], (int) $account['account_id']);
+                AuditLog::record($this->user, 'Respondent Account Linked', 'Linked account ' . $account['email'] . ' to respondent ' . $respondent['full_name'] . ' on ' . $caseLabel . '.');
+                $_SESSION['case_message'] = 'Existing account linked to the respondent.';
+            } elseif ($action === 'resend_respondent_invite') {
+                $respondent = $this->respondentRowForAction($complaintId, (int) ($_POST['respondent_id'] ?? 0));
+                if (!$respondent) {
+                    $_SESSION['case_errors'] = ['Please select a valid respondent.'];
+                    header('Location: show.php?id=' . $complaintId); exit;
+                }
+                if (empty($respondent['linked_account_id'])) {
+                    $_SESSION['case_errors'] = ['This respondent has no linked account to invite.'];
+                    header('Location: show.php?id=' . $complaintId); exit;
+                }
+                if (($respondent['account_status'] ?? '') === 'active') {
+                    $_SESSION['case_errors'] = ['This respondent\'s account is already active. No invitation is needed.'];
+                    header('Location: show.php?id=' . $complaintId); exit;
+                }
+
+                $token = (string) ($respondent['invitation_token'] ?? '');
+                if ($token === '' || CaseRecord::invitationIsExpired((string) ($respondent['invited_at'] ?? ''))) {
+                    $token = bin2hex(random_bytes(32));
+                }
+                CaseRecord::storeRespondentInvitation($complaintId, $respondent['respondent_id'], $token);
+                $activationUrl = $this->siteUrl('web/views/auth/activate.php?token=' . $token);
+                $invitationSent = Mailer::send(
+                    $respondent['account_email'],
+                    'Your SICMS Respondent Account Activation Link',
+                    Mailer::invitationEmailBody(
+                        trim(($respondent['account_first_name'] ?? '') . ' ' . ($respondent['account_last_name'] ?? '')),
+                        $activationUrl,
+                        $caseLabel
+                    )
+                );
+                AuditLog::record($this->user, 'Respondent Account Invited', 'Re-sent activation invitation to ' . $respondent['account_email'] . ' for ' . $caseLabel . '.');
+                $_SESSION['case_message'] = $invitationSent
+                    ? 'A new activation invitation was sent to ' . $respondent['account_email'] . '.'
+                    : 'Activation invitation re-prepared for ' . $respondent['account_email'] . '; delivery to a mail server could not be confirmed on this host. A copy is kept in storage/outbound_emails.';
+            } elseif ($action === 'toggle_respondent_account') {
+                $respondent = $this->respondentRowForAction($complaintId, (int) ($_POST['respondent_id'] ?? 0));
+                if (!$respondent) {
+                    $_SESSION['case_errors'] = ['Please select a valid respondent.'];
+                    header('Location: show.php?id=' . $complaintId); exit;
+                }
+                if (empty($respondent['linked_account_id'])) {
+                    $_SESSION['case_errors'] = ['This respondent has no linked account yet.'];
+                    header('Location: show.php?id=' . $complaintId); exit;
+                }
+                if (($respondent['account_status'] ?? '') === 'active') {
+                    $newStatus = 'inactive';
+                    $actionLabel = 'Deactivated';
+                } else {
+                    $newStatus = 'active';
+                    $actionLabel = 'Reactivated';
+                }
+                User::updateById((int) $respondent['linked_account_id'], [
+                    'status' => $newStatus,
+                    'updated_at' => date('Y-m-d H:i:s'),
+                ]);
+                Notification::createForUser(
+                    (int) $respondent['linked_account_id'],
+                    'account_status_changed',
+                    'Account ' . $actionLabel,
+                    'Your respondent account for case ' . $caseLabel . ' was ' . strtolower($actionLabel) . ' by the SDRU. Please contact the office if this is unexpected.',
+                    'web/views/respondent/case_show.php?id=' . $complaintId
+                );
+                AuditLog::record($this->user, $actionLabel === 'Deactivated' ? 'Respondent Account Deactivated' : 'Respondent Account Reactivated', $actionLabel . ' account ' . $respondent['account_email'] . ' linked to respondent ' . $respondent['full_name'] . ' on ' . $caseLabel . '.');
+                $_SESSION['case_message'] = 'Respondent account ' . strtolower($actionLabel) . '.';
+            } elseif ($action === 'forward_to_respondents') {
+                $linked = CaseRecord::linkedRespondentAccounts($complaintId);
+                if (empty($linked)) {
+                    $_SESSION['case_errors'] = ['Link at least one respondent account before forwarding the case to respondents.'];
+                    header('Location: show.php?id=' . $complaintId); exit;
+                }
+
+                if ($caseStatus === 'Submitted') {
+                    $_SESSION['case_errors'] = ['Assign a coordinator to this case before forwarding it to the respondents.'];
+                    header('Location: show.php?id=' . $complaintId); exit;
+                }
+
+                $visibleKeys = (array) ($_POST['respondent_visibility'] ?? []);
+                $visibility = [];
+                foreach (CaseRecord::RESPONDENT_VISIBILITY_KEYS as $key) {
+                    $visibility[$key] = in_array($key, $visibleKeys, true);
+                }
+
+                CaseRecord::releaseToRespondents($complaintId, $actorAccountId, $visibility);
+                $releasedNames = array_map(
+                    fn($account) => trim(($account['first_name'] ?? '') . ' ' . ($account['last_name'] ?? '') ?: $account['email']),
+                    $linked
+                );
+                AuditLog::record($this->user, 'Case Forwarded to Respondent', 'Forwarded ' . $caseLabel . ' to respondent(s): ' . implode(', ', $releasedNames) . '.');
+                $_SESSION['case_message'] = 'Case information forwarded to the respondent(s). They can now review the permitted details and file their counter-statement.';
+            } elseif ($action === 'request_counter_revision') {
+                $counterStatementId = (int) ($_POST['counter_statement_id'] ?? 0);
+                if ($counterStatementId <= 0) {
+                    $_SESSION['case_errors'] = ['Please select a counter-statement.'];
+                    header('Location: show.php?id=' . $complaintId); exit;
+                }
+                $statement = CounterStatement::find($counterStatementId);
+                if (!$statement || (int) $statement['complaint_id'] !== (int) $complaintId || $statement['status'] !== 'Submitted') {
+                    $_SESSION['case_errors'] = ['Only a submitted counter-statement on this case can be returned for revision.'];
+                    header('Location: show.php?id=' . $complaintId); exit;
+                }
+
+                CounterStatement::returnForRevision($counterStatementId, (int) $statement['respondent_account_id']);
+                Notification::createForUser(
+                    (int) $statement['respondent_account_id'],
+                    'counter_revision_requested',
+                    'Counter-Statement Revision Requested',
+                    'Your counter-statement for ' . $caseLabel . ' was returned for revision. Please edit and resubmit it.',
+                    'web/views/respondent/case_show.php?id=' . $complaintId
+                );
+
+                $respondent = $this->respondentRowForAction($complaintId, (int) $statement['respondent_id']);
+                if ($respondent && !empty($respondent['account_email'])) {
+                    $respondentUrl = $this->siteUrl('web/views/respondent/case_show.php?id=' . $complaintId);
+                    Mailer::send(
+                        $respondent['account_email'],
+                        'Counter-Statement Returned for Revision',
+                        Mailer::noticeEmailBody(
+                            'Dear ' . trim(($respondent['account_first_name'] ?? '') . ' ' . ($respondent['account_last_name'] ?? '')),
+                            'Your counter-statement for case ' . $caseLabel . ' was returned for revision by the SDRU. Please log in to review the request and update your statement.',
+                            $respondentUrl,
+                            'Update My Counter-Statement'
+                        )
+                    );
+                }
+
+                AuditLog::record($this->user, 'Counter-Statement Revision', 'Returned the counter-statement for ' . ($respondent['full_name'] ?? ('respondent #' . (int) $statement['respondent_id'])) . ' on ' . $caseLabel . ' for revision.');
+                $_SESSION['case_message'] = 'Counter-statement returned for revision. The respondent has been notified.';
+            } elseif ($action === 'proceed_counter_statement' || $action === 'forward_counter_statement') {
+                $this->counterStatementDecision(
+                    $complaintId,
+                    $caseLabel,
+                    $actorAccountId,
+                    $action === 'proceed_counter_statement' ? 'proceed_to_investigation' : 'forwarded_to_complainant'
+                );
             } else {
                 $_SESSION['case_errors'] = ['Invalid case action.'];
             }
@@ -787,11 +1054,82 @@ class CaseController {
                 $_SESSION['case_message'] = 'Approved action executed successfully.';
             }
         } catch (Throwable $exception) {
+            error_log('SICMS case action "' . $action . '" failed for complaint #' . (int) $complaintId . ': ' . $exception->getMessage());
             $_SESSION['case_errors'] = ['Unable to update case. Please check the case management database schema.'];
         }
 
         header('Location: show.php?id=' . $complaintId);
         exit;
+    }
+
+    private function counterStatementDecision($complaintId, $caseLabel, $actorAccountId, $decision) {
+        if (!in_array($this->roleKey(), ['coordinator', 'head-of-sdru', 'sdru-head'], true)) {
+            $_SESSION['case_errors'] = ['Only the assigned coordinator (or the SDRU head) can take this action.'];
+            header('Location: show.php?id=' . $complaintId);
+            exit;
+        }
+
+        $counterStatementId = (int) ($_POST['counter_statement_id'] ?? 0);
+        if ($counterStatementId <= 0) {
+            $_SESSION['case_errors'] = ['Please select a counter-statement.'];
+            header('Location: show.php?id=' . $complaintId);
+            exit;
+        }
+
+        $statement = CounterStatement::find($counterStatementId);
+        if (!$statement || (int) $statement['complaint_id'] !== (int) $complaintId || $statement['status'] !== 'Submitted') {
+            $_SESSION['case_errors'] = ['Only a submitted counter-statement on this case can be reviewed.'];
+            header('Location: show.php?id=' . $complaintId);
+            exit;
+        }
+
+        if (!empty($statement['coordinator_action'])) {
+            $alreadyForwarded = $statement['coordinator_action'] === 'forwarded_to_complainant';
+            if ($decision === 'proceed_to_investigation' && $alreadyForwarded
+                && !empty($statement['complaint_response_submitted_at'])) {
+                // allowed: advancing a statement that was forwarded and answered
+            } elseif ($decision === 'proceed_to_investigation' && $alreadyForwarded) {
+                $_SESSION['case_errors'] = ['This counter-statement was forwarded for the complainant response. Wait for the response before proceeding to investigation.'];
+                header('Location: show.php?id=' . $complaintId);
+                exit;
+            } else {
+                $_SESSION['case_errors'] = ['This counter-statement has already been reviewed by the coordinator.'];
+                header('Location: show.php?id=' . $complaintId);
+                exit;
+            }
+        }
+
+        if (!CounterStatement::markCoordinatorAction($counterStatementId, $decision, $actorAccountId)) {
+            $_SESSION['case_errors'] = ['This counter-statement has already been reviewed by the coordinator.'];
+            header('Location: show.php?id=' . $complaintId);
+            exit;
+        }
+
+        $respondentName = trim((string) ($statement['respondent_full_name'] ?? ''));
+        if ($respondentName === '') {
+            $respondentName = 'respondent #' . (int) $statement['respondent_id'];
+        }
+
+        if ($decision === 'proceed_to_investigation') {
+            CaseRecord::recordCaseActivity(
+                $complaintId,
+                'Case Proceeded to Investigation',
+                'Proceeded to investigation after reviewing the counter-statement of ' . $respondentName . ' on ' . $caseLabel . '.',
+                $actorAccountId
+            );
+            AuditLog::record($this->user, 'Case Proceeded to Investigation', 'Proceeded to investigation after reviewing the counter-statement of ' . $respondentName . ' on ' . $caseLabel . '.');
+            $_SESSION['case_message'] = 'Counter-statement reviewed. The case will continue through the investigation workflow.';
+            return;
+        }
+
+        CaseRecord::recordCaseActivity(
+            $complaintId,
+            'Counter-Statement Forwarded to Complainant',
+            'Forwarded the counter-statement of ' . $respondentName . ' to the complainant for response on ' . $caseLabel . '.',
+            $actorAccountId
+        );
+        AuditLog::record($this->user, 'Counter-Statement Forwarded to Complainant', 'Forwarded the counter-statement of ' . $respondentName . ' to the complainant for response on ' . $caseLabel . '.');
+        $_SESSION['case_message'] = 'Counter-statement forwarded to the complainant. The complainant may now review it and submit a response.';
     }
 
     private function isStaffRole($roleKey) {
@@ -809,13 +1147,20 @@ class CaseController {
     }
 
     private function filters(array $input) {
+        $dateFrom = substr(trim((string) ($input['date_from'] ?? '')), 0, 10);
+        $dateTo = substr(trim((string) ($input['date_to'] ?? '')), 0, 10);
+
+        if ($dateFrom !== '' && $dateTo !== '' && $dateFrom > $dateTo) {
+            $_SESSION['case_filter_error'] = 'The start date must be on or before the end date.';
+        }
+
         return [
             'search' => substr(trim((string) ($input['search'] ?? '')), 0, 255),
             'status' => substr(trim((string) ($input['status'] ?? '')), 0, 50),
             'classification' => substr(trim((string) ($input['classification'] ?? '')), 0, 100),
             'case_source' => substr(trim((string) ($input['case_source'] ?? '')), 0, 50),
-            'date_from' => substr(trim((string) ($input['date_from'] ?? '')), 0, 10),
-            'date_to' => substr(trim((string) ($input['date_to'] ?? '')), 0, 10),
+            'date_from' => $dateFrom,
+            'date_to' => $dateTo,
             'month' => ($month = (int) ($input['month'] ?? 0)) >= 1 && $month <= 12 ? $month : '',
             'year' => ($year = (int) ($input['year'] ?? 0)) >= 2000 && $year <= 2100 ? $year : '',
             'coordinator' => (int) ($input['coordinator'] ?? 0),
@@ -833,5 +1178,19 @@ class CaseController {
 
     private function canAccessCaseRecord(array $case) {
         return true;
+    }
+
+    private function respondentRowForAction($complaintId, $respondentId) {
+        if ($respondentId <= 0) return null;
+        foreach (CaseRecord::respondentsWithAccounts($complaintId) as $row) {
+            if ((int) $row['respondent_id'] === $respondentId) {
+                return $row;
+            }
+        }
+        return null;
+    }
+
+    private function siteUrl($path) {
+        return Mailer::applicationUrl($path);
     }
 }

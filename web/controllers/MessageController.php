@@ -183,16 +183,6 @@ class MessageController {
         $counterpartId = (int) ($_POST['counterpart_account_id'] ?? 0);
         $isAjax = $this->isAjaxRequest();
 
-        if (!Message::isStaffRole($this->user['role'])) {
-            if ($isAjax) {
-                $this->json(['success' => false, 'message' => 'Students cannot start new conversations.'], 403);
-            }
-
-            http_response_code(403);
-            echo 'Access denied.';
-            exit;
-        }
-
         $peer = Message::isValidMessagingPeer($this->user, $counterpartId);
         $canStart = $counterpartId > 0 && Message::canStartThread($this->user, $counterpartId);
 

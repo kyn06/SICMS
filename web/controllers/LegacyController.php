@@ -13,6 +13,7 @@ class LegacyController {
 
     private const PHOTO_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
     private const MAX_PHOTO_BYTES = 5242880;
+    private const MANAGE_ROLES = ['admin', 'sdr-staff', 'sdru-staff', 'head-of-sdru', 'sdru-head'];
 
     public function __construct() {
         Security::startSession();
@@ -23,6 +24,7 @@ class LegacyController {
     public function index() {
         if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
             Security::requireCsrfToken();
+            $this->requireManagementAccess();
             $this->handleAction();
         }
 
@@ -32,6 +34,7 @@ class LegacyController {
             'message' => $_SESSION['legacy_message'] ?? null,
             'errors' => $_SESSION['legacy_errors'] ?? [],
             'old' => $_SESSION['legacy_old'] ?? [],
+            'canManage' => $this->canManage(),
         ];
     }
 
@@ -78,6 +81,19 @@ class LegacyController {
                 header('Location: index.php');
                 exit;
         }
+    }
+
+    private function canManage(): bool {
+        return in_array(Security::normalizeRole((string) ($this->user['role'] ?? '')), self::MANAGE_ROLES, true);
+    }
+
+    private function requireManagementAccess(): void {
+        if ($this->canManage()) {
+            return;
+        }
+
+        http_response_code(403);
+        exit('You do not have permission to manage Legacy of SDRU entries.');
     }
 
     private function store() {

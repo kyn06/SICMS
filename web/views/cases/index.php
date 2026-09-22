@@ -16,9 +16,12 @@ $assignedCases = $viewData['assignedCases'];
 $filters = $viewData['filters'];
 $statuses = $viewData['statuses'];
 $classifications = $viewData['classifications'];
+$coordinators = $viewData['coordinators'] ?? [];
 $migratedCases = $viewData['migratedCases'];
 $canEditMigrated = $viewData['canEditMigrated'];
+$filterError = $viewData['filterError'] ?? '';
 $viewerRoleKey = role_key($user['role'] ?? '');
+$caseActionLabel = $viewerRoleKey === 'coordinator' ? 'View Case' : 'View Details';
 
 function h($value) {
     return htmlspecialchars((string) $value);
@@ -270,7 +273,7 @@ function respondents_label(array $case) {
 
         <main class="case-wrap">
             <section class="filter-panel">
-                <form id="caseFilters" method="GET" action="index.php">
+                <form id="caseFilters" method="GET" action="index.php" data-sicms-validate data-sicms-datefrom="date_from" data-sicms-dateto="date_to">
                     <div class="case-search-box">
                         <i class="bi bi-search"></i>
                         <input id="caseSearch" name="search" type="text" placeholder="Search case number, complainant, or respondent..." value="<?= h($filters['search']) ?>">
@@ -351,6 +354,9 @@ function respondents_label(array $case) {
                         </div>
                     </div>
                 </form>
+                <?php if ($filterError): ?>
+                    <div class="filter-error" role="alert"><?= h($filterError) ?></div>
+                <?php endif; ?>
             </section>
 
             <?php if (in_array($viewerRoleKey, ['coordinator', 'reformation-coordinator'], true)): ?>
@@ -386,7 +392,7 @@ function respondents_label(array $case) {
                                     <td><?= h(date('M d, Y h:i A', strtotime($case['submitted_at']))) ?></td>
                                     <td>
                                         <div class="row-actions">
-                                            <a class="btn btn-primary" href="show.php?id=<?= (int) $case['complaint_id'] ?>"><i class="bi bi-eye"></i> View Details</a>
+                                            <a class="btn btn-primary" href="show.php?id=<?= (int) $case['complaint_id'] ?>"><i class="bi bi-eye"></i> <?= h($caseActionLabel) ?></a>
                                         </div>
                                     </td>
                                 </tr>
@@ -429,7 +435,7 @@ function respondents_label(array $case) {
                                     <td><?= h(date('M d, Y h:i A', strtotime($case['submitted_at']))) ?></td>
                                     <td>
                                         <div class="row-actions">
-                                            <a class="btn btn-primary" href="show.php?id=<?= (int) $case['complaint_id'] ?>"><i class="bi bi-eye"></i> View Details</a>
+                                            <a class="btn btn-primary" href="show.php?id=<?= (int) $case['complaint_id'] ?>"><i class="bi bi-eye"></i> <?= h($caseActionLabel) ?></a>
                                         </div>
                                     </td>
                                 </tr>
@@ -494,7 +500,8 @@ function respondents_label(array $case) {
         </div>
     </div>
     <script>
-        (() => {
+    (() => {
+        const caseActionLabel = <?= json_encode($caseActionLabel, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
             const form = document.getElementById('caseFilters');
             const table = document.getElementById('caseTable');
             const tableBody = document.getElementById('caseTableBody');
@@ -585,7 +592,7 @@ function respondents_label(array $case) {
                     const viewLink = document.createElement('a');
                     viewLink.className = 'btn btn-primary';
                     viewLink.href = `show.php?id=${encodeURIComponent(item.complaint_id)}`;
-                    viewLink.innerHTML = '<i class="bi bi-eye"></i> View Details';
+                    viewLink.innerHTML = '<i class="bi bi-eye"></i> ' + caseActionLabel;
                     actionsDiv.appendChild(viewLink);
                     actionsCell.appendChild(actionsDiv);
                     row.appendChild(actionsCell);
@@ -627,7 +634,7 @@ function respondents_label(array $case) {
                     const viewLink = document.createElement('a');
                     viewLink.className = 'btn btn-primary';
                     viewLink.href = `show.php?id=${encodeURIComponent(item.complaint_id)}`;
-                    viewLink.innerHTML = '<i class="bi bi-eye"></i> View Details';
+                    viewLink.innerHTML = '<i class="bi bi-eye"></i> ' + caseActionLabel;
                     actionsDiv.appendChild(viewLink);
                     actionsCell.appendChild(actionsDiv);
                     row.appendChild(actionsCell);
@@ -680,6 +687,10 @@ function respondents_label(array $case) {
             };
 
             const updateCases = async () => {
+                if (window.SICMSValidation && !SICMSValidation.run(form)) {
+                    filterStatus.textContent = '';
+                    return;
+                }
                 activeRequest?.abort();
                 activeRequest = new AbortController();
                 const params = new URLSearchParams(new FormData(form));
@@ -701,7 +712,7 @@ function respondents_label(array $case) {
                     params.delete('ajax');
                     const query = params.toString();
                     history.replaceState(null, '', query ? `${form.action}?${query}` : form.action);
-                    filterStatus.textContent = 'Cases updated.';
+                    filterStatus.textContent = data.filterError ? String(data.filterError) : 'Cases updated.';
                 } catch (error) {
                     if (error.name !== 'AbortError') {
                         if (table) table.hidden = true;

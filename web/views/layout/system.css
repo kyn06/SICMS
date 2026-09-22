@@ -1,4 +1,4 @@
-:root {
+﻿:root {
     --sicms-green-950: #0b2f16;
     --sicms-green-900: #123c1b;
     --sicms-green-700: #167a22;
@@ -116,6 +116,33 @@ body {
     font-size: 18px !important;
     font-weight: 800 !important;
     margin-bottom: 5px !important;
+}
+
+/* Shared Case Details presentation: staff, complainant, and respondent views. */
+.case-detail-view { max-width: 1180px !important; }
+.case-detail-view .case-head, .case-detail-view .case-heading { align-items: center; display: flex; gap: var(--sicms-space-3); justify-content: space-between; margin-bottom: var(--sicms-space-4) !important; }
+.case-detail-view .case-head h1, .case-detail-view .case-heading h1 { font-size: 24px !important; font-weight: 800 !important; line-height: 1.25 !important; margin: 0 !important; }
+.case-detail-view .case-head .meta, .case-detail-view .case-heading p { font-size: 13px !important; line-height: 1.45 !important; margin-top: var(--sicms-space-1) !important; }
+.case-detail-view .panel { margin-bottom: var(--sicms-space-4) !important; margin-top: 0 !important; padding: var(--sicms-space-4) !important; }
+.case-detail-view .panel + .panel { margin-top: var(--sicms-space-4) !important; }
+.case-detail-view .panel h2 { align-items: center; border-bottom: 1px solid #edf3ec; display: flex; font-size: 18px !important; gap: var(--sicms-space-2); line-height: 1.3; margin: 0 0 var(--sicms-space-3) !important; padding-bottom: var(--sicms-space-2); }
+.case-detail-view .label { font-size: 11px !important; font-weight: 800 !important; letter-spacing: .04em; line-height: 1.35; }
+.case-detail-view .value, .case-detail-view .statement-locked, .case-detail-view .long-case-text { font-size: 14px !important; line-height: 1.6 !important; }
+.case-detail-view .timeline-note, .case-detail-view .timeline-time { color: var(--sicms-muted) !important; font-size: 12px !important; line-height: 1.45 !important; }
+.case-detail-view .info-grid, .case-detail-view .details-grid { gap: var(--sicms-space-3) var(--sicms-space-4) !important; }
+.case-detail-view .description, .case-detail-view .statement-evidence { margin-top: var(--sicms-space-3) !important; padding-top: var(--sicms-space-3) !important; }
+.case-detail-view .mini-item, .case-detail-view .statement-flow, .case-detail-view .statement-locked, .case-detail-view .statement-confirmed, .case-detail-view .respondent-details-card { border-radius: var(--sicms-radius) !important; margin-bottom: var(--sicms-space-2) !important; padding: var(--sicms-space-3) !important; }
+.case-detail-view .attach-row, .case-detail-view .button-row { gap: var(--sicms-space-2) !important; margin-top: var(--sicms-space-2) !important; }
+.case-detail-view .hearing-item { margin-bottom: var(--sicms-space-2) !important; padding: var(--sicms-space-2) var(--sicms-space-3) !important; }
+.case-detail-nav { background: var(--sicms-page); display: flex; gap: var(--sicms-space-1); margin: 0 0 var(--sicms-space-3); overflow-x: auto; padding: var(--sicms-space-2) 0; position: sticky; top: 0; z-index: 5; }
+.case-detail-nav a { background: var(--sicms-surface); border: 1px solid var(--sicms-line); border-radius: 999px; color: var(--sicms-green-900); font-size: 12px; font-weight: 700; padding: 7px 10px; text-decoration: none; white-space: nowrap; }
+.case-detail-nav a:hover { background: var(--sicms-green-100); }
+.case-detail-view section[id] { scroll-margin-top: 70px; }
+
+@media (max-width: 720px) {
+    .case-detail-view { padding: var(--sicms-space-3) !important; }
+    .case-detail-view .panel { padding: var(--sicms-space-3) !important; }
+    .case-detail-view .case-head, .case-detail-view .case-heading, .case-detail-view .next-action { align-items: flex-start !important; flex-direction: column !important; }
 }
 
 label {
@@ -380,6 +407,22 @@ tbody tr:hover {
 .sicms-ajax-loading {
     opacity: .68;
     pointer-events: none;
+}
+
+.sicms-processing-spinner {
+    animation: sicms-processing-spin .7s linear infinite;
+    border: 2px solid currentColor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    display: inline-block;
+    height: .85em;
+    margin-right: 4px;
+    vertical-align: -.08em;
+    width: .85em;
+}
+
+@keyframes sicms-processing-spin {
+    to { transform: rotate(360deg); }
 }
 
 .sicms-ajax-notice {
@@ -661,3 +704,42 @@ html[data-theme="dark"] a:not(.btn):not(.btn-primary) {
 html[data-theme="dark"] ::placeholder {
     color: #91a294 !important;
 }
+
+.field.is-invalid input,
+.field.is-invalid select,
+.field.is-invalid textarea,
+.form-group.is-invalid input,
+.settings-field.is-invalid input,
+.settings-field.is-invalid select,
+.settings-field.is-invalid textarea,
+
+.form-group.is-invalid textarea {
+    border-color: var(--sicms-danger) !important;
+    box-shadow: 0 0 0 1px var(--sicms-danger);
+}
+
+.field-error {
+    color: var(--sicms-danger);
+    font-size: 11px;
+    min-height: 15px;
+    margin-top: 4px;
+}
+
+.filter-error {
+    color: var(--sicms-danger);
+    font-size: 12px;
+    margin-top: 8px;
+}
+.required {
+    color: var(--sicms-danger);
+}
+.password-hint {
+    color: var(--sicms-muted);
+    font-size: 11px;
+    min-height: 15px;
+    margin-top: 3px;
+}
+.password-hint.ok {
+    color: #1a8c2b;
+}
+

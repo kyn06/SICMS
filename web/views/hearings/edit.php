@@ -9,10 +9,16 @@ $hearing = $viewData['hearing'];
 $user = $viewData['user'];
 $cases = $viewData['cases'];
 $errors = $viewData['errors'];
+$fieldErrors = $viewData['fieldErrors'] ?? [];
 $old = $viewData['old'];
 
 function h($value) {
     return htmlspecialchars((string) $value);
+}
+
+function field_error_html($fieldErrors, $field) {
+    $message = $fieldErrors[$field] ?? '';
+    return $message !== '' ? '<div class="field-error" role="alert">' . htmlspecialchars($message, ENT_QUOTES, 'UTF-8') . '</div>' : '';
 }
 
 $selectedComplaintId = $old['complaint_id'] ?? $hearing['complaint_id'];
@@ -68,7 +74,7 @@ $selectedDatetime = $old['hearing_datetime'] ?? date('Y-m-d\TH:i', strtotime($he
             </div>
         <?php endif; ?>
 
-        <form class="panel hearing-form-panel" method="POST" action="edit.php?id=<?= (int) $hearing['hearing_id'] ?>">
+        <form class="panel hearing-form-panel" method="POST" action="edit.php?id=<?= (int) $hearing['hearing_id'] ?>" data-sicms-validate>
             <?= Security::csrfField() ?>
             <div class="hearing-form-heading">
                 <span><i class="bi bi-calendar2-week"></i></span>
@@ -77,7 +83,7 @@ $selectedDatetime = $old['hearing_datetime'] ?? date('Y-m-d\TH:i', strtotime($he
             </div>
             <div class="grid hearing-form-grid">
                 <div class="field full">
-                    <label for="complaint_id">Case</label>
+                    <label for="complaint_id">Case <span class="required">*</span></label>
                     <select id="complaint_id" name="complaint_id" required>
                         <?php foreach ($cases as $case): ?>
                             <option value="<?= (int) $case['complaint_id'] ?>" <?= ((int) $selectedComplaintId === (int) $case['complaint_id']) ? 'selected' : '' ?>>
@@ -85,18 +91,22 @@ $selectedDatetime = $old['hearing_datetime'] ?? date('Y-m-d\TH:i', strtotime($he
                             </option>
                         <?php endforeach; ?>
                     </select>
+                    <?= field_error_html($fieldErrors, 'complaint_id') ?>
                 </div>
                 <div class="field">
-                    <label for="hearing_datetime">Date and Time</label>
-                    <input id="hearing_datetime" type="datetime-local" name="hearing_datetime" value="<?= h($selectedDatetime) ?>" required>
+                    <label for="hearing_datetime">Date and Time <span class="required">*</span></label>
+                    <input id="hearing_datetime" type="datetime-local" name="hearing_datetime" value="<?= h($selectedDatetime) ?>" required <?= strtotime($selectedDatetime) > time() ? ' data-sicms-past="0"' : '' ?>>
+                    <?= field_error_html($fieldErrors, 'hearing_datetime') ?>
                 </div>
                 <div class="field">
-                    <label for="venue">Venue</label>
+                    <label for="venue">Venue <span class="required">*</span></label>
                     <input id="venue" name="venue" value="<?= h($old['venue'] ?? $hearing['venue']) ?>" required>
+                    <?= field_error_html($fieldErrors, 'venue') ?>
                 </div>
                 <div class="field full">
                     <label for="google_meet_link">Google Meet Link</label>
                     <input id="google_meet_link" type="url" name="google_meet_link" value="<?= h($old['google_meet_link'] ?? $hearing['google_meet_link']) ?>">
+                    <?= field_error_html($fieldErrors, 'google_meet_link') ?>
                 </div>
                 <div class="field full">
                     <label for="remarks">Remarks</label>

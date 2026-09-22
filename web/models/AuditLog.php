@@ -24,13 +24,13 @@ public static function record($user, $action, $description) {
             $roleKey = strtolower(str_replace(['_', ' '], '-', trim($userRole)));
 
             $allowedRoles = [
-                'super-admin',
                 'admin',
                 'sdru-staff',
                 'coordinator',
                 'reformation-coordinator',
                 'head-of-sdru',
                 'sdru-head',
+                'respondent',
             ];
 
             $isStudentScreenshot = $roleKey === 'student' && $action === 'Screenshot Attempt';

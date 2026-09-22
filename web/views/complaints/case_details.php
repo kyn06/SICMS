@@ -7,6 +7,11 @@ $case = $viewData['case'];
 $evidence = $viewData['evidence'];
 $history = $viewData['history'];
 $hearings = $viewData['hearings'];
+$counterStatement = $viewData['counterStatement'] ?? null;
+$complaintResponse = $viewData['complaintResponse'] ?? null;
+$complaintResponseClosed = $viewData['complaintResponseClosed'] ?? false;
+$complaintResponseError = $viewData['complaintResponseError'] ?? null;
+$complaintResponseInfo = $viewData['complaintResponseInfo'] ?? null;
 
 function h($value) { return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8'); }
 function progress_steps($status) {
@@ -26,11 +31,6 @@ function stage_done($status, $stage) {
     if (in_array($status, ['Returned for Revision', 'Rejected', 'Escalated'], true)) return $stage === 'Under Investigation' || $stage === $status;
     return isset($order[$stage], $order[$status]) && $order[$stage] <= $order[$status];
 }
-$officialStatuses = ['Under Investigation', 'Returned for Revision', 'Rejected', 'Resolved', 'Reformation in Progress', 'Reformation Completed', 'Escalated', 'Archived'];
-$studentRemarks = array_values(array_filter($history, fn($item) =>
-    trim((string) ($item['remarks'] ?? '')) !== ''
-    && in_array(($item['new_status'] ?? ''), $officialStatuses, true)
-));
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -39,9 +39,10 @@ $studentRemarks = array_values(array_filter($history, fn($item) =>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Case Details | SICMS</title>
     <link rel="stylesheet" href="../layout/style.css">
-    <link rel="stylesheet" href="../layout/system.css?v=2">
+    <link rel="stylesheet" href="../layout/system.css?v=5">
     <link rel="stylesheet" href="../layout/sidebar.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <style>
         body { align-items: stretch; display: block; justify-content: flex-start; padding: 0; }
         .wrap { max-width: 1120px; margin: 0 auto; padding: 24px; }
@@ -67,6 +68,10 @@ $studentRemarks = array_values(array_filter($history, fn($item) =>
         .remarks, .hearing-item { border-left: 4px solid #1a8c2b; }
         .empty-state { color: #6a7768; font-size: 13px; padding: 16px; text-align: center; }
         .back-row { margin-top: 4px; }
+        .next-action { background:#f4faf2; border:1px solid #cfe2cb; border-radius:8px; margin:0 0 16px; padding:12px 14px; }
+        .next-action strong { color:#19311c; display:block; font-size:13px; }
+        .next-action p { color:#5d6b5b; font-size:13px; margin:3px 0 10px; }
+        .statement-flow { border-left:3px solid #1a8c2b; padding-left:14px; }
         @media (max-width: 820px) { .detail-grid, .info-grid { grid-template-columns: 1fr; } .case-heading { align-items: flex-start; flex-direction: column; } }
     </style>
 </head>
@@ -75,13 +80,18 @@ $studentRemarks = array_values(array_filter($history, fn($item) =>
     <?php require __DIR__ . '/../layout/sidebar.php'; ?>
     <div class="app-content">
         <?php $pageTitle = 'Case Details'; require __DIR__ . '/../layout/topbar.php'; ?>
-        <main class="wrap">
+        <main class="wrap case-detail-view">
             <div class="back-row" style="margin-bottom:14px"><a class="btn btn-secondary" href="my_cases.php"><i class="bi bi-arrow-left"></i> Back to My Complaints</a></div>
             <header class="case-heading"><div><h1><?= h($case['complaint_title'] ?? $case['case_classification']) ?></h1><p><?= h($case['case_number']) ?></p></div><span class="status-pill"><?= h($case['status']) ?></span></header>
+            <nav class="case-detail-nav" aria-label="Case details sections">
+                <a href="#case-overview">Overview</a>
+                <?php if ($counterStatement): ?><a href="#respondent-counter-statement">Statement Exchange</a><?php endif; ?>
+                <a href="#hearing-schedule">Hearings</a><a href="#case-progress">Progress</a><a href="#case-evidence">Evidence</a>
+            </nav>
             <section class="detail-grid">
                 <div>
-                    <section class="panel">
-                        <h2>Complaint Information</h2>
+                    <section class="panel" id="case-overview">
+                        <h2>Case Overview</h2>
                         <div class="info-grid">
                             <div><div class="label">Case Number</div><div class="value"><?= h($case['case_number']) ?></div></div>
                             <?php if (!empty($case['complaint_title']) && $case['complaint_title'] !== $case['case_classification']): ?>
@@ -108,15 +118,69 @@ $studentRemarks = array_values(array_filter($history, fn($item) =>
                                 <?php if (!empty($case['complainant_purpose'])): ?><div><div class="label">Relationship or Purpose</div><div class="value"><?= h($case['complainant_purpose']) ?></div></div><?php endif; ?>
                             <?php endif; ?>
                         </div>
-                        <div class="description"><div class="label">Complaint Description</div><div class="value"><?= nl2br(h($case['complaint_details'])) ?></div></div>
+                        <div class="description"><div class="label">Original Complaint / Statement</div><div class="value"><?= nl2br(h($case['complaint_details'])) ?></div></div>
                     </section>
-                    <section class="panel" id="sdru-remarks">
-                        <h2>SDRU Remarks</h2>
-                        <div class="mini-list">
-                            <?php if (empty($studentRemarks)): ?><div class="empty-state">No SDRU remarks available.</div><?php endif; ?>
-                            <?php foreach ($studentRemarks as $item): ?><div class="mini-item remarks"><strong><?= h($item['new_status'] ?? $item['action']) ?></strong><div class="value"><?= nl2br(h($item['remarks'])) ?></div><div class="timeline-note"><?= h(date('M d, Y h:i A', strtotime($item['created_at']))) ?></div></div><?php endforeach; ?>
+                    <?php if ($counterStatement): ?>
+                    <section class="panel" id="respondent-counter-statement">
+                        <h2>Statement Exchange</h2>
+                        <div class="timeline-note" style="margin-bottom:10px">Case <?= h($case['case_number']) ?><?= !empty($complaintResponse['forwarded_at']) ? ' &middot; forwarded to you for review on ' . h(date('M d, Y h:i A', strtotime($complaintResponse['forwarded_at']))) : '' ?></div>
+                        <div class="mini-item remarks statement-flow">
+                            <div class="label">Respondent Counter-Statement</div>
+                            <div class="value" style="white-space:pre-wrap"><?= nl2br(h($counterStatement['content'] ?? '')) ?></div>
+                            <div class="timeline-note">Submitted by: Respondent &middot; <?= h(date('M d, Y h:i A', strtotime($counterStatement['submitted_at']))) ?></div>
                         </div>
+                        <?php if ($complaintResponseError): ?><div class="timeline-note" style="margin-top:10px;color:#b3261e"><?= h($complaintResponseError) ?></div><?php endif; ?>
+                        <?php if ($complaintResponse): ?>
+                        <?php if ($complaintResponse['status'] === 'Submitted'): ?>
+                        <div class="mini-item" style="margin-top:12px">
+                            <strong>Your Response <span class="status-pill" style="font-size:10px"><?= h($complaintResponse['status']) ?><?= !empty($complaintResponse['submitted_at']) ? ' &middot; ' . h(date('M d, Y h:i A', strtotime($complaintResponse['submitted_at']))) : '' ?></span></strong>
+                            <div class="value" style="margin-top:6px;white-space:pre-wrap"><?= nl2br(h($complaintResponse['content'])) ?></div>
+                        </div>
+                        <?php elseif (!$complaintResponseClosed): ?>
+                        <div class="next-action" style="margin-top:14px">
+                            <strong>Your response is requested</strong>
+                            <p>Reply to the respondent&rsquo;s statement when you are ready.</p>
+                            <button type="button" class="btn btn-primary" data-complaint-response-guide><i class="bi bi-pencil-square"></i> Respond to Statement</button>
+                        </div>
+                        <form method="POST" action="case_details.php?id=<?= (int) $case['complaint_id'] ?>" style="margin-top:14px" id="complaintResponseForm" data-sicms-validate>
+                            <?= Security::csrfField() ?>
+                            <div class="label">Your Response</div>
+                            <textarea id="complaint_response" name="complaint_response" rows="6" required style="width:100%;min-height:120px;margin-top:6px;line-height:1.55" placeholder="Share your response to the respondent&rsquo;s counter-statement."><?= h($complaintResponse['content'] ?? '') ?></textarea>
+                            <input type="hidden" name="case_action" id="complaintResponseAction" value="save_complaint_response">
+                            <div class="button-row" style="margin-top:10px">
+                                <button class="btn btn-secondary" type="submit" id="complaintResponseSaveBtn"><i class="bi bi-save"></i> Save Draft</button>
+                                <button class="btn btn-primary" type="submit" id="complaintResponseSubmitBtn"><i class="bi bi-send"></i> Submit Response</button>
+                            </div>
+                        </form>
+                        <script>
+                            (function () {
+                                var form = document.getElementById('complaintResponseForm');
+                                if (!form) return;
+                                var action = document.getElementById('complaintResponseAction');
+                                document.getElementById('complaintResponseSaveBtn').addEventListener('click', function () { action.value = 'save_complaint_response'; });
+                                var submitBtn = document.getElementById('complaintResponseSubmitBtn');
+                                var submitting = false;
+                                document.querySelector('[data-complaint-response-guide]').addEventListener('click', function () {
+                                    if (!window.Swal) { form.querySelector('textarea[name="complaint_response"]').focus(); return; }
+                                    Swal.fire({ icon: 'info', title: 'Respond to Statement', text: 'You can submit your response to the statement. Keep it focused on the case.', showCancelButton: true, confirmButtonText: 'Continue', cancelButtonText: 'Cancel', reverseButtons: true }).then(function (result) {
+                                        if (result.isConfirmed) form.querySelector('textarea[name="complaint_response"]').focus();
+                                    });
+                                });
+                                submitBtn.addEventListener('click', function (e) {
+                                    action.value = 'submit_complaint_response';
+                                    if (!(form.querySelector('textarea[name="complaint_response"]').value || '').trim()) return;
+                                    if (submitting) return;
+                                    e.preventDefault();
+                                    var continueSubmit = function () { submitting = true; form.requestSubmit(submitBtn); };
+                                    if (!window.Swal) { if (window.confirm("Submit your response to the respondent's counter-statement? You will not be able to edit it afterward.")) continueSubmit(); return; }
+                                    Swal.fire({ icon: 'question', title: 'Submit response?', text: 'You will not be able to edit it afterward.', showCancelButton: true, confirmButtonText: 'Submit', cancelButtonText: 'Cancel', reverseButtons: true }).then(function (result) { if (result.isConfirmed) continueSubmit(); });
+                                });
+                            })();
+                        </script>
+                        <?php endif; ?>
+                        <?php endif; ?>
                     </section>
+                    <?php endif; ?>
                     <section class="panel" id="hearing-schedule">
                         <?php
                         $scheduledHearings = array_values(array_filter($hearings, fn($hearing) => ($hearing['status'] ?? '') === 'Scheduled'));
@@ -149,7 +213,7 @@ $studentRemarks = array_values(array_filter($history, fn($item) =>
                     </section>
                 </div>
                 <aside>
-                    <section class="panel">
+                    <section class="panel" id="case-progress">
                         <h2>Case Progress</h2>
                         <div class="timeline">
                             <?php foreach (progress_steps($case['status']) as $stage): ?>
@@ -160,7 +224,7 @@ $studentRemarks = array_values(array_filter($history, fn($item) =>
                             <?php endforeach; ?>
                         </div>
                     </section>
-                    <section class="panel">
+                    <section class="panel" id="case-evidence">
                         <h2>Uploaded Evidence</h2>
                         <div class="mini-list">
                             <?php if (empty($evidence)): ?><div class="empty-state">No evidence files recorded.</div><?php endif; ?>
@@ -172,5 +236,10 @@ $studentRemarks = array_values(array_filter($history, fn($item) =>
         </main>
     </div>
 </div>
+<?php if ($complaintResponseInfo && strpos((string) $complaintResponseInfo, 'submitted') !== false): ?>
+<script>
+Swal.fire({ icon: 'success', title: 'Response submitted', text: 'Your response has been added to the case successfully.', confirmButtonText: 'OK' });
+</script>
+<?php endif; ?>
 </body>
 </html>

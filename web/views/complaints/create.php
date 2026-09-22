@@ -9,6 +9,7 @@ $viewData = $controller->handleCreateRequest();
 
 $user = $viewData['user'];
 $errors = $viewData['errors'];
+$fieldErrors = $viewData['fieldErrors'] ?? [];
 $old = $viewData['old'];
 $success = $viewData['success'];
 $oldIncident = !empty($old['incident_datetime']) ? strtotime($old['incident_datetime']) : false;
@@ -60,6 +61,11 @@ function old_array_value($old, $key, $index) {
 
 function h($value) {
     return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
+}
+
+function field_error_html($fieldErrors, $field) {
+    $message = $fieldErrors[$field] ?? '';
+    return $message !== '' ? '<div class="field-error" role="alert">' . htmlspecialchars($message, ENT_QUOTES, 'UTF-8') . '</div>' : '';
 }
 
 function selected_if($value, $option) {
@@ -569,12 +575,41 @@ $witnessItem = function ($index = null, $old = []) {
     <link rel="stylesheet" href="../layout/sidebar.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link rel="stylesheet" href="../layout/complaint-form.css">
+
+    <style>
+        .submission-modal-backdrop { position: fixed; inset: 0; z-index: 9999; display: none; align-items: center; justify-content: center; padding: 20px; background: rgba(10,25,14,.48); backdrop-filter: blur(3px); }
+        .submission-modal-backdrop.show { display: flex; }
+        .submission-modal { position: relative; width: min(460px,100%); background: #fff; border-radius: 18px; padding: 34px 30px 28px; text-align: center; box-shadow: 0 24px 70px rgba(0,0,0,.22); animation: submissionPop .18s ease-out; }
+        @keyframes submissionPop { from { opacity: 0; transform: translateY(10px) scale(.97); } to { opacity: 1; transform: none; } }
+        .submission-modal-close { position: absolute; top: 10px; right: 14px; border: 0; background: transparent; font-size: 28px; color: #71806e; cursor: pointer; }
+        .submission-modal-icon { width: 64px; height: 64px; margin: 0 auto 16px; border-radius: 50%; display: grid; place-items: center; background: #e8f5e8; color: #2f7d32; font-size: 30px; }
+        .submission-modal.error .submission-modal-icon { background: #fdeaea; color: #b42318; }
+        .submission-modal h2 { margin: 0 0 9px; color: #173d20; font-size: 22px; }
+        .submission-modal p { margin: 0 auto; max-width: 380px; color: #59645a; line-height: 1.6; font-size: 14px; white-space: pre-line; }
+        .submission-case-number { margin: 18px auto 0; width: fit-content; padding: 9px 14px; border-radius: 9px; background: #f1f6f0; color: #173d20; font-weight: 700; }
+        .submission-modal-actions { display: flex; gap: 10px; justify-content: center; margin-top: 22px; flex-wrap: wrap; }
+        .submission-modal-actions .btn { min-width: 120px; }
+    </style>
 </head>
 
 <body>
     <div class="dashboard-shell">
         <?php require __DIR__ . '/../layout/sidebar.php'; ?>
         <div class="complaint-page app-content">
+        <div class="submission-modal-backdrop" id="submissionModal" aria-hidden="true">
+            <div class="submission-modal" role="dialog" aria-modal="true" aria-labelledby="submissionModalTitle">
+                <button type="button" class="submission-modal-close" id="submissionModalClose" aria-label="Close">&times;</button>
+                <div class="submission-modal-icon" id="submissionModalIcon"><i class="bi bi-check-lg"></i></div>
+                <h2 id="submissionModalTitle">Complaint Submitted Successfully</h2>
+                <p id="submissionModalMessage">Your complaint has been received by the Student Discipline and Reformation Unit (SDRU).</p>
+                <div class="submission-case-number" id="submissionCaseNumber" hidden></div>
+                <div class="submission-modal-actions">
+                    <button type="button" class="btn btn-primary" id="submissionModalOkay">Okay</button>
+                    <a class="btn btn-secondary" id="submissionTrack" href="my_cases.php" hidden>Track My Complaint</a>
+                </div>
+            </div>
+        </div>
+
             <?php $pageTitle = 'Submit Complaint'; require __DIR__ . '/../layout/topbar.php'; ?>
 
         <main class="complaint-wrap complaint-submission-page">
@@ -593,13 +628,13 @@ $witnessItem = function ($index = null, $old = []) {
                 </section>
             <?php endif; ?>
 
-            <form class="complaint-form" id="complaintForm" action="create.php" method="POST" enctype="multipart/form-data" novalidate>
+            <form class="complaint-form" id="complaintForm" action="create.php" method="POST" enctype="multipart/form-data" data-sicms-validate novalidate>
                 <?= Security::csrfField() ?>
                 <section class="form-section" id="complainantSection">
                     <div class="complaint-section-heading"><span><i class="bi bi-person-badge"></i></span><div><h2>Complainant Information</h2><p id="complainantHelp">Student or private-individual details</p></div></div>
                     <div class="form-grid">
                         <div class="field full">
-                            <label for="complainant_type">Complainant Type</label>
+                            <label for="complainant_type">Complainant Type <span class="required">*</span></label>
                             <select id="complainant_type" name="complainant_type" required>
                                 <option value="">Select Complainant Type</option>
                                 <option value="Student" <?= $complainantType === 'Student' ? 'selected' : '' ?>>Student</option>
@@ -607,10 +642,12 @@ $witnessItem = function ($index = null, $old = []) {
                                 <option value="Private Individual" <?= $complainantType === 'Private Individual' ? 'selected' : '' ?>>Private Individual</option>
                                 <option value="Others" <?= $complainantType === 'Others' ? 'selected' : '' ?>>Others</option>
                             </select>
+                            <?= field_error_html($fieldErrors, 'complainant_type') ?>
                         </div>
                         <div class="field">
                             <label for="complainant_name">Full Name <span class="required">*</span></label>
                             <input id="complainant_name" name="complainant_name" value="<?= h($complainantName) ?>" required>
+                            <?= field_error_html($fieldErrors, 'complainant_name') ?>
                         </div>
                         <div class="field">
                             <label for="complainant_gender">Gender</label>
@@ -619,22 +656,27 @@ $witnessItem = function ($index = null, $old = []) {
                                 <option value="Male" <?= $complainantGender === 'Male' ? 'selected' : '' ?>>Male</option>
                                 <option value="Female" <?= $complainantGender === 'Female' ? 'selected' : '' ?>>Female</option>
                             </select>
+                            <?= field_error_html($fieldErrors, 'complainant_gender') ?>
                         </div>
                         <div class="field">
                             <label for="complainant_age">Age <span class="required">*</span></label>
                             <input id="complainant_age" name="complainant_age" type="number" min="1" max="120" value="<?= h($complainantAge) ?>" required>
+                            <?= field_error_html($fieldErrors, 'complainant_age') ?>
                         </div>
                         <div class="field" data-complainant-types="Student" <?= type_field_hidden('Student', $complainantType) ?>>
                             <label for="complainant_student_no">Student Number <span class="required">*</span></label>
                             <input id="complainant_student_no" name="complainant_student_no" value="<?= h($complainantStudentNo) ?>" required <?= type_field_disabled('Student', $complainantType) ?>>
+                            <?= field_error_html($fieldErrors, 'complainant_student_no') ?>
                         </div>
                         <div class="field">
                             <label for="complainant_email">Email <span class="required">*</span></label>
                             <input id="complainant_email" type="email" name="complainant_email" value="<?= h($old['complainant_email'] ?? $user['email']) ?>" required>
+                            <?= field_error_html($fieldErrors, 'complainant_email') ?>
                         </div>
                         <div class="field">
                             <label for="complainant_contact">Contact Number <span class="required">*</span></label>
-                            <input id="complainant_contact" name="complainant_contact" value="<?= h($complainantContact) ?>" required>
+                            <input id="complainant_contact" name="complainant_contact" value="<?= h($complainantContact) ?>" required data-sicms-phone>
+                            <?= field_error_html($fieldErrors, 'complainant_contact') ?>
                         </div>
                         <div class="field" data-complainant-types="Student" <?= type_field_hidden('Student', $complainantType) ?>>
                             <label for="complainant_college">College <span class="required">*</span></label>
@@ -644,6 +686,7 @@ $witnessItem = function ($index = null, $old = []) {
                                     <option value="<?= h($college) ?>" <?= $complainantCollege === $college ? 'selected' : '' ?>><?= h($college) ?></option>
                                 <?php endforeach; ?>
                             </select>
+                            <?= field_error_html($fieldErrors, 'complainant_college') ?>
                         </div>
                         <div class="field" data-complainant-types="Student" <?= type_field_hidden('Student', $complainantType) ?>>
                             <label for="complainant_course">Course <span class="required">*</span></label>
@@ -653,6 +696,7 @@ $witnessItem = function ($index = null, $old = []) {
                                     <option value="<?= h($course) ?>" <?= $complainantCourse === $course ? 'selected' : '' ?>><?= h($course) ?></option>
                                 <?php endforeach; ?>
                             </select>
+                            <?= field_error_html($fieldErrors, 'complainant_course') ?>
                         </div>
                         <div class="field" data-complainant-types="Student" <?= type_field_hidden('Student', $complainantType) ?>>
                             <label for="complainant_section">Section <span class="required">*</span></label>
@@ -666,6 +710,7 @@ $witnessItem = function ($index = null, $old = []) {
                                     </optgroup>
                                 <?php endforeach; ?>
                             </select>
+                            <?= field_error_html($fieldErrors, 'complainant_section') ?>
                             <input id="complainant_course_year" type="hidden" name="complainant_course_year" value="<?= h(Courses::combine($complainantCourse, $complainantSection)) ?>">
                         </div>
                         <div class="field" data-complainant-types="Private Individual" <?= type_field_hidden('Private Individual', $complainantType) ?>>
@@ -676,18 +721,22 @@ $witnessItem = function ($index = null, $old = []) {
                                     <option value="<?= h($relationship) ?>" <?= (($old['complainant_relationship'] ?? '') === $relationship) ? 'selected' : '' ?>><?= h($relationship) ?></option>
                                 <?php endforeach; ?>
                             </select>
+                            <?= field_error_html($fieldErrors, 'complainant_relationship') ?>
                         </div>
                         <div class="field" data-complainant-types="Employee" <?= type_field_hidden('Employee', $complainantType) ?>>
                             <label for="complainant_employee_no">Employee Number <span class="required">*</span></label>
                             <input id="complainant_employee_no" name="complainant_employee_no" value="<?= old_value($old, 'complainant_employee_no') ?>" required <?= type_field_disabled('Employee', $complainantType) ?>>
+                            <?= field_error_html($fieldErrors, 'complainant_employee_no') ?>
                         </div>
                         <div class="field" data-complainant-types="Employee" <?= type_field_hidden('Employee', $complainantType) ?>>
                             <label for="complainant_department">College / Office / Department <span class="required">*</span></label>
                             <input id="complainant_department" name="complainant_department" value="<?= old_value($old, 'complainant_department') ?>" required <?= type_field_disabled('Employee', $complainantType) ?>>
+                            <?= field_error_html($fieldErrors, 'complainant_department') ?>
                         </div>
                         <div class="field" data-complainant-types="Employee" <?= type_field_hidden('Employee', $complainantType) ?>>
                             <label for="complainant_position">Position <span class="required">*</span></label>
                             <input id="complainant_position" name="complainant_position" value="<?= old_value($old, 'complainant_position') ?>" required <?= type_field_disabled('Employee', $complainantType) ?>>
+                            <?= field_error_html($fieldErrors, 'complainant_position') ?>
                         </div>
                         <div class="field" data-complainant-types="Others" <?= type_field_hidden('Others', $complainantType) ?>>
                             <label for="complainant_affiliation">Affiliation / Organization <span class="optional">Optional</span></label>
@@ -705,7 +754,8 @@ $witnessItem = function ($index = null, $old = []) {
                     <div class="form-grid">
                         <div class="field">
                             <label for="incident_date">Date of Incident <span class="required">*</span></label>
-                            <input id="incident_date" type="date" value="<?= $oldIncident ? h(date('Y-m-d', $oldIncident)) : '' ?>" required>
+                            <input id="incident_date" type="date" value="<?= $oldIncident ? h(date('Y-m-d', $oldIncident)) : '' ?>" required max="<?= h(date('Y-m-d')) ?>" data-sicms-future="0">
+                            <?= field_error_html($fieldErrors, 'incident_datetime') ?>
                         </div>
                         <div class="field">
                             <label for="incident_time">Time of Incident <span class="required">*</span></label>
@@ -715,10 +765,12 @@ $witnessItem = function ($index = null, $old = []) {
                         <div class="field full">
                             <label for="incident_location">Incident Location <span class="required">*</span></label>
                             <input id="incident_location" name="incident_location" value="<?= old_value($old, 'incident_location') ?>" placeholder="Example: College of Engineering, 2nd Floor, Room 204 / Near the Carabao Gate" required>
+                            <?= field_error_html($fieldErrors, 'incident_location') ?>
                         </div>
                         <div class="field full">
                             <label for="complaint_details">Complaint Details <span class="required">*</span></label>
                             <textarea id="complaint_details" name="complaint_details" maxlength="5000" aria-describedby="complaintCounter" placeholder="Explain how the incident started, what happened during the incident, who was involved, and how the incident ended." required><?= old_value($old, 'complaint_details') ?></textarea>
+                            <?= field_error_html($fieldErrors, 'complaint_details') ?>
                             <div class="character-counter" id="complaintCounter"><span id="complaintCharacterCount">0</span> / 5000 characters</div>
                         </div>
                     </div>
@@ -727,11 +779,12 @@ $witnessItem = function ($index = null, $old = []) {
                 <section class="form-section">
                     <div class="complaint-section-heading"><span><i class="bi bi-people"></i></span><div><h2>Respondent Information</h2><p class="required-note">Required unless you don't know the respondent</p></div></div>
                     <label class="unknown-toggle">
-                        <input type="checkbox" name="respondent_unknown" value="1" onchange="toggleUnknown('respondent', this)" <?= !empty($old['respondent_unknown']) ? 'checked' : '' ?>>
+                        <input id="respondent_unknown" type="checkbox" name="respondent_unknown" value="1" <?= !empty($old['respondent_unknown']) ? 'checked' : '' ?>>
                         <span>I don't know the respondent</span>
                     </label>
                     <p class="unknown-notice" <?= !empty($old['respondent_unknown']) ? '' : 'hidden' ?>>Respondent information marked as unknown. No respondent details were provided.</p>
-                    <div id="respondent-list" class="dynamic-list" <?= !empty($old['respondent_unknown']) ? 'hidden' : '' ?>>
+                    <div id="respondent-information-fields" class="person-information-fields" <?= !empty($old['respondent_unknown']) ? 'hidden' : '' ?>>
+                    <div id="respondent-list" class="dynamic-list">
                         <?php $respondentCount = count($old['respondent_name'] ?? []); ?>
                         <?php for ($index = 0; $index < $respondentCount; $index++): ?>
                             <?php
@@ -845,27 +898,30 @@ $witnessItem = function ($index = null, $old = []) {
                         <?php endfor; ?>
                     </div>
                     <template id="respondent-item-template"><?= $respondentItem() ?></template>
-                    <div class="dynamic-actions" <?= !empty($old['respondent_unknown']) ? 'hidden' : '' ?>>
+                    <div class="dynamic-actions">
                         <button type="button" class="btn-add" onclick="addRespondent()"><i class="bi bi-person-plus"></i> Add Respondent</button>
+                    </div>
                     </div>
                 </section>
 
                 <section class="form-section">
                     <div class="complaint-section-heading"><span><i class="bi bi-person-lines-fill"></i></span><div><h2>Witness Information</h2><p class="required-note">Required unless you do not have a witness</p></div></div>
                     <label class="unknown-toggle">
-                        <input type="checkbox" name="witness_none" value="1" onchange="toggleUnknown('witness', this)" <?= !empty($old['witness_none']) ? 'checked' : '' ?>>
-                        <span>I do not have a witness</span>
+                        <input id="witness_none" type="checkbox" name="witness_none" value="1" <?= !empty($old['witness_none']) ? 'checked' : '' ?>>
+                        <span>There is no witness / I don't know the witness</span>
                     </label>
                     <p class="unknown-notice" <?= !empty($old['witness_none']) ? '' : 'hidden' ?>>Witness information marked as none. No witness details were provided.</p>
-                    <div id="witness-list" class="dynamic-list" <?= !empty($old['witness_none']) ? 'hidden' : '' ?>>
+                    <div id="witness-information-fields" class="person-information-fields" <?= !empty($old['witness_none']) ? 'hidden' : '' ?>>
+                    <div id="witness-list" class="dynamic-list">
                         <?php $witnessCount = count($old['witness_name'] ?? []); ?>
                         <?php for ($index = 0; $index < $witnessCount; $index++): ?>
                             <?= $witnessItem($index, $old) ?>
                         <?php endfor; ?>
                     </div>
                     <template id="witness-item-template"><?= $witnessItem() ?></template>
-                    <div class="dynamic-actions" <?= !empty($old['witness_none']) ? 'hidden' : '' ?>>
+                    <div class="dynamic-actions">
                         <button type="button" class="btn-add" onclick="addWitness()"><i class="bi bi-person-plus"></i> Add Witness</button>
+                    </div>
                     </div>
                 </section>
 
@@ -880,7 +936,7 @@ $witnessItem = function ($index = null, $old = []) {
                     </div>
                     <div class="field" id="evidenceUploadField" hidden>
                         <label for="evidence">Upload Files</label>
-                        <input id="evidence" type="file" name="evidence[]" accept=".pdf,.jpg,.jpeg,.png,.docx" multiple required>
+                        <input id="evidence" type="file" name="evidence[]" accept=".pdf,.jpg,.jpeg,.png,.docx" multiple required data-sicms-size-mb="5" data-sicms-accept-ext=".pdf,.jpg,.jpeg,.png,.docx">
                         <p class="file-note">Accepted formats: PDF, JPG, PNG, DOCX. Maximum size: 5MB per file.</p>
                         <div class="field-error" id="evidenceError" role="alert"></div>
                         <div class="evidence-list" id="evidenceList"></div>
@@ -970,26 +1026,43 @@ $witnessItem = function ($index = null, $old = []) {
         });
 
         function toggleUnknown(kind, checkbox) {
-            const section = checkbox.closest('.form-section');
-            const list = section.querySelector('.dynamic-list');
-            const actions = Array.from(section.querySelectorAll('.dynamic-actions'));
-            const controls = section.querySelectorAll('.dynamic-item input, .dynamic-item select, .dynamic-item textarea, .dynamic-item button');
-            const notice = section.querySelector('.unknown-notice');
+            const isRespondent = kind === 'respondent';
+            const container = document.getElementById(
+                isRespondent ? 'respondent-information-fields' : 'witness-information-fields'
+            );
+            const list = document.getElementById(isRespondent ? 'respondent-list' : 'witness-list');
+            const notice = checkbox.closest('.form-section')?.querySelector('.unknown-notice');
+            if (!container || !list) return;
 
-            list.hidden = checkbox.checked;
-            actions.forEach(action => action.hidden = checkbox.checked);
-            controls.forEach(control => control.disabled = checkbox.checked);
+            container.hidden = checkbox.checked;
+            container.querySelectorAll('input, select, textarea, button').forEach(control => {
+                control.disabled = checkbox.checked;
+            });
             if (notice) notice.hidden = !checkbox.checked;
+
+            if (!checkbox.checked) {
+                list.querySelectorAll(isRespondent ? '.respondent-item' : '.witness-item').forEach(item => {
+                    if (isRespondent) updateRespondentFields(item);
+                    else updateWitnessFields(item);
+                });
+            }
         }
 
-        document.querySelectorAll('.unknown-toggle input').forEach(checkbox => {
-            toggleUnknown(checkbox.name === 'respondent_unknown' ? 'respondent' : 'witness', checkbox);
-        });
+        const respondentUnknown = document.getElementById('respondent_unknown');
+        const witnessNone = document.getElementById('witness_none');
+        respondentUnknown?.addEventListener('change', () => toggleUnknown('respondent', respondentUnknown));
+        witnessNone?.addEventListener('change', () => toggleUnknown('witness', witnessNone));
+        if (respondentUnknown) toggleUnknown('respondent', respondentUnknown);
+        if (witnessNone) toggleUnknown('witness', witnessNone);
 
         function ensureDefaultPerson(kind) {
             const listId = kind === 'respondent' ? 'respondent-list' : 'witness-list';
             const list = document.getElementById(listId);
             if (!list || list.querySelector('.dynamic-item')) return;
+            const skipped = document.querySelector(kind === 'respondent'
+                ? 'input[name="respondent_unknown"]'
+                : 'input[name="witness_none"]');
+            if (skipped && skipped.checked) return;
             if (kind === 'respondent') {
                 addRespondent();
             } else {
@@ -1004,7 +1077,14 @@ $witnessItem = function ($index = null, $old = []) {
             const list = document.getElementById(listId);
             const template = document.getElementById(templateId);
             if (!list || !template) return;
-            list.appendChild(template.content.cloneNode(true));
+            const item = template.content.cloneNode(true);
+            const isSkipped = listId === 'respondent-list'
+                ? document.querySelector('input[name="respondent_unknown"]')?.checked
+                : document.querySelector('input[name="witness_none"]')?.checked;
+            item.querySelectorAll('input, select, textarea, button').forEach(control => {
+                control.disabled = !!isSkipped;
+            });
+            list.appendChild(item);
         }
 
         function addRespondent() {
@@ -1155,7 +1235,7 @@ $witnessItem = function ($index = null, $old = []) {
             const files = Array.from(evidenceInput.files);
             const invalid = files.find(file => file.size > 5 * 1024 * 1024 || !allowed.includes(file.name.split('.').pop().toLowerCase()));
             evidenceError.textContent = invalid ? `${invalid.name} must be an accepted file type and no larger than 5MB.` : '';
-            evidenceInput.setCustomValidity(invalid ? 'Invalid evidence file.' : '');
+            evidenceInput.setCustomValidity('');
             return !invalid && files.length > 0;
         }
 
@@ -1342,9 +1422,12 @@ $witnessItem = function ($index = null, $old = []) {
             composeIncidentDatetime();
             composeCourseSections();
             validateEvidence();
+            if (window.SICMSValidation && !SICMSValidation.run(complaintForm)) {
+                event.preventDefault();
+                return;
+            }
             if (!complaintForm.checkValidity()) {
                 event.preventDefault();
-                complaintForm.reportValidity();
                 return;
             }
             if (!confirmed) {
@@ -1372,9 +1455,50 @@ $witnessItem = function ($index = null, $old = []) {
         composeCourseSections();
         updateComplainantFields(true);
 
+
+        const submissionModalBackdrop = document.getElementById('submissionModal');
+        const submissionModal = submissionModalBackdrop?.querySelector('.submission-modal');
+        const submissionModalIcon = document.getElementById('submissionModalIcon');
+        const submissionModalTitle = document.getElementById('submissionModalTitle');
+        const submissionModalMessage = document.getElementById('submissionModalMessage');
+        const submissionCaseNumber = document.getElementById('submissionCaseNumber');
+        const submissionModalOkay = document.getElementById('submissionModalOkay');
+        const submissionModalClose = document.getElementById('submissionModalClose');
+        const submissionTrack = document.getElementById('submissionTrack');
+
+        function closeSubmissionModal() {
+            submissionModalBackdrop?.classList.remove('show');
+            submissionModalBackdrop?.setAttribute('aria-hidden', 'true');
+        }
+
+        function showSubmissionModal(type, title, message, caseNumber = '') {
+            if (!submissionModalBackdrop) return;
+            submissionModal.classList.toggle('error', type === 'error');
+            submissionModalIcon.innerHTML = type === 'error' ? '<i class="bi bi-exclamation-lg"></i>' : '<i class="bi bi-check-lg"></i>';
+            submissionModalTitle.textContent = title;
+            submissionModalMessage.textContent = message;
+            submissionCaseNumber.hidden = !caseNumber;
+            submissionCaseNumber.textContent = caseNumber ? 'Case Number: ' + caseNumber : '';
+            submissionTrack.hidden = type !== 'success';
+            submissionModalBackdrop.classList.add('show');
+            submissionModalBackdrop.setAttribute('aria-hidden', 'false');
+        }
+
+        submissionModalOkay?.addEventListener('click', closeSubmissionModal);
+        submissionModalClose?.addEventListener('click', closeSubmissionModal);
+        submissionModalBackdrop?.addEventListener('click', event => {
+            if (event.target === submissionModalBackdrop) closeSubmissionModal();
+        });
+        document.addEventListener('keydown', event => {
+            if (event.key === 'Escape') closeSubmissionModal();
+        });
+
         <?php if ($success): ?>
-        setTimeout(() => { window.location.href = 'my_cases.php'; }, 7000);
+        showSubmissionModal('success', 'Complaint Submitted Successfully', 'Your complaint has been received by the Student Discipline and Reformation Unit (SDRU).', <?= json_encode($successCaseNumber) ?>);
+        <?php elseif (!empty($errors)): ?>
+        showSubmissionModal('error', 'Unable to Submit Complaint', <?= json_encode(implode("\n", $errors)) ?>);
         <?php endif; ?>
+
     </script>
 </body>
 
