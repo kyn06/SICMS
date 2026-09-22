@@ -24,6 +24,7 @@ class User extends Model {
     public $section;
     public $created_at;
     public $updated_at;
+    public $profile_pic;
 
     public function __construct(array $data = []) {
         foreach ($data as $key => $value) {

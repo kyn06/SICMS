@@ -75,11 +75,11 @@ class RespondentController {
     }
 
     public function caseShow($complaintId) {
-        if (!$this->isRespondent()) {
+        $complaintId = (int) $complaintId;
+
+        if (!$this->isRespondent() && !CaseRecord::isAccountRespondentForCase($complaintId, (int) $this->user['account_id'])) {
             $this->deny();
         }
-
-        $complaintId = (int) $complaintId;
         $case = CaseRecord::findCase($complaintId);
 
         if (!$case || ($case['case_source'] ?? '') === 'Legacy'
@@ -174,7 +174,17 @@ class RespondentController {
                         'Respondent submitted their counter-statement for case ' . $caseLabel . '.',
                         $accountId
                     );
-                    Notification::createForStaff(
+                    $assignedCoordinatorId = (int) ($case['assigned_coordinator_account_id'] ?? 0);
+                    if ($assignedCoordinatorId > 0) {
+                        Notification::createForUser(
+                            $assignedCoordinatorId,
+                            'counter_statement_submitted',
+                            'Counter-Statement Submitted',
+                            'A counter-statement was submitted for ' . $caseLabel . '.',
+                            'web/views/cases/show.php?id=' . $complaintId
+                        );
+                    }
+                    Notification::createForHeads(
                         'counter_statement_submitted',
                         'Counter-Statement Submitted',
                         'A counter-statement was submitted for ' . $caseLabel . '.',

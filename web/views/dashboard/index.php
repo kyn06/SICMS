@@ -107,6 +107,12 @@ $staffHearingRoles = ['admin', 'sdr-staff', 'sdru-staff', 'coordinator', 'head-o
 $canViewAnalytics = in_array($roleKey, $analyticsRoles, true);
 $canViewHearings = in_array($roleKey, $staffHearingRoles, true);
 $studentCases = $roleKey === 'student' ? Complaint::forStudent((int) $user['account_id'], 3) : [];
+$studentForwardedCases = $isStudent
+    ? array_values(array_filter(
+        CaseRecord::casesForRespondent((int) $user['account_id']),
+        fn($respondentCase) => !empty($respondentCase['respondent_released_at'])
+    ))
+    : [];
 
 $respondentCases = $isRespondent ? CaseRecord::casesForRespondent((int) $user['account_id']) : [];
 $respondentRequiredAction = [];
@@ -1103,6 +1109,7 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
             <?php endif; ?>
 
             <section class="student-dashboard-grid student-dashboard-focused">
+                <div style="display:flex;flex-direction:column;gap:22px;min-width:0">
                 <section class="student-panel">
                     <div class="section-title"><i class="bi bi-folder-check"></i> Recent Case Status</div>
                     <div class="student-case-list">
@@ -1126,6 +1133,30 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
                         <?php endforeach; ?>
                     </div>
                 </section>
+
+                <?php if (!empty($studentForwardedCases)): ?>
+                <section class="student-panel" aria-label="Cases involving you as respondent">
+                    <div class="section-title"><i class="bi bi-shield-shaded"></i> Cases Involving Me</div>
+                    <p class="activity-description">Cases officially forwarded to you as a respondent. You can see only the information the SDRU chose to share.</p>
+                    <div class="student-case-list">
+                        <?php foreach ($studentForwardedCases as $involvedCase): ?>
+                        <article class="student-case-card">
+                            <div>
+                                <a class="student-case-number"
+                                    href="web/views/respondent/case_show.php?id=<?= (int) $involvedCase['complaint_id'] ?>"><?= h($involvedCase['case_classification']) ?></a>
+                                <div class="student-case-meta"><?= h($involvedCase['case_number']) ?> · Filed
+                                    <?= h(date('M d, Y', strtotime($involvedCase['submitted_at']))) ?></div>
+                            </div>
+                            <span class="status-pill status-<?= h(strtolower(str_replace(' ', '-', $involvedCase['status']))) ?>"><?= h($involvedCase['status']) ?></span>
+                            <div class="student-case-action"><a class="btn btn-primary"
+                                    href="web/views/respondent/case_show.php?id=<?= (int) $involvedCase['complaint_id'] ?>">
+                                    <i class="bi bi-eye"></i> Open Case</a></div>
+                        </article>
+                        <?php endforeach; ?>
+                    </div>
+                </section>
+                <?php endif; ?>
+                </div>
 
                 <section class="student-panel">
                     <div class="section-title"><i class="bi bi-bell"></i> Recent Notifications</div>

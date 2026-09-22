@@ -14,6 +14,7 @@ require_once __DIR__ . '/../models/CaseApproval.php';
 require_once __DIR__ . '/../models/CounterStatement.php';
 require_once __DIR__ . '/../services/FileUploadService.php';
 require_once __DIR__ . '/../services/Mailer.php';
+require_once __DIR__ . '/../services/UserGoogleMailer.php';
 require_once __DIR__ . '/../helpers/Security.php';
 
 class CaseController {
@@ -1093,17 +1094,33 @@ class CaseController {
                 CaseRecord::releaseToRespondents($complaintId, $actorAccountId, $visibility, array_keys($recipients));
 
                 $caseUrl = $this->siteUrl('web/views/respondent/case_show.php?id=' . $complaintId);
+
+                $toEmails = [];
                 foreach ($recipients as $account) {
-                    Mailer::send(
-                        (string) ($account['email'] ?? ''),
-                        'Case Information Forwarded to You',
-                        Mailer::noticeEmailBody(
-                            'Dear ' . trim(($account['first_name'] ?? '') . ' ' . ($account['last_name'] ?? '')),
-                            'The SDRU has forwarded the permitted details of case ' . $caseLabel . ' to you as a respondent. You can now review the case and file your counter-statement through SICMS.',
-                            $caseUrl,
-                            'View Case Details'
-                        )
+                    $em = trim((string) ($account['email'] ?? ''));
+                    if ($em !== '') {
+                        $toEmails[$em] = $em;
+                    }
+                }
+                $typedEmail = trim((string) ($_POST['respondent_extra_email'] ?? ''));
+                if ($typedEmail !== '' && filter_var($typedEmail, FILTER_VALIDATE_EMAIL)) {
+                    $toEmails[$typedEmail] = $typedEmail;
+                }
+
+                $gmailer = UserGoogleMailer::instance($this->db);
+                foreach ($toEmails as $em) {
+                    $subject = 'Case Information Forwarded to You';
+                    $body = Mailer::noticeEmailBody(
+                        'Dear Respondent',
+                        'The SDRU has forwarded the permitted details of case ' . $caseLabel . ' to you as a respondent. You can now review the case and file your counter-statement through SICMS.',
+                        $caseUrl,
+                        'View Case Details'
                     );
+
+                    $sent = $gmailer->sendFromUser((int) $actorAccountId, $em, $subject, $body, 'SICMS');
+                    if (empty($sent['sent'])) {
+                        Mailer::send($em, $subject, $body);
+                    }
                 }
 
                 $releasedNames = array_map(

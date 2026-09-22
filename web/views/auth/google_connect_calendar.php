@@ -72,12 +72,18 @@ if (!$service->consumeState()) {
 
 unset($_SESSION['google_calendar_oauth_state']);
 
-$result = $service->handleCallback((string) $_GET['code']);
+$perUserRoles = ['head-of-sdru', 'sdru-head', 'coordinator'];
+
+if (in_array($roleKey, $perUserRoles, true) && (int) ($user->account_id ?? 0) > 0) {
+    $result = $service->connectAsStaff((int) $user->account_id, (string) $_GET['code'], true);
+} else {
+    $result = $service->handleCallback((string) $_GET['code']);
+}
 
 if ($result['success']) {
-    $_SESSION['cal_message'] = 'Google Calendar connected' . (!empty($result['email']) ? ' (' . $result['email'] . ')' : '') . '. New hearings will be added to the calendar automatically.';
+    $_SESSION['cal_message'] = 'Google connected' . (!empty($result['email']) ? ' (' . $result['email'] . ')' : '') . '. New hearings will be added to the calendar automatically.';
 } else {
-    $_SESSION['cal_error'] = $result['message'] ?? 'Could not connect Google Calendar. Please try again.';
+    $_SESSION['cal_error'] = $result['message'] ?? 'Could not connect Google. Please try again.';
 }
 
 calendar_redirect_to_settings();
