@@ -2222,6 +2222,9 @@ function person_name($first, $last) {
                     <?php endforeach; ?>
                     </div>
                     <p class="muted" style="font-size:11px;margin:6px 0 14px">Only ticked respondent(s) will receive the case. Untick a respondent to leave the case hidden from them.</p>
+                    <label class="case-modal-label" for="respondent_extra_email">Additional Respondent Email (optional)</label>
+                    <input type="email" id="respondent_extra_email" name="respondent_extra_email" class="form-control" placeholder="e.g. respondent@example.com" style="margin-top:6px" value="<?= h($_POST['respondent_extra_email'] ?? '') ?>">
+                    <p class="muted" style="font-size:11px;margin:6px 0 14px">A copy of the case notice will also be sent to this typed email address.</p>
                     <label class="case-modal-label">Permitted Respondent Information</label>
                     <?php foreach ($visibilityLabels as $key => $label): ?>
                         <?php if ($key === 'complaint_details') continue; ?>

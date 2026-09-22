@@ -64,6 +64,13 @@
     height: 44px;
     justify-content: center;
     width: 44px;
+    overflow: hidden;
+}
+
+.avatar img {
+    height: 100%;
+    object-fit: cover;
+    width: 100%;
 }
 
 .profile-name,

@@ -193,7 +193,12 @@ class AttachmentController {
             return in_array($role, ['admin', 'sdr-staff', 'sdru-staff', 'head-of-sdru', 'coordinator'], true);
         }
         if ($role === 'student') {
-            if (!empty($file['update_id']) || !empty($file['counter_statement_id'])) {
+            if (!empty($file['counter_statement_id'])) {
+                $owner = CounterStatement::respondentAccountId((int) $file['counter_statement_id']);
+                return $owner && (int) $owner['respondent_account_id'] === (int) $this->user['account_id'];
+            }
+
+            if (!empty($file['update_id'])) {
                 return false;
             }
 

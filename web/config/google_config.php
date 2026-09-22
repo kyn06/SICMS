@@ -34,7 +34,7 @@ return [
     // account's calendar. Add it to the OAuth consent screen and enable
     // the Google Calendar API in the Cloud Console:
     //   https://console.cloud.google.com/apis/library/calendar.googleapis.com
-    'calendar_scopes' => 'https://www.googleapis.com/auth/calendar.events',
+    'calendar_scopes' => 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/gmail.send',
 
     // Leave empty to auto-detect. If set, it MUST exactly match the
     // "Authorized redirect URI" configured in Cloud Console, e.g.:

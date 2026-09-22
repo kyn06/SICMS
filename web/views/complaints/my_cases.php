@@ -10,6 +10,10 @@ $profileIncomplete = ProfileCompletion::isStudentAccount($user) && !ProfileCompl
 $profileMissingFields = ProfileCompletion::isStudentAccount($user) ? ProfileCompletion::missingFields($user) : [];
 $statuses = ['Under Investigation', 'Returned for Revision', 'Rejected', 'Resolved', 'Reformation in Progress', 'Reformation Completed', 'Escalated', 'Archived'];
 $allCases = Complaint::forStudent((int) $user['account_id'], 10000, ['sort' => 'newest'], 0);
+$forwardedCases = array_values(array_filter(
+    CaseRecord::casesForRespondent((int) $user['account_id']),
+    fn($involvedCase) => !empty($involvedCase['respondent_released_at'])
+));
 
 function h($value) { return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8'); }
 function status_class($status) { return strtolower(str_replace(' ', '-', $status)); }
@@ -144,6 +148,28 @@ rsort($years);
                 <div class="empty-state" id="emptyState" hidden><i class="bi bi-folder2-open"></i><h2>No complaints found.</h2><p id="emptyMessage">You have not submitted any complaints yet. Click Submit Complaint to file your first complaint.</p><a class="btn btn-primary" href="create.php">Submit Complaint</a></div>
                 <div class="pagination" id="pagination"><span class="pagination-info" id="paginationInfo"></span><div class="pagination-buttons" id="paginationButtons"></div></div>
             </section>
+
+            <?php if (!empty($forwardedCases)): ?>
+            <section class="table-panel" id="involvedCases" aria-label="Cases involving me">
+                <div style="display:flex;align-items:center;gap:10px;padding:14px 16px 0">
+                    <hr style="flex:1;border:none;border-top:1px solid #dce5da">
+                    <h2 style="font-size:15px;color:#123c1b;margin:0;white-space:nowrap"><i class="bi bi-shield-shaded"></i> Cases Involving Me</h2>
+                    <hr style="flex:1;border:none;border-top:1px solid #dce5da">
+                </div>
+                <p style="font-size:12px;padding:6px 16px 0;margin:0;color:#637060">Cases officially forwarded to you as a respondent. You can see only the information the SDRU chose to share.</p>
+                <div class="table-scroll"><table class="cases-table"><thead><tr><th>Case Number</th><th>Classification</th><th>Date Filed</th><th>Current Status</th><th>Actions</th></tr></thead><tbody>
+                    <?php foreach ($forwardedCases as $involvedCase): ?>
+                    <tr>
+                        <td><a class="case-link" href="../respondent/case_show.php?id=<?= (int) $involvedCase['complaint_id'] ?>"><?= h($involvedCase['case_number']) ?></a></td>
+                        <td><?= h($involvedCase['case_classification']) ?></td>
+                        <td><?= h(date('M d, Y', strtotime($involvedCase['submitted_at']))) ?></td>
+                        <td><span class="status-pill status-<?= h(strtolower(str_replace(' ', '-', $involvedCase['status']))) ?>"><?= h($involvedCase['status']) ?></span></td>
+                        <td><div class="row-actions"><a class="btn btn-primary" href="../respondent/case_show.php?id=<?= (int) $involvedCase['complaint_id'] ?>"><i class="bi bi-eye"></i> Open Case</a></div></td>
+                    </tr>
+                    <?php endforeach; ?>
+                </tbody></table></div>
+            </section>
+            <?php endif; ?>
         </main>
     </div>
     <?php

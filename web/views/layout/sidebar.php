@@ -35,7 +35,7 @@ try {
     </div>
 
     <div class="sidebar-profile">
-        <div class="avatar" aria-hidden="true"><?= h($initials) ?></div>
+        <div class="avatar" aria-hidden="true"><?php if (!empty($user['profile_pic'])): ?><img src="<?= h(app_url('web/views/settings/profile_pic.php?id=' . (int) $user['account_id'])) ?>" alt=""><?php else: ?><?= h($initials) ?><?php endif; ?></div>
         <div>
             <div class="profile-name"><?= h($displayName) ?></div>
             <div class="profile-role"><?= h($roleLabel) ?></div>

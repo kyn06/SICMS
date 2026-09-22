@@ -9,10 +9,116 @@ class GoogleCalendarService {
     private function __construct($db = null) {
         $this->db = $db ?: (new Database())->getConnection();
         $this->config = require __DIR__ . '/../config/google_config.php';
+        $this->ensurePerUserTable();
+    }
+
+    /**
+     * Per-user Google / Gmail connections. Heads and coordinators each
+     * link their OWN Google account so hearing correspondence is sent
+     * from their own Gmail (Gmail API) instead of the shared SMTP sender.
+     */
+    private function ensurePerUserTable() {
+        $sql = "CREATE TABLE IF NOT EXISTS user_google_connections (
+            account_id    INT UNSIGNED NOT NULL,
+            refresh_token TEXT NULL,
+            email         VARCHAR(255) NULL,
+            created_at    DATETIME NULL,
+            updated_at    DATETIME NULL,
+            PRIMARY KEY (account_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4";
+        $this->db->query($sql);
     }
 
     public static function instance($db = null) {
         return new self($db);
+    }
+
+    public function userConnectionRow($accountId) {
+        $accountId = (int) $accountId;
+        $sql = "SELECT refresh_token, email FROM user_google_connections WHERE account_id = ? LIMIT 1";
+        $stmt = $this->db->prepare($sql);
+        if (!$stmt) {
+            return null;
+        }
+        $stmt->bind_param('i', $accountId);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $row = $result->fetch_assoc();
+        $stmt->close();
+        return $row ?: null;
+    }
+
+    public function userConnected($accountId) {
+        $row = $this->userConnectionRow($accountId);
+        return $row !== null && trim((string) ($row['refresh_token'] ?? '')) !== '';
+    }
+
+    public function userConnectedEmail($accountId) {
+        $row = $this->userConnectionRow($accountId);
+        return $row !== null ? trim((string) ($row['email'] ?? '')) : '';
+    }
+
+    public function userConnect($accountId, $refreshToken, $email = '') {
+        $this->ensurePerUserTable();
+        $accountId    = (int) $accountId;
+        $refreshToken = (string) $refreshToken;
+        $email        = (string) $email;
+        if ($accountId <= 0 || $refreshToken === '') {
+            return false;
+        }
+        $sql = "INSERT INTO user_google_connections (account_id, refresh_token, email, created_at, updated_at)
+                VALUES (?, ?, ?, NOW(), NOW())
+                ON DUPLICATE KEY UPDATE refresh_token = VALUES(refresh_token), email = VALUES(email), updated_at = NOW()";
+        $stmt = $this->db->prepare($sql);
+        if (!$stmt) {
+            return false;
+        }
+        $stmt->bind_param('iss', $accountId, $refreshToken, $email);
+        $stmt->execute();
+        $ok = $stmt->affected_rows >= 0;
+        $stmt->close();
+        return $ok;
+    }
+
+    public function userDisconnect($accountId) {
+        $this->ensurePerUserTable();
+        $accountId = (int) $accountId;
+        $sql = "DELETE FROM user_google_connections WHERE account_id = ?";
+        $stmt = $this->db->prepare($sql);
+        if (!$stmt) {
+            return false;
+        }
+        $stmt->bind_param('i', $accountId);
+        $stmt->execute();
+        $stmt->close();
+        return true;
+    }
+
+    /**
+     * Complete OAuth for a HEAD or COORDINATOR and store their own
+     * refresh token / email under their account_id (per-user Gmail).
+     */
+    public function connectAsStaff($accountId, $code, $verifySsl = true) {
+        $accountId = (int) $accountId;
+
+        if ($accountId <= 0 || trim((string) $code) === '') {
+            return ['success' => false, 'message' => 'Invalid connection request.'];
+        }
+
+        $this->ensurePerUserTable();
+
+        $refreshTokenResult = $this->handleCallback($code, $verifySsl);
+
+        if (empty($refreshTokenResult['success'])) {
+            return ['success' => false, 'message' => $refreshTokenResult['message'] ?? 'Could not connect Google. Please try again.'];
+        }
+
+        $refreshToken = (string) ($refreshTokenResult['refreshToken'] ?? '');
+        $email        = (string) ($refreshTokenResult['email'] ?? '');
+
+        return $this->userConnect($accountId, $refreshToken, $email)
+            ? ['success' => true, 'email' => $email]
+            : ['success' => false, 'message' => 'Could not save your Google connection. Please try again.'];
     }
 
     // -------------------------------------------------------------
@@ -160,7 +266,7 @@ class GoogleCalendarService {
         $this->settingSet('google_calendar_refresh_token', $refreshToken);
         $this->settingSet('google_calendar_email', $email);
 
-        return ['success' => true, 'email' => $email];
+        return ['success' => true, 'email' => $email, 'refreshToken' => $refreshToken];
     }
 
     private function profileEmail($accessToken, $verifySsl = true) {

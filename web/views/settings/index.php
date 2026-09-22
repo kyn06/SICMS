@@ -74,12 +74,98 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($formAction === 'disconnect_calendar') {
         if (!$isStaffView) {
-            $errors[] = 'You do not have access to calendar integrations.';
+            $errors[] = 'You do not have access to Google connections.';
         } else {
             $service = GoogleCalendarService::instance($db);
-            $service->disconnect();
-            $calSuccess = 'Google Calendar disconnected. Hearing events will no longer be synced.';
+            $roleKey = strtolower(str_replace(['_', ' '], '-', (string) ($user['role'] ?? '')));
+            if (in_array($roleKey, ['head-of-sdru', 'sdru-head', 'coordinator'], true) && (int) ($user['account_id'] ?? 0) > 0) {
+                $service->userDisconnect((int) $user['account_id']);
+                $calSuccess = 'Your Google connection was disconnected.';
+            } else {
+                $service->disconnect();
+                $calSuccess = 'Your Google account was disconnected. Case emails will use the system mailbox; hearings will no longer be synced.';
+            }
         }
+    } elseif ($formAction === 'update_profile_pic') {
+        $profilePicError = null;
+        $dataUrl = (string) ($_POST['profile_pic_data_url'] ?? '');
+
+        if ($dataUrl === '') {
+            $profilePicError = 'No cropped image was received.';
+        } else {
+            $mimeMatch = preg_match('/^data:image\/(jpeg|png);base64,(.*)$/s', $dataUrl, $matches);
+
+            if (!$mimeMatch) {
+                $profilePicError = 'Please upload a JPG or PNG image.';
+            } else {
+                $imageType = $matches[1];
+                $imageBytes = base64_decode($matches[2], true);
+
+                if ($imageBytes === false || $imageBytes === '') {
+                    $profilePicError = 'The cropped image could not be read.';
+                } elseif (strlen($imageBytes) > (5 * 1024 * 1024)) {
+                    $profilePicError = 'The image exceeds the 5MB limit.';
+                } else {
+                    $info = @getimagesizefromstring($imageBytes);
+                    $validTypes = [IMAGETYPE_JPEG, IMAGETYPE_PNG];
+
+                    if ($info === false || !in_array($info[2], $validTypes, true)) {
+                        $profilePicError = 'Please upload a valid JPG or PNG image.';
+                    } else {
+                        $uploadDir = dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . 'storage' . DIRECTORY_SEPARATOR . 'profile_pics';
+
+                        if (!is_dir($uploadDir)) {
+                            mkdir($uploadDir, 0755, true);
+                        }
+
+                        $storedFilename = 'pic_' . (int) $user['account_id'] . '_' . date('YmdHis') . '.' . ($imageType === 'png' ? 'png' : 'jpg');
+                        $destination = $uploadDir . DIRECTORY_SEPARATOR . $storedFilename;
+
+                        if (file_put_contents($destination, $imageBytes) === false) {
+                            $profilePicError = 'Unable to save the profile picture. Please try again.';
+                        } else {
+                            $currentUser = User::find($user['account_id']);
+
+                            if ($currentUser && $currentUser->update([
+                                'profile_pic' => 'storage/profile_pics/' . $storedFilename,
+                                'updated_at'  => date('Y-m-d H:i:s'),
+                            ])) {
+                                if (!empty($user['profile_pic'])) {
+                                    $oldPath = dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $user['profile_pic']);
+                                    if (str_starts_with(str_replace('\\', '/', (string) $user['profile_pic']), 'storage/profile_pics/') && is_file($oldPath)) {
+                                        @unlink($oldPath);
+                                    }
+                                }
+                                $success = 'Profile picture updated successfully.';
+                                $user = User::findByEmail($_SESSION['email']);
+                            } else {
+                                @unlink($destination);
+                                $profilePicError = 'Unable to save the profile picture. Please try again.';
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if ($profilePicError) {
+            $errors[] = $profilePicError;
+        }
+    } elseif ($formAction === 'remove_profile_pic') {
+        if (!empty($user['profile_pic']) && str_starts_with(str_replace('\\', '/', (string) $user['profile_pic']), 'storage/profile_pics/')) {
+            $oldPath = dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $user['profile_pic']);
+            if (is_file($oldPath)) {
+                @unlink($oldPath);
+            }
+        }
+
+        $currentUser = User::find($user['account_id']);
+        if ($currentUser) {
+            $currentUser->update(['profile_pic' => null, 'updated_at' => date('Y-m-d H:i:s')]);
+        }
+
+        $success = 'Profile picture removed.';
+        $user = User::findByEmail($_SESSION['email']);
     } elseif ($formAction === 'logout_device') {
         $targetSession = trim((string) ($_POST['session_id'] ?? ''));
         if ($targetSession === session_id()) {
@@ -297,8 +383,10 @@ $hasPassword = !empty($user['password_hash']);
 
 $calSuccess = $calSuccess ?? null;
 $calendarService = GoogleCalendarService::instance($db);
-$calConnected = $calendarService->isConnected();
-$calEmail = $calendarService->connectedEmail();
+$roleKey = strtolower(str_replace(['_', ' '], '-', (string) ($user['role'] ?? '')));
+$isPerUserCalendarRole = in_array($roleKey, ['head-of-sdru', 'sdru-head', 'coordinator'], true) && (int) ($user['account_id'] ?? 0) > 0;
+$calConnected = $isPerUserCalendarRole ? $calendarService->userConnected((int) $user['account_id']) : $calendarService->isConnected();
+$calEmail = $isPerUserCalendarRole ? $calendarService->userConnectedEmail((int) $user['account_id']) : $calendarService->connectedEmail();
 $calMessage = $_SESSION['cal_message'] ?? null;
 $calError = $_SESSION['cal_error'] ?? null;
 unset($_SESSION['cal_message'], $_SESSION['cal_error']);
@@ -319,6 +407,7 @@ $loginSessions = LoginSession::forAccount((int) $user['account_id'], session_id(
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Settings - SICMS</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.css">
     <link rel="stylesheet" href="../layout/style.css">
     <link rel="stylesheet" href="../layout/sidebar.css">
     <link rel="stylesheet" href="../layout/system.css?v=2">
@@ -353,15 +442,16 @@ $loginSessions = LoginSession::forAccount((int) $user['account_id'], session_id(
 
                     <div class="settings-group">
                         <div class="settings-group-header">
-                            <h3 class="settings-group-title"><i class="bi bi-person"></i> Personal Information</h3>
-                            <p class="settings-group-desc">Update your personal details and contact information.</p>
+                            <h3 class="settings-group-title"><i class="bi bi-person-circle"></i> Profile Picture</h3>
+                            <p class="settings-group-desc">Upload a photo and crop it to frame your profile picture.</p>
                         </div>
-                    <form method="POST" action="<?= h(app_url('web/views/settings/index.php')) ?>" class="settings-form" data-sicms-validate>
-                        <?= Security::csrfField() ?>
-
                         <div class="settings-avatar-section">
-                            <div class="settings-avatar">
-                                <?= h(strtoupper(substr($user['first_name'] ?? 'U', 0, 1) . substr($user['last_name'] ?? '', 0, 1))) ?>
+                            <div class="settings-avatar" id="settings-avatar">
+                                <?php if (!empty($user['profile_pic'])): ?>
+                                    <img src="<?= h(app_url('web/views/settings/profile_pic.php?id=' . (int) $user['account_id'])) ?>" alt="Profile photo">
+                                <?php else: ?>
+                                    <?= h(strtoupper(substr($user['first_name'] ?? 'U', 0, 1) . substr($user['last_name'] ?? '', 0, 1))) ?>
+                                <?php endif; ?>
                             </div>
                             <div class="settings-avatar-info">
                                 <div class="settings-avatar-name"><?= h(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? '')) ?></div>
@@ -369,6 +459,49 @@ $loginSessions = LoginSession::forAccount((int) $user['account_id'], session_id(
                                 <div class="settings-avatar-role"><?= h(ucwords(str_replace(['-', '_'], ' ', $user['role'] ?? ''))) ?></div>
                             </div>
                         </div>
+
+                        <label class="btn btn-secondary" style="cursor:pointer;width:fit-content;" for="settings-profile-pic-input">
+                            <i class="bi bi-camera"></i> <?= !empty($user['profile_pic']) ? 'Change Photo' : 'Upload Photo' ?>
+                        </label>
+                        <?php if (!empty($user['profile_pic'])): ?>
+                        <form method="POST" action="<?= h(app_url('web/views/settings/index.php')) ?>" data-no-ajax="true" style="display:inline-block;margin-left:8px;">
+                            <?= Security::csrfField() ?>
+                            <input type="hidden" name="action" value="remove_profile_pic">
+                            <button class="btn btn-remove" type="submit" style="background:#eef1ee;color:#3f4c3e"><i class="bi bi-trash"></i> Remove Photo</button>
+                        </form>
+                        <?php endif; ?>
+                        <input type="file" id="settings-profile-pic-input" accept="image/jpeg,image/png" style="display:none;">
+
+                        <div id="profile-pic-crop-modal" class="crop-modal" style="display:none;">
+                            <div class="crop-modal-card">
+                                <div class="crop-modal-header">
+                                    <strong>Crop your photo</strong>
+                                    <button type="button" class="crop-modal-close" data-crop-cancel aria-label="Close">&times;</button>
+                                </div>
+                                <div class="crop-modal-body">
+                                    <img id="profile-pic-crop-image" alt="Photo to crop">
+                                </div>
+                                <div class="crop-modal-actions">
+                                    <button type="button" class="btn btn-secondary" data-crop-cancel>Cancel</button>
+                                    <button type="button" class="btn btn-primary" id="profile-pic-crop-apply"><i class="bi bi-check-lg"></i> Save Photo</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <form method="POST" action="<?= h(app_url('web/views/settings/index.php')) ?>" id="profile-pic-upload-form" class="settings-form" style="display:none;">
+                            <?= Security::csrfField() ?>
+                            <input type="hidden" name="action" value="update_profile_pic">
+                            <input type="hidden" name="profile_pic_data_url" id="profile-pic-data-url">
+                        </form>
+                    </div>
+
+                    <div class="settings-group">
+                        <div class="settings-group-header">
+                            <h3 class="settings-group-title"><i class="bi bi-person"></i> Personal Information</h3>
+                            <p class="settings-group-desc">Update your personal details and contact information.</p>
+                        </div>
+                    <form method="POST" action="<?= h(app_url('web/views/settings/index.php')) ?>" class="settings-form" data-sicms-validate>
+                        <?= Security::csrfField() ?>
 
                         <div class="settings-fields">
                             <div class="settings-field-row">
@@ -598,16 +731,16 @@ $loginSessions = LoginSession::forAccount((int) $user['account_id'], session_id(
                     <div class="settings-group">
                         <div class="settings-group-header">
                             <h3 class="settings-group-title"><i class="bi bi-plug"></i> Integrations &amp; Data</h3>
-                            <p class="settings-group-desc">Connect your Google Calendar so hearings are scheduled automatically, and access archived case records.</p>
+                            <p class="settings-group-desc">Connect your Google account so hearings are scheduled automatically and case emails are sent from your own Gmail.</p>
                         </div>
-                        <form method="POST" action="<?= h(app_url('web/views/settings/index.php')) ?>" class="settings-form settings-password-form settings-group-form" data-confirm="<?= $calConnected ? 'Disconnect Google Calendar? Existing calendar events will not be removed.' : '' ?>">
+                        <form method="POST" action="<?= h(app_url('web/views/settings/index.php')) ?>" class="settings-form settings-password-form settings-group-form" data-confirm="<?= $calConnected ? 'Disconnect your Google account? Existing calendar events will not be removed, and case emails will fall back to the system mailbox.' : '' ?>">
                         <?= Security::csrfField() ?>
                         <input type="hidden" name="action" value="disconnect_calendar">
 
                         <div class="settings-section-header settings-subsection">
-                            <h3 class="settings-section-title"><i class="bi bi-google"></i> Google Calendar</h3>
+                            <h3 class="settings-section-title"><i class="bi bi-google"></i> Google Connection</h3>
                             <p class="settings-section-description">
-                                Connect the office Google Calendar so scheduled hearings are created automatically.
+                                Connect your own Google account so scheduled hearings are added to your calendar and forwarded case emails are sent from your Gmail.
                             </p>
                         </div>
 
@@ -639,17 +772,16 @@ $loginSessions = LoginSession::forAccount((int) $user['account_id'], session_id(
                                     </div>
                                     <span class="settings-field-note">
                                         <?php if ($calConnected): ?>
-                                            New scheduled hearings are added to this calendar; cancelling a hearing removes its event.
+                                            New scheduled hearings are added to your calendar, and forwarded case emails are sent from your Gmail. Disconnecting reverts case emails to the system mailbox at CLSU.
                                         <?php else: ?>
-                                            New hearings will keep working as before. Once connected, scheduled hearings are added to your calendar automatically.
-                                            Need the exact redirect URI? <a href="../auth/google_connect_calendar.php?diag=1" target="_blank" rel="noopener">Open diagnostics</a>.
+                                            Case emails will keep working from the system mailbox. Once connected, scheduled hearings are added to your calendar automatically and forwarded case emails are sent from your Gmail. Need the exact redirect URI? <a href="../auth/google_connect_calendar.php?diag=1" target="_blank" rel="noopener">Open diagnostics</a>.
                                         <?php endif; ?>
                                     </span>
                                 </div>
                                 <?php if ($calConnected): ?>
                                     <button type="submit" class="btn btn-danger"><i class="bi bi-x-circle"></i> Disconnect</button>
                                 <?php else: ?>
-                                    <a class="btn btn-primary" href="../auth/google_connect_calendar.php"><i class="bi bi-google"></i> Connect Google Calendar</a>
+                                    <a class="btn btn-primary" href="../auth/google_connect_calendar.php"><i class="bi bi-google"></i> Connect Google</a>
                                 <?php endif; ?>
                             </div>
                         </div>
@@ -662,21 +794,25 @@ $loginSessions = LoginSession::forAccount((int) $user['account_id'], session_id(
                         <h3 class="settings-group-title"><i class="bi bi-laptop"></i> Logged-in Devices</h3>
                         <p class="settings-group-desc">Review where your account is signed in and end sessions you no longer recognize.</p>
                     </div>
-                    <div class="settings-device-list">
+                    <div class="settings-device-list" id="settings-device-list">
+                        <?php $deviceIndex = 0; ?>
                         <?php foreach ($loginSessions as $loginSession): ?>
-                        <div class="settings-device-row">
+                        <div class="settings-device-row<?= $deviceIndex >= 3 ? ' settings-device-more' : '' ?>"<?= $deviceIndex >= 3 ? ' style="display:none"' : '' ?>>
                             <div class="settings-device-icon"><i class="bi <?= stripos($loginSession['device_type'], 'mobile') !== false ? 'bi-phone' : 'bi-display' ?>"></i></div>
                             <div class="settings-device-info">
                                 <strong><?= h($loginSession['device_type']) ?></strong>
                                 <?php if ((int) $loginSession['is_current'] === 1): ?><span class="settings-device-current"><i class="bi bi-check-circle-fill"></i> Currently logged in here</span><?php endif; ?>
-                                <span>Location: <?= h($loginSession['location'] ?: session_location($loginSession['ip_address'])) ?><?= (int) $loginSession['is_current'] === 1 ? ' · Current connection' : '' ?></span>
+                                <span>Location: <?= h($loginSession['location'] ?: session_location($loginSession['ip_address'])) ?><?= (int) $loginSession['is_current'] === 1 ? ' Â· Current connection' : '' ?></span>
                                 <span>Last login: <?= h(date('M d, Y h:i A', strtotime($loginSession['last_login_at']))) ?></span>
                             </div>
                             <?php if ((int) $loginSession['is_current'] !== 1): ?>
                             <form method="POST" action="<?= h(app_url('web/views/settings/index.php')) ?>" data-no-ajax="true" data-confirm="Log out this device?"><input type="hidden" name="csrf_token" value="<?= h(Security::csrfToken()) ?>"><input type="hidden" name="action" value="logout_device"><input type="hidden" name="session_id" value="<?= h($loginSession['session_id']) ?>"><button class="btn btn-danger" type="submit"><i class="bi bi-box-arrow-right"></i> Log Out</button></form>
                             <?php endif; ?>
                         </div>
-                        <?php endforeach; ?>
+                        <?php $deviceIndex++; endforeach; ?>
+                        <?php if ($deviceIndex > 5): ?>
+                        <button type="button" id="settings-device-load-more" class="btn btn-secondary" style="margin-top:10px;width:100%;"><i class="bi bi-chevron-down"></i> Load More Devices</button>
+                        <?php endif; ?>
                         <?php if (empty($loginSessions)): ?><p class="settings-field-note">No active devices were found.</p><?php endif; ?>
                     </div>
                 </div>
@@ -685,7 +821,27 @@ $loginSessions = LoginSession::forAccount((int) $user['account_id'], session_id(
         </div>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script>
+        var loadMoreBtn = document.getElementById('settings-device-load-more');
+        if (loadMoreBtn) {
+            loadMoreBtn.addEventListener('click', function () {
+                var rows = document.querySelectorAll('.settings-device-more');
+                var expanded = loadMoreBtn.getAttribute('data-expanded') === '1';
+
+                rows.forEach(function (row) { row.style.display = expanded ? 'none' : ''; });
+
+                if (expanded) {
+                    loadMoreBtn.setAttribute('data-expanded', '0');
+                    loadMoreBtn.innerHTML = '<i class="bi bi-chevron-down"></i> Load More Devices';
+                } else {
+                    loadMoreBtn.setAttribute('data-expanded', '1');
+                    loadMoreBtn.innerHTML = '<i class="bi bi-chevron-up"></i> Show Less';
+                }
+            });
+        }
+
         document.querySelectorAll('.password-toggle').forEach(function (button) {
             button.addEventListener('click', function () {
                 var input = button.parentElement.querySelector('input');
@@ -703,7 +859,83 @@ $loginSessions = LoginSession::forAccount((int) $user['account_id'], session_id(
                 );
             });
         });
+
+        (function () {
+            var fileInput = document.getElementById('settings-profile-pic-input');
+            var cropImage = document.getElementById('profile-pic-crop-image');
+            var cropModal = document.getElementById('profile-pic-crop-modal');
+            var applyButton = document.getElementById('profile-pic-crop-apply');
+            var dataUrlInput = document.getElementById('profile-pic-data-url');
+            var uploadForm = document.getElementById('profile-pic-upload-form');
+            var cropper = null;
+
+            if (!fileInput || !cropImage || !cropModal || !applyButton || !dataUrlInput || !uploadForm) return;
+
+            function openCrop(file) {
+                var reader = new FileReader();
+
+                reader.onload = function (event) {
+                    cropImage.src = event.target.result;
+                    cropModal.style.display = 'flex';
+
+                    document.body.style.overflow = 'hidden';
+
+                    if (cropper) cropper.destroy();
+                    cropper = new Cropper(cropImage, {
+                        aspectRatio: 1,
+                        viewMode: 1,
+                        autoCropArea: 1,
+                        responsive: true,
+                        restore: false
+                    });
+                };
+
+                reader.readAsDataURL(file);
+            }
+
+            fileInput.addEventListener('change', function () {
+                if (!fileInput.files || fileInput.files.length === 0) return;
+
+                var file = fileInput.files[0];
+
+                if (!/^image\/(jpeg|png)$/.test(file.type)) {
+                    Swal.fire({ icon: 'error', title: 'Invalid file', text: 'Please choose a JPG or PNG image.' });
+                    fileInput.value = '';
+                    return;
+                }
+
+                openCrop(file);
+            });
+
+            document.querySelectorAll('[data-crop-cancel]').forEach(function (button) {
+                button.addEventListener('click', function () {
+                    cropModal.style.display = 'none';
+                    document.body.style.overflow = '';
+                    fileInput.value = '';
+                    if (cropper) { cropper.destroy(); cropper = null; }
+                });
+            });
+
+            cropModal.addEventListener('click', function (event) {
+                if (event.target === cropModal) {
+                    cropModal.style.display = 'none';
+                    document.body.style.overflow = '';
+                    fileInput.value = '';
+                    if (cropper) { cropper.destroy(); cropper = null; }
+                }
+            });
+
+            applyButton.addEventListener('click', function () {
+                var canvas = cropper ? cropper.getCroppedCanvas({ width: 400, height: 400, imageSmoothingEnabled: true, imageSmoothingQuality: 'high' }) : null;
+
+                if (!canvas) return;
+
+                dataUrlInput.value = canvas.toDataURL('image/jpeg', 0.92);
+                uploadForm.submit();
+            });
+        })();
     </script>
 </body>
 
 </html>
+

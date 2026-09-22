@@ -26,6 +26,8 @@ function status_class($status) { return strtolower(str_replace(' ', '-', $status
 
 $pageTitle = 'Case Details';
 $caseStatus = $case['status'] ?? '';
+$isStudentAccount = strtolower((string) str_replace(['_', ' '], '-', (string) ($user['role'] ?? ''))) === 'student';
+$backHref = $isStudentAccount ? '../complaints/my_cases.php' : 'cases.php';
 
 $stageLabels = [
     'Complaint Submitted' => 'Complaint Submitted',
@@ -100,7 +102,8 @@ $hasFinalInfo = in_array($caseStatus, $finalStatuses, true)
         .next-action p { color:#3f4c3e; font-size:13px; margin:3px 0 0; }
         .statement-evidence { border-top:1px solid #e6ede4; margin-top:16px; padding-top:14px; }
         .statement-evidence h3 { color:#284127; font-size:13px; margin:0 0 8px; }
-        .statement-locked { background: #f6f8f5; border: 1px solid #e2eae0; border-radius: 8px; color: #3f4c3e; padding: 14px 16px; white-space: pre-wrap; }
+        .statement-locked { background: #f6f8f5; border: 1px solid #e2eae0; border-radius: 8px; color: #3f4c3e; padding: 14px 16px; }
+        .statement-locked .statement-text { white-space: pre-wrap; }
         .action-form { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
         .form-group { display: flex; flex-direction: column; gap: 4px; }
         .form-group label { color: #5c6a59; font-size: 12px; }
@@ -126,12 +129,12 @@ $hasFinalInfo = in_array($caseStatus, $finalStatuses, true)
     <div class="app-content">
         <?php require __DIR__ . '/../layout/topbar.php'; ?>
         <main class="case-wrap case-detail-view">
-            <a class="text-button" href="cases.php" style="display:inline-block;margin-bottom:12px"><i class="bi bi-arrow-left"></i> Back to Complaint Cases</a>
+            <a class="text-button" href="<?= h($backHref) ?>" style="display:inline-block;margin-bottom:12px"><i class="bi bi-arrow-left"></i> Back to Complaint Cases</a>
 
             <header class="case-head">
                 <div>
                     <h1><?= h($case['case_number']) ?></h1>
-                    <div class="meta">Case assigned to you as a respondent</div>
+                    <div class="meta">Case forwarded to you</div>
                 </div>
                 <span class="status-pill status-<?= h(status_class($caseStatus)) ?>"><?= h($caseStatus) ?></span>
             </header>
@@ -151,7 +154,6 @@ $hasFinalInfo = in_array($caseStatus, $finalStatuses, true)
                     <span class="status-pill status-counter-statement-required"><i class="bi bi-pencil-square"></i> Counter-Statement Required</span>
                     <p>Review the complaint, then provide your response when ready.</p>
                 </div>
-                <a class="btn btn-primary" href="#counter-statement" data-counter-statement-guide><i class="bi bi-pencil-square"></i> Write Response</a>
             </section>
             <?php endif; ?>
 
@@ -254,7 +256,7 @@ $hasFinalInfo = in_array($caseStatus, $finalStatuses, true)
                                 <i class="bi bi-lock-fill"></i> This case is closed and can no longer be edited.
                             <?php endif; ?>
                         </p>
-                        <?= nl2br(h($statement['content'] ?? '')) ?>
+                        <div class="statement-text"><?= nl2br(h($statement['content'] ?? '')) ?></div>
                     </div>
                 <?php else: ?>
                     <p class="muted">No counter-statement recorded for this case.</p>
@@ -330,25 +332,6 @@ $hasFinalInfo = in_array($caseStatus, $finalStatuses, true)
         event.preventDefault();
         Swal.fire({ icon: 'question', title: button.dataset.swalConfirm, showCancelButton: true, confirmButtonText: 'Continue', cancelButtonText: 'Cancel', reverseButtons: true })
             .then(result => { if (result.isConfirmed) button.form?.requestSubmit(button); });
-    });
-
-    const guide = document.querySelector('[data-counter-statement-guide]');
-    guide?.addEventListener('click', event => {
-        if (!window.Swal) return;
-        event.preventDefault();
-        Swal.fire({
-            icon: 'info',
-            title: 'Counter-Statement',
-            text: 'Provide your response to the complaint. You may attach supporting evidence if needed.',
-            showCancelButton: true,
-            confirmButtonText: 'Continue',
-            cancelButtonText: 'Cancel',
-            reverseButtons: true
-        }).then(result => {
-            if (!result.isConfirmed) return;
-            document.getElementById('counter-statement')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            document.getElementById('statement_content')?.focus({ preventScroll: true });
-        });
     });
 
     <?php $counterInfoText = is_array($counterInfo) ? implode(' ', $counterInfo) : (string) $counterInfo; ?>
