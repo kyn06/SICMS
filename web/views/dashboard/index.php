@@ -9,6 +9,8 @@ require_once __DIR__ . '/../../models/Notification.php';
 require_once __DIR__ . '/../../models/Report.php';
 require_once __DIR__ . '/../../models/AuditLog.php';
 require_once __DIR__ . '/../../models/Complaint.php';
+require_once __DIR__ . '/../../models/Case.php';
+require_once __DIR__ . '/../../models/CounterStatement.php';
 require_once __DIR__ . '/../../models/Message.php';
 require_once __DIR__ . '/../../../routes.php';
 require_once __DIR__ . '/../../helpers/ProfileCompletion.php';
@@ -27,6 +29,8 @@ Notification::setConnection($db);
 Report::setConnection($db);
 AuditLog::setConnection($db);
 Complaint::setConnection($db);
+CaseRecord::setConnection($db);
+CounterStatement::setConnection($db);
 Message::setConnection($db);
 
 $user = User::findByEmail($_SESSION['email']);
@@ -91,19 +95,61 @@ $isDisciplineCoordinator = $roleKey === 'coordinator';
 $isReformationCoordinator = $roleKey === 'reformation-coordinator';
 $isCoordinator = $isDisciplineCoordinator || $isReformationCoordinator;
 $isStudent = $roleKey === 'student';
+$isRespondent = $roleKey === 'respondent';
 $profileIncomplete = $isStudent && !ProfileCompletion::isComplete($user);
 $profileMissingFields = $isStudent ? ProfileCompletion::missingFields($user) : [];
 $roleLabel = ucwords(str_replace(['-', '_'], ' ', $role));
 $initials = strtoupper(substr($user['first_name'] ?? $user['email'], 0, 1) . substr($user['last_name'] ?? '', 0, 1));
 $initials = trim($initials) ?: 'U';
 
-$analyticsRoles = ['super-admin', 'admin', 'sdr-staff', 'sdru-staff', 'coordinator', 'reformation-coordinator', 'head-of-sdru', 'sdru-head'];
-$staffHearingRoles = ['super-admin', 'admin', 'sdr-staff', 'sdru-staff', 'coordinator', 'head-of-sdru', 'sdru-head'];
+$analyticsRoles = ['admin', 'sdr-staff', 'sdru-staff', 'coordinator', 'reformation-coordinator', 'head-of-sdru', 'sdru-head'];
+$staffHearingRoles = ['admin', 'sdr-staff', 'sdru-staff', 'coordinator', 'head-of-sdru', 'sdru-head'];
 $canViewAnalytics = in_array($roleKey, $analyticsRoles, true);
 $canViewHearings = in_array($roleKey, $staffHearingRoles, true);
 $studentCases = $roleKey === 'student' ? Complaint::forStudent((int) $user['account_id'], 3) : [];
 
+$respondentCases = $isRespondent ? CaseRecord::casesForRespondent((int) $user['account_id']) : [];
+$respondentRequiredAction = [];
+$pendingRespondentStatements = 0;
+$respondentResponseNeeded = 0;
+$respondentActiveCount = 0;
+$respondentResolvedCount = 0;
+foreach ($respondentCases as $respondentCase) {
+    if (empty($respondentCase['respondent_released_at'])) {
+        continue;
+    }
+    $respondentCaseStatus = $respondentCase['status'] ?? '';
+    $activeNow = in_array($respondentCaseStatus, ['Under Investigation', 'Returned for Revision'], true);
+    $statementRow = (int) ($respondentCase['counter_updated_at'] ?? 0) > 0
+        ? CounterStatement::forRespondentCase((int) $respondentCase['complaint_id'], (int) $respondentCase['respondent_id'])
+        : null;
+    if ($activeNow) {
+        $respondentResponseNeeded++;
+        $respondentActiveCount++;
+        if (!$statementRow || $statementRow['status'] !== 'Submitted') {
+            $pendingRespondentStatements++;
+            $respondentRequiredAction[] = $respondentCase;
+        }
+    }
+    if (in_array($respondentCaseStatus, ['Resolved', 'Reformation Completed', 'Archived'], true)) {
+        $respondentResolvedCount++;
+    }
+}
+$respondentSummary = [
+    'total' => count($respondentCases),
+    'active' => $respondentActiveCount,
+    'pending' => $pendingRespondentStatements,
+    'resolved' => $respondentResolvedCount,
+];
+$respondentUpcomingHearings = $isRespondent ? Hearing::getUpcomingForRespondent((int) $user['account_id'], 3) : [];
+
 $filters = Report::normalizeFilters($_GET);
+$filterErrors = Report::validateFilters($_GET, $filters);
+$filterError = $filterErrors ? implode(' ', $filterErrors) : '';
+if ($filterError !== '') {
+    $filters['date_from'] = '';
+    $filters['date_to'] = '';
+}
 $reportData = $canViewAnalytics ? Report::getDashboardData($filters) : [
     'summary' => [],
     'casesByMonth' => [],
@@ -189,13 +235,14 @@ $recentActivities = $canViewAnalytics ? AuditLog::listLogs(['page' => 1, 'accoun
 $quickActions = [
     ['label' => 'Submit Complaint', 'href' => app_route('complaints.create'), 'icon' => 'bi-send-plus', 'roles' => ['student']],
     ['label' => 'My Cases', 'href' => app_route('complaints.my_cases'), 'icon' => 'bi-folder-check', 'roles' => ['student']],
-    ['label' => 'Create User', 'href' => app_route('accounts.index'), 'icon' => 'bi-person-plus', 'roles' => ['super-admin', 'head-of-sdru', 'sdru-head']],
-    ['label' => 'Assign to Discipline Coordinator', 'href' => app_route('cases.index'), 'icon' => 'bi-person-check', 'roles' => ['super-admin', 'admin', 'sdr-staff', 'sdru-staff', 'head-of-sdru', 'sdru-head']],
-    ['label' => 'Generate Report', 'href' => app_route('reports.index'), 'icon' => 'bi-file-earmark-bar-graph', 'roles' => ['super-admin', 'admin', 'sdr-staff', 'sdru-staff', 'head-of-sdru', 'sdru-head']],
-    ['label' => 'Schedule Hearing', 'href' => app_route('hearings.index'), 'icon' => 'bi-calendar-plus', 'roles' => ['super-admin', 'admin', 'sdr-staff', 'sdru-staff', 'coordinator', 'head-of-sdru', 'sdru-head']],
+    ['label' => 'Create User', 'href' => app_route('accounts.index'), 'icon' => 'bi-person-plus', 'roles' => ['head-of-sdru', 'sdru-head']],
+    ['label' => 'Assign to Discipline Coordinator', 'href' => app_route('cases.index'), 'icon' => 'bi-person-check', 'roles' => ['admin', 'sdr-staff', 'sdru-staff', 'head-of-sdru', 'sdru-head']],
+    ['label' => 'Generate Report', 'href' => app_route('reports.index'), 'icon' => 'bi-file-earmark-bar-graph', 'roles' => ['admin', 'sdr-staff', 'sdru-staff', 'head-of-sdru', 'sdru-head']],
+    ['label' => 'Schedule Hearing', 'href' => app_route('hearings.index'), 'icon' => 'bi-calendar-plus', 'roles' => ['admin', 'sdr-staff', 'sdru-staff', 'coordinator', 'head-of-sdru', 'sdru-head']],
     ['label' => 'View Assigned Cases', 'href' => app_route('cases.index'), 'icon' => 'bi-folder-check', 'roles' => ['coordinator', 'reformation-coordinator']],
     ['label' => 'Chat', 'href' => app_route('messages.index'), 'icon' => 'bi-chat-dots', 'roles' => ['coordinator', 'reformation-coordinator']],
     ['label' => 'Notifications', 'href' => app_route('notifications.index'), 'icon' => 'bi-bell', 'roles' => ['coordinator', 'reformation-coordinator']],
+    ['label' => 'My Complaint Cases', 'href' => app_route('respondent.cases'), 'icon' => 'bi-folder-check', 'roles' => ['respondent']],
 ];
 
 function allowed_for_role(array $item, $roleKey) {
@@ -238,6 +285,7 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
         'rows' => $rows,
         'assignedCases' => $coordinatorAssignedCases,
         'filters' => $filters,
+        'filterError' => $filterError,
     ], JSON_UNESCAPED_SLASHES);
     exit;
 }
@@ -789,6 +837,18 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
         color: var(--green-600);
         font-size: 15px;
     }
+
+    /* ===== Respondent dashboard ===== */
+    .status-step.is-current {
+        background: var(--green-600, #1a9d00);
+        color: #fff;
+    }
+
+    .main-panel .respondent-hero-label {
+        color: var(--sicms-green-900);
+        font-size: 14px;
+        font-weight: 800;
+    }
     </style>
 </head>
 
@@ -808,7 +868,7 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
                 <div>
                     <div class="welcome-label">Welcome back, <?= h($displayName) ?></div>
                     <h1 class="page-title">
-                        <?= $isCoordinator ? ($isReformationCoordinator ? 'Reformation Coordinator Workspace' : 'Discipline Coordinator Workspace') : 'SDRU Case Management Dashboard' ?></h1>
+                        <?= $isCoordinator ? ($isReformationCoordinator ? 'Reformation Coordinator Workspace' : 'Discipline Coordinator Workspace') : ($isRespondent ? 'Respondent Portal' : 'SDRU Case Management Dashboard') ?></h1>
                 </div>
 
                 <div class="topbar-actions">
@@ -874,7 +934,150 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
                 </div>
             </header>
 
-            <?php if (!$canViewAnalytics): ?>
+            <?php if ($isRespondent): ?>
+            <?php
+            $respondentStatCards = [
+                ['key' => 'total', 'label' => 'My Complaint Cases', 'value' => $respondentSummary['total'], 'icon' => 'bi-folder-check', 'accent' => 'green', 'trend' => 'All cases naming you'],
+                ['key' => 'action', 'label' => 'Action Required', 'value' => $respondentSummary['pending'], 'icon' => 'bi-exclamation-diamond', 'accent' => 'amber', 'trend' => 'Counter-statements needed'],
+                ['key' => 'active', 'label' => 'Active Cases', 'value' => $respondentSummary['active'], 'icon' => 'bi-activity', 'accent' => 'blue', 'trend' => 'Under investigation'],
+                ['key' => 'resolved', 'label' => 'Resolved', 'value' => $respondentSummary['resolved'], 'icon' => 'bi-check2-circle', 'accent' => 'teal', 'trend' => 'Completed cases'],
+            ];
+            $respondentStepLabels = ['Submitted', 'Assigned', 'Counter-Statement', 'Under Investigation', 'Hearing', 'Decision'];
+            $respondentStatusSteps = [
+                'Pending' => 1, 'Pending Review' => 1, 'Verified' => 1, 'Submitted' => 1,
+                'Under Investigation' => 4,
+                'Returned for Revision' => 3,
+                'Hearing Scheduled' => 5, 'Hearing Completed' => 5,
+                'Reformation in Progress' => 5,
+                'Resolved' => 6, 'Reformation Completed' => 6, 'Archived' => 6, 'Escalated' => 6, 'Rejected' => 6,
+            ];
+            $respondentProgressCases = [];
+            foreach ($respondentRequiredAction as $respondentActionCase) {
+                $respondentProgressCases[] = $respondentActionCase;
+                if (count($respondentProgressCases) >= 2) break;
+            }
+            if (count($respondentProgressCases) < 2) {
+                foreach ($respondentCases as $respondentCase) {
+                    if (count($respondentProgressCases) >= 2) break;
+                    if (in_array($respondentCase['complaint_id'], array_column($respondentProgressCases, 'complaint_id'), true)) continue;
+                    $respondentProgressCases[] = $respondentCase;
+                }
+            }
+            ?>
+
+            <section class="stats-actions-row" aria-label="Respondent summary">
+                <div class="stats-col">
+                    <section class="row g-3">
+                        <?php foreach ($respondentStatCards as $respondentCard): ?>
+                        <div class="col-6 col-md-3">
+                            <article class="sicms-card sicms-stat h-100 accent-<?= h($respondentCard['accent']) ?>">
+                                <div class="sicms-stat-top">
+                                    <div>
+                                        <div class="sicms-stat-label"><?= h($respondentCard['label']) ?></div>
+                                        <div class="sicms-stat-value"><?= (int) $respondentCard['value'] ?></div>
+                                    </div>
+                                    <span class="sicms-stat-chip"><i class="bi <?= h($respondentCard['icon']) ?>" aria-hidden="true"></i></span>
+                                </div>
+                                <div class="sicms-stat-trend"><i class="bi bi-arrow-up-right"></i> <?= h($respondentCard['trend']) ?></div>
+                            </article>
+                        </div>
+                        <?php endforeach; ?>
+                    </section>
+                </div>
+            </section>
+
+            <section class="panel" id="action-required" style="margin-top:18px">
+                <div class="section-title"><i class="bi bi-exclamation-circle"></i> Action Required</div>
+                <?php if (empty($respondentRequiredAction)): ?>
+                <div class="empty-state" style="justify-content:flex-start;text-align:left">No action required.</div>
+                <?php else: ?>
+                <div class="student-case-list">
+                    <?php foreach ($respondentRequiredAction as $respondentCase): ?>
+                    <article class="student-case-card">
+                        <div>
+                            <div class="student-case-meta" style="margin-top:0"><?= h($respondentCase['case_number']) ?> · Filed <?= h(date('M d, Y', strtotime($respondentCase['submitted_at']))) ?></div>
+                            <div style="margin-top:3px"><strong>Counter-Statement Required</strong></div>
+                        </div>
+                        <span class="status-pill status-<?= h(strtolower(str_replace(' ', '-', $respondentCase['status']))) ?>"><?= h($respondentCase['status']) ?></span>
+                        <div class="student-case-action">
+                            <a class="btn btn-primary" href="web/views/respondent/case_show.php?id=<?= (int) $respondentCase['complaint_id'] ?>#counter-statement"><i class="bi bi-pencil-square"></i> Submit Counter-Statement</a>
+                        </div>
+                    </article>
+                    <?php endforeach; ?>
+                </div>
+                <?php endif; ?>
+            </section>
+
+            <section class="panel" id="case-progress" style="margin-top:18px">
+                <div class="section-title"><i class="bi bi-folder-check"></i> Current Case Progress</div>
+                <?php if (empty($respondentProgressCases)): ?>
+                <div class="empty-state" style="justify-content:flex-start;text-align:left">No cases assigned to you yet. When SDRU records you as a respondent, your cases will appear here.</div>
+                <?php else: foreach ($respondentProgressCases as $respondentCase): ?>
+                <?php
+                $respondentProgressStatement = ($respondentCase['counter_updated_at'] ?? 0) > 0
+                    ? CounterStatement::forRespondentCase((int) $respondentCase['complaint_id'], (int) $respondentCase['respondent_id'])
+                    : null;
+                $respondentCurrentStep = $respondentStatusSteps[$respondentCase['status'] ?? ''] ?? 1;
+                if (($respondentCase['status'] ?? '') === 'Returned for Revision') $respondentCurrentStep = 3;
+                if ($respondentProgressStatement && $respondentProgressStatement['status'] === 'Submitted' && $respondentCurrentStep < 3) $respondentCurrentStep = 3;
+                ?>
+                <div class="student-case-card" style="margin-top:12px">
+                    <div>
+                        <div>
+                            <a class="student-case-number" href="web/views/respondent/case_show.php?id=<?= (int) $respondentCase['complaint_id'] ?>"><?= h($respondentCase['case_classification'] ?? $respondentCase['case_number']) ?></a>
+                            <span style="font-size:12px;font-weight:400"><?= h($respondentCase['case_number']) ?></span>
+                        </div>
+                        <div class="student-case-meta">Filed <?= h(date('M d, Y', strtotime($respondentCase['submitted_at']))) ?></div>
+                    </div>
+                    <span class="status-pill status-<?= h(strtolower(str_replace(' ', '-', $respondentCase['status']))) ?>"><?= h($respondentCase['status']) ?></span>
+                    <div class="status-steps">
+                        <?php for ($respondentStepIndex = 0; $respondentStepIndex < 6; $respondentStepIndex++): ?>
+                        <?php $respondentStepState = $respondentStepIndex + 1 < $respondentCurrentStep ? 'is-done' : ($respondentStepIndex + 1 === $respondentCurrentStep ? 'is-current' : ''); ?>
+                        <span class="status-step <?= $respondentStepState ?>"><?= h($respondentStepLabels[$respondentStepIndex]) ?></span>
+                        <?php endfor; ?>
+                    </div>
+                    <div class="student-case-action">
+                        <span class="muted" style="font-size:12px;align-self:center;margin-right:12px">Current Status: <strong><?= h($respondentCase['status']) ?></strong></span>
+                        <a class="btn btn-secondary" href="web/views/respondent/case_show.php?id=<?= (int) $respondentCase['complaint_id'] ?>"><i class="bi bi-eye"></i> View Case</a>
+                    </div>
+                </div>
+                <?php endforeach; endif; ?>
+                <a class="text-button" href="<?= h(app_route('respondent.cases')) ?>" style="display:inline-block;margin-top:14px"><i class="bi bi-arrow-right"></i> View All Complaint Cases</a>
+            </section>
+
+            <section class="dashboard-grid" style="margin-bottom:18px">
+                <section class="panel">
+                    <div class="section-title"><i class="bi bi-bell"></i> Recent Updates</div>
+                    <div class="activity-list">
+                        <?php if (empty($recentNotifications)): ?><div class="empty-state">You have no notifications yet.</div><?php endif; ?>
+                        <?php foreach ($recentNotifications as $respondentNotification): ?>
+                        <a class="notification-item" href="<?= h(app_route('notifications.index')) ?>">
+                            <span class="notification-icon"><i class="bi bi-info-circle"></i></span>
+                            <span><span class="notification-title"><?= h($respondentNotification['title']) ?></span><span class="notification-message"><?= h($respondentNotification['message']) ?></span><span class="notification-time"><?= h(format_time_ago($respondentNotification['created_at'])) ?></span></span>
+                        </a>
+                        <?php endforeach; ?>
+                    </div>
+                    <a class="text-button" href="<?= h(app_route('notifications.index')) ?>" style="display:inline-block;margin-top:12px"><i class="bi bi-bell"></i> View Notifications</a>
+                </section>
+
+                <aside class="side-stack">
+                    <section class="panel">
+                        <div class="section-title"><i class="bi bi-calendar-event"></i> Upcoming Hearings</div>
+                        <?php if (empty($respondentUpcomingHearings)): ?><div class="empty-state">No upcoming hearings.</div><?php endif; ?>
+                        <div class="activity-list">
+                            <?php foreach ($respondentUpcomingHearings as $respondentHearing): ?>
+                            <div class="notification-item">
+                                <span class="notification-icon"><i class="bi bi-calendar2-week"></i></span>
+                                <span><span class="notification-title"><?= h(date('M d, Y - h:i A', strtotime($respondentHearing['hearing_datetime']))) ?></span>
+                                <span class="notification-message"><?= h($respondentHearing['case_number']) ?></span>
+                                <?php if (!empty($respondentHearing['venue'])): ?><span class="notification-message"><?= h($respondentHearing['venue']) ?></span><?php endif; ?></span>
+                            </div>
+                            <?php endforeach; ?>
+                        </div>
+                    </section>
+                </aside>
+            </section>
+            <?php elseif (!$canViewAnalytics): ?>
             <section class="student-panel student-hero student-hero-with-actions">
                 <div class="student-hero-glow" aria-hidden="true"></div>
                 <div class="student-hero-copy">
@@ -956,7 +1159,7 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
 
             <?php if ($canViewAnalytics): ?>
 
-            <form class="filters-card" id="dashboardFilters" method="GET" action="<?= h(app_route('dashboard')) ?>">
+            <form class="filters-card" id="dashboardFilters" method="GET" action="<?= h(app_route('dashboard')) ?>" data-sicms-validate data-sicms-datefrom="date_from" data-sicms-dateto="date_to">
                 <button type="button" class="filters-toggle-btn" id="dashboardFiltersToggle" aria-expanded="false"
                     aria-controls="dashboardFiltersPanel">
                     <i class="bi bi-funnel"></i> Filters
@@ -1061,6 +1264,10 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
                     </div>
                 </div>
             </form>
+
+            <?php if ($filterError): ?>
+                <div class="filter-error" id="dashboardFilterError" role="alert"><?= h($filterError) ?></div>
+            <?php endif; ?>
 
             <div class="stats-actions-row">
                 <div class="stats-col">
@@ -1168,11 +1375,6 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
                                                     href="web/views/cases/show.php?id=<?= (int) $row['complaint_id'] ?>">
                                                     <i class="bi bi-eye"></i>
                                                     View Case
-                                                </a>
-                                                <a
-                                                    href="web/views/cases/show.php?id=<?= (int) $row['complaint_id'] ?>#status-actions">
-                                                    <i class="bi bi-arrow-repeat"></i>
-                                                    Update Status
                                                 </a>
                                                 <a
                                                     href="web/views/messages/index.php?conversation_id=<?= (int) $row['complaint_id'] ?>">
@@ -1726,14 +1928,6 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
                                     <i class="bi bi-eye"></i>
                                     View Case
                                 </a>
-                                <?php if (!$isReformationCoordinator): ?>
-                                <a
-                                    href="web/views/cases/show.php?id=${+item.complaint_id}#status-actions"
-                                >
-                                    <i class="bi bi-arrow-repeat"></i>
-                                    Update Status
-                                </a>
-                                <?php endif; ?>
                                 <a
                                     href="web/views/messages/index.php?conversation_id=${+item.complaint_id}"
                                 >
@@ -1765,6 +1959,10 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
 
     async function applyDashboardFilters(reset = false) {
         if (!dashboardFilters) return;
+        if (window.SICMSValidation && !SICMSValidation.run(dashboardFilters)) {
+            dashboardFilterStatus.textContent = '';
+            return;
+        }
         if (reset) dashboardFilters.reset();
         dashboardRequest?.abort();
         dashboardRequest = new AbortController();
@@ -1808,6 +2006,11 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
             const query = params.toString();
             history.replaceState({}, '', query ? `${dashboardFilters.action}?${query}` : dashboardFilters.action);
             dashboardFilterStatus.textContent = 'Dashboard updated.';
+            const dashboardErrorBox = document.getElementById('dashboardFilterError');
+            if (dashboardErrorBox) {
+                dashboardErrorBox.textContent = payload.filterError || '';
+                dashboardErrorBox.hidden = !payload.filterError;
+            }
         } catch (error) {
             if (error.name !== 'AbortError') dashboardFilterStatus.textContent = error.message;
         } finally {
@@ -1844,7 +2047,7 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
     });
     updateDashboardThemeToggle();
     </script>
-    <script src="<?= h(app_url('web/views/layout/system.js')) ?>" defer></script>
+    <script src="<?= h(app_url('web/views/layout/system.js')) ?>?v=20260922a" defer></script>
 </body>
 
 </html>

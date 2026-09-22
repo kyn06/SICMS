@@ -434,7 +434,7 @@ class Report extends Model {
             'coordinators' => self::fetchAll("SELECT account_id, first_name, last_name, role
                                               FROM accounts
                                               WHERE status = 'active'
-                                                AND LOWER(REPLACE(REPLACE(role, '_', '-'), ' ', '-')) IN ('super-admin', 'admin', 'sdr-staff', 'sdru-staff', 'coordinator', 'reformation-coordinator', 'head-of-sdru', 'sdru-head')
+                                                AND LOWER(REPLACE(REPLACE(role, '_', '-'), ' ', '-')) IN ('admin', 'sdr-staff', 'sdru-staff', 'coordinator', 'reformation-coordinator', 'head-of-sdru', 'sdru-head')
                                               ORDER BY first_name, last_name"),
         ];
     }

@@ -29,19 +29,20 @@ $currentRoute = app_current_route();
 $navGroups = [
     'MAIN' => [
         ['route' => 'dashboard', 'label' => 'Dashboard', 'icon' => 'bi-speedometer2', 'roles' => ['*']],
-        ['route' => 'cases.index', 'label' => 'Case Management', 'icon' => 'bi-folder2-open', 'roles' => ['super-admin', 'admin', 'sdr-staff', 'sdru-staff', 'coordinator', 'reformation-coordinator', 'head-of-sdru', 'sdru-head']],
-        ['route' => 'reports.index', 'label' => 'Reports', 'icon' => 'bi-bar-chart-line', 'roles' => ['super-admin', 'admin', 'sdr-staff', 'sdru-staff', 'head-of-sdru', 'sdru-head']],
+        ['route' => 'cases.index', 'label' => 'Case Management', 'icon' => 'bi-folder2-open', 'roles' => ['admin', 'sdr-staff', 'sdru-staff', 'coordinator', 'reformation-coordinator', 'head-of-sdru', 'sdru-head']],
+        ['route' => 'reports.index', 'label' => 'Reports', 'icon' => 'bi-bar-chart-line', 'roles' => ['admin', 'sdr-staff', 'sdru-staff', 'head-of-sdru', 'sdru-head']],
         ['route' => 'complaints.create', 'label' => 'Submit Complaint', 'icon' => 'bi-send-plus', 'roles' => ['student']],
         ['route' => 'complaints.my_cases', 'label' => 'Track My Cases', 'icon' => 'bi-folder-check', 'roles' => ['student']],
+        ['route' => 'respondent.cases', 'label' => 'Complaint Cases', 'icon' => 'bi-folder-check', 'roles' => ['respondent']],
     ],
     'MANAGEMENT' => [
-        ['route' => 'accounts.index', 'label' => 'Users', 'icon' => 'bi-people', 'roles' => ['super-admin', 'head-of-sdru', 'sdru-head']],
-        ['route' => 'messages.index', 'label' => 'Chat & Messaging', 'icon' => 'bi-chat-dots', 'roles' => ['student', 'super-admin', 'admin', 'sdr-staff', 'sdru-staff', 'coordinator', 'reformation-coordinator', 'head-of-sdru', 'sdru-head']],
-        ['route' => 'audit_logs.index', 'label' => 'Audit Logs', 'icon' => 'bi-shield-check', 'roles' => ['super-admin', 'head-of-sdru', 'sdru-head']],
-        ['route' => 'hearings.index', 'label' => 'Hearings', 'icon' => 'bi-calendar-event', 'roles' => ['super-admin', 'admin', 'sdr-staff', 'sdru-staff', 'coordinator', 'head-of-sdru', 'sdru-head']],
+        ['route' => 'accounts.index', 'label' => 'Users', 'icon' => 'bi-people', 'roles' => ['head-of-sdru', 'sdru-head', 'sdr-staff', 'sdru-staff']],
+        ['route' => 'messages.index', 'label' => 'Chat & Messaging', 'icon' => 'bi-chat-dots', 'roles' => ['student', 'respondent', 'admin', 'sdr-staff', 'sdru-staff', 'coordinator', 'reformation-coordinator', 'head-of-sdru', 'sdru-head']],
+        ['route' => 'audit_logs.index', 'label' => 'Audit Logs', 'icon' => 'bi-shield-check', 'roles' => ['head-of-sdru', 'sdru-head']],
+        ['route' => 'hearings.index', 'label' => 'Hearings', 'icon' => 'bi-calendar-event', 'roles' => ['admin', 'sdr-staff', 'sdru-staff', 'coordinator', 'head-of-sdru', 'sdru-head']],
     ],
     'SYSTEM' => [
-        ['route' => 'legacy.index', 'label' => 'Legacy of SDRU In-Charge', 'icon' => 'bi-award', 'roles' => ['super-admin', 'admin', 'sdr-staff', 'sdru-staff', 'coordinator', 'reformation-coordinator', 'head-of-sdru', 'sdru-head']],
+        ['route' => 'legacy.index', 'label' => 'Legacy of SDRU In-Charge', 'icon' => 'bi-award', 'roles' => ['*']],
         ['route' => 'settings.index', 'label' => 'Settings', 'icon' => 'bi-gear', 'roles' => ['*']],
     ],
 ];

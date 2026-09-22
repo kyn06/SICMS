@@ -11,7 +11,17 @@ class ReportController {
     private $database;
     private $db;
     private $user;
-    private $allowedRoles = ['super-admin', 'admin', 'sdr-staff', 'sdru-staff', 'coordinator', 'reformation-coordinator', 'head-of-sdru', 'sdru-head'];
+    private $allowedRoles = ['admin', 'sdr-staff', 'sdru-staff', 'coordinator', 'reformation-coordinator', 'head-of-sdru', 'sdru-head'];
+    private const PDF_COLUMNS = [
+        'case_number' => 'Case Number',
+        'student_name' => 'Student Name',
+        'gender' => 'Gender',
+        'classification' => 'Classification',
+        'status' => 'Status',
+        'coordinator' => 'Coordinator',
+        'college' => 'College',
+        'submitted_date' => 'Submitted Date',
+    ];
 
     public function __construct() {
         Security::startSession();
@@ -79,7 +89,13 @@ class ReportController {
                 exit;
             }
 
-            $this->export($_GET['export'], $filters, $data);
+            $columns = $this->selectedPdfColumns($_GET);
+            if (($_GET['export'] ?? '') === 'pdf' && !$columns) {
+                http_response_code(422);
+                echo 'Select at least one column to include in the report.';
+                exit;
+            }
+            $this->export($_GET['export'], $filters, $data, $columns);
         }
 
         return [
@@ -123,7 +139,7 @@ class ReportController {
         }
     }
 
-    private function export($type, array $filters, array $data) {
+    private function export($type, array $filters, array $data, array $columns = []) {
         if ($type === 'excel') {
             AuditLog::record($this->user, 'Report Generation', 'Generated Excel report.');
             $this->exportExcel($filters, $data);
@@ -131,7 +147,7 @@ class ReportController {
 
         if ($type === 'pdf') {
             AuditLog::record($this->user, 'Report Generation', 'Generated PDF report.');
-            $this->exportPdf($filters, $data);
+            $this->exportPdf($filters, $data, $columns ?: array_keys(self::PDF_COLUMNS));
         }
 
         if ($type === 'print') {
@@ -220,7 +236,7 @@ class ReportController {
         exit;
     }
 
-    private function exportPdf(array $filters, array $data) {
+    private function exportPdf(array $filters, array $data, array $columns) {
         $pdf = new SicmsReportPdf(
             __DIR__ . '/../../public/assets/clsulogo.png',
             $this->displayName()
@@ -234,23 +250,39 @@ class ReportController {
             $pdf->SetFont('Helvetica', '', 9);
             $pdf->Cell(0, 10, 'No records found for the selected filters.', 1, 1, 'C');
         } else {
+            $pdf->setCaseColumns(array_intersect_key(self::PDF_COLUMNS, array_flip($columns)));
             $pdf->caseTableHeader();
             foreach ($data['rows'] as $row) {
-                $pdf->caseRow([
-                    $row['case_number'],
-                    $row['complainant_name'] . ' (' . ($row['complainant_type'] ?? 'Student') . ')',
-                    $row['complainant_gender'] ?: 'Not provided',
-                    $row['case_classification'],
-                    $row['status'],
-                    trim($row['coordinator_name']) ?: 'Unassigned',
-                    $row['complainant_college'],
-                    date('Y-m-d', strtotime($row['submitted_at'])),
-                ]);
+                $values = [
+                    'case_number' => $row['case_number'],
+                    'student_name' => $row['complainant_name'] . ' (' . ($row['complainant_type'] ?? 'Student') . ')',
+                    'gender' => $row['complainant_gender'] ?: 'Not provided',
+                    'classification' => $row['case_classification'],
+                    'status' => $row['status'],
+                    'coordinator' => trim($row['coordinator_name']) ?: 'Unassigned',
+                    'college' => $row['complainant_college'],
+                    'submitted_date' => date('Y-m-d', strtotime($row['submitted_at'])),
+                ];
+                $pdf->caseRow(array_map(static fn($column) => $values[$column], $columns));
             }
         }
 
         $pdf->Output('D', 'sicms-report-' . date('Y-m-d') . '.pdf');
         exit;
+    }
+
+    private function selectedPdfColumns(array $input): array {
+        if (!array_key_exists('pdf_columns', $input)) {
+            return array_keys(self::PDF_COLUMNS);
+        }
+
+        $submitted = $input['pdf_columns'];
+        if (!is_array($submitted)) {
+            return [];
+        }
+
+        $valid = array_unique(array_filter($submitted, static fn($column) => is_string($column) && array_key_exists($column, self::PDF_COLUMNS)));
+        return array_keys(array_intersect_key(self::PDF_COLUMNS, array_flip($valid)));
     }
 
     private function exportExcelYearly(array $filters, array $data) {

@@ -217,7 +217,7 @@ if (!function_exists('person_name')) {
             }
         }
     </style>
-    <link rel="stylesheet" href="../layout/system.css?v=2">
+    <link rel="stylesheet" href="../layout/system.css?v=6">
 </head>
 
 <body>
@@ -226,13 +226,22 @@ if (!function_exists('person_name')) {
         <div class="legacy-show-page app-content">
             <?php $pageTitle = 'Migrated Case ' . $case['case_number']; require __DIR__ . '/../layout/topbar.php'; ?>
 
-            <main class="case-wrap">
+            <main class="case-wrap case-detail-view">
                 <div style="margin-bottom:14px">
                     <a class="btn btn-secondary" href="<?= h(app_route('cases.index')) ?>"><i class="bi bi-arrow-left"></i> Back to Case Management</a>
                     <?php if ($canEdit): ?>
                         <a class="btn btn-primary" href="edit.php?id=<?= (int) $case['complaint_id'] ?>"><i class="bi bi-pencil"></i> Edit Migrated Case</a>
                     <?php endif; ?>
                 </div>
+
+                <header class="case-heading">
+                    <div><h1>Legacy Case <?= h($case['case_number']) ?></h1><p>Historical / digitized record</p></div>
+                    <span class="status"><?= h($case['status']) ?></span>
+                </header>
+                <nav class="case-detail-nav" aria-label="Legacy case details sections">
+                    <a href="#legacy-overview">Overview</a><a href="#legacy-people">People</a><a href="#legacy-evidence">Evidence</a><a href="#legacy-hearings">Hearings</a>
+                    <?php if ($canEdit): ?><a href="#legacy-actions">Actions</a><?php endif; ?><a href="#legacy-timeline">Timeline</a>
+                </nav>
 
                 <?php if ($message): ?>
                     <div class="alert alert-success"><?= h($message) ?></div>
@@ -247,8 +256,8 @@ if (!function_exists('person_name')) {
 
                 <div class="grid">
                     <div>
-                        <section class="panel">
-                            <h2>Migrated Case Information</h2>
+                        <section class="panel" id="legacy-overview">
+                            <h2>Case Overview</h2>
                             <div class="details-grid">
                                 <div class="detail">
                                     <div class="label">Original Case Number</div>
@@ -289,8 +298,8 @@ if (!function_exists('person_name')) {
                             </div>
                         </section>
 
-                        <section class="panel">
-                            <h2>Complainant</h2>
+                        <section class="panel" id="legacy-people">
+                            <h2>People Involved &mdash; Complainant</h2>
                             <div class="details-grid">
                                 <div class="detail">
                                     <div class="label">Name</div>
@@ -398,7 +407,7 @@ if (!function_exists('person_name')) {
                             </div>
                         </section>
 
-                        <section class="panel">
+                        <section class="panel" id="legacy-evidence">
                             <h2>Evidence Attachments</h2>
                             <div class="list">
                                 <?php if (empty($evidence)): ?>
@@ -416,11 +425,11 @@ if (!function_exists('person_name')) {
                                 <?php endforeach; ?>
 
                                 <?php if ($canEdit): ?>
-                                    <form class="inline-form" method="POST" enctype="multipart/form-data" action="show.php?id=<?= (int) $case['complaint_id'] ?>">
+                                    <form class="inline-form" method="POST" enctype="multipart/form-data" action="show.php?id=<?= (int) $case['complaint_id'] ?>" data-sicms-validate>
                                         <?= Security::csrfField() ?>
                                         <input type="hidden" name="legacy_action" value="add_evidence">
                                         <div class="label">Upload additional document</div>
-                                        <input type="file" name="evidence_single" required>
+                                        <input type="file" name="evidence_single" required accept=".pdf,.jpg,.jpeg,.png,.docx" data-sicms-size-mb="5" data-sicms-accept-ext="pdf,jpg,jpeg,png,docx">
                                         <select name="doc_type">
                                             <option value="supporting">Supporting</option>
                                             <option value="resolution">Resolution</option>
@@ -453,7 +462,7 @@ if (!function_exists('person_name')) {
                             </div>
                         </section>
 
-                        <section class="panel">
+                        <section class="panel" id="legacy-hearings">
                             <h2>Hearings</h2>
                             <div class="list">
                                 <?php if (empty($hearings)): ?>
@@ -471,7 +480,7 @@ if (!function_exists('person_name')) {
                     </div>
 
                     <aside>
-                        <section class="panel">
+                        <section class="panel" id="legacy-actions">
                             <h2>Staff Actions</h2>
                             <?php if (!$canEdit): ?>
                                 <p class="muted">Migrated cases can only be modified by SDRU staff.</p>
@@ -502,7 +511,7 @@ if (!function_exists('person_name')) {
                             <?php endif; ?>
                         </section>
 
-                        <section class="panel">
+                        <section class="panel" id="legacy-timeline">
                             <h2>Timeline</h2>
                             <div class="timeline-scroll">
                                 <?php if (empty($history)): ?>

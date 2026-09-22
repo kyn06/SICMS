@@ -5,9 +5,9 @@ date_default_timezone_set('Asia/Manila');
 class Database{
     
     private $host = "127.0.0.1";
-    private $port = 3307;
+    private $port = 3306;
     private $username= "root";
-    private $password = "";
+    private $password = "1234";
     private $database = "sicms";
     private $conn;
 
@@ -36,12 +36,7 @@ class Database{
     }
 
     private function failGracefully() {
-        $detail = mysqli_connect_error();
         $message = 'The database could not be reached. Please check that MySQL is running and try again.';
-
-        if ($detail) {
-            $message .= ' (' . $detail . ')';
-        }
 
         $isAjax = strtolower(trim((string) ($_SERVER['HTTP_X_REQUESTED_WITH'] ?? ''))) === 'xmlhttprequest'
             || strpos((string) ($_SERVER['HTTP_ACCEPT'] ?? ''), 'application/json') !== false;

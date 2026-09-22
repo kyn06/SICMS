@@ -7,6 +7,7 @@ require_once __DIR__ . '/../models/Case.php';
 require_once __DIR__ . '/../models/Message.php';
 require_once __DIR__ . '/../models/Notification.php';
 require_once __DIR__ . '/../models/AuditLog.php';
+require_once __DIR__ . '/../models/CounterStatement.php';
 require_once __DIR__ . '/../helpers/Security.php';
 require_once __DIR__ . '/../helpers/Colleges.php';
 require_once __DIR__ . '/../helpers/Courses.php';
@@ -42,6 +43,8 @@ class ComplaintController {
 
         unset($_SESSION['complaint_errors'], $_SESSION['complaint_old'], $_SESSION['complaint_success']);
 
+        $fieldErrors = $this->takeSessionFieldErrors('complaint_field_errors');
+
         if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
             Security::requireCsrfToken();
             $this->store();
@@ -51,9 +54,16 @@ class ComplaintController {
             'user' => $this->user,
             'classifications' => $this->classifications,
             'errors' => $errors,
+            'fieldErrors' => $fieldErrors,
             'old' => $old,
             'success' => $success,
         ];
+    }
+
+    private function takeSessionFieldErrors($key) {
+        $fieldErrors = $_SESSION[$key] ?? [];
+        unset($_SESSION[$key]);
+        return is_array($fieldErrors) ? $fieldErrors : [];
     }
 
     public function handleTrackingRequest() {
@@ -85,23 +95,100 @@ class ComplaintController {
             exit;
         }
 
+        if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
+            Security::requireCsrfToken();
+            $this->handleComplaintResponseToCounterStatement($complaintId, $case);
+        }
+
+        $responseError = $_SESSION['complaint_response_error'] ?? null;
+        $responseInfo = $_SESSION['complaint_response_info'] ?? null;
+        unset($_SESSION['complaint_response_error'], $_SESSION['complaint_response_info']);
+
         Message::markAllRead((int) $this->user['account_id']);
 
         $messagePeer = Message::defaultCounterpartForCase($case, $this->user);
+
+        $forwardedStatement = CounterStatement::forwardedForComplaint($complaintId);
 
         return [
             'user' => $this->user,
             'case' => $case,
             'respondents' => CaseRecord::getRespondents($complaintId),
             'witnesses' => CaseRecord::getWitnesses($complaintId),
-            'evidence' => CaseRecord::getEvidence($complaintId),
+            'evidence' => $this->studentVisibleEvidence($complaintId),
             'history' => CaseRecord::getHistory($complaintId),
             'hearings' => Complaint::hearingsForStudentCase($complaintId, (int) $this->user['account_id']),
             'messages' => $messagePeer
                 ? Message::forPair((int) $this->user['account_id'], (int) $messagePeer['account_id'])
                 : [],
             'messageReceiver' => $messagePeer,
+            'counterStatement' => $forwardedStatement,
+            'complaintResponse' => $forwardedStatement ? [
+                'content' => (string) ($forwardedStatement['complaint_response_content'] ?? ''),
+                'status' => !empty($forwardedStatement['complaint_response_submitted_at'])
+                    ? 'Submitted'
+                    : (trim((string) ($forwardedStatement['complaint_response_content'] ?? '')) !== '' ? 'Draft' : ''),
+                'submitted_at' => $forwardedStatement['complaint_response_submitted_at'] ?? null,
+                'forwarded_at' => $forwardedStatement['forwarded_at'] ?? null,
+            ] : null,
+            'complaintResponseClosed' => !in_array($case['status'] ?? '', ['Under Investigation'], true),
+            'complaintResponseError' => $responseError,
+            'complaintResponseInfo' => $responseInfo,
         ];
+    }
+
+    private function handleComplaintResponseToCounterStatement($complaintId, $case) {
+        $accountId = (int) $this->user['account_id'];
+        $caseLabel = $case['case_number'] ?? ('Case #' . $complaintId);
+        $action = $_POST['case_action'] ?? '';
+
+        $back = function () use ($complaintId) {
+            header('Location: case_details.php?id=' . $complaintId);
+            exit;
+        };
+
+        if (!in_array($action, ['save_complaint_response', 'submit_complaint_response'], true)) {
+            $_SESSION['complaint_response_error'] = 'Invalid response action.';
+            $back();
+        }
+
+        if (!in_array($case['status'] ?? '', ['Under Investigation'], true)) {
+            $_SESSION['complaint_response_error'] = 'This case is closed. Responses can no longer be submitted.';
+            $back();
+        }
+
+        $statement = CounterStatement::forwardedForComplaint($complaintId);
+        if (!$statement) {
+            $_SESSION['complaint_response_error'] = 'The SDRU has not forwarded the respondent counter-statement to you on this case.';
+            $back();
+        }
+
+        if (!empty($statement['complaint_response_submitted_at'])) {
+            $_SESSION['complaint_response_error'] = 'You have already submitted your response to the respondent counter-statement.';
+            $back();
+        }
+
+        $content = trim((string) ($_POST['complaint_response'] ?? ''));
+        if ($content === '') {
+            $_SESSION['complaint_response_error'] = 'Please write your response before saving.';
+            $back();
+        }
+
+        if ($action === 'save_complaint_response') {
+            CounterStatement::saveComplaintResponse((int) $statement['counter_statement_id'], $content);
+            $_SESSION['complaint_response_info'] = 'Draft response saved.';
+        } else {
+            CounterStatement::submitComplaintResponse((int) $statement['counter_statement_id'], $content);
+            CaseRecord::recordCaseActivity(
+                $complaintId,
+                'Complaint Response Submitted',
+                'The complainant submitted a response to the counter-statement on ' . $caseLabel . '.',
+                $accountId
+            );
+            $_SESSION['complaint_response_info'] = 'Your response was submitted. The SDRU will review it and continue the investigation.';
+        }
+
+        $back();
     }
 
     public function handleRevisionRequest($complaintId) {
@@ -130,16 +217,26 @@ class ComplaintController {
         $old = $_SESSION['revision_old'] ?? [];
         unset($_SESSION['revision_errors'], $_SESSION['revision_old']);
 
+        $fieldErrors = $this->takeSessionFieldErrors('revision_field_errors');
+
         return [
             'user' => $this->user,
             'case' => $case,
             'revision' => $revision,
             'respondents' => CaseRecord::getRespondents($complaintId),
             'witnesses' => CaseRecord::getWitnesses($complaintId),
-            'evidence' => CaseRecord::getEvidence($complaintId),
+            'evidence' => $this->studentVisibleEvidence($complaintId),
             'errors' => $errors,
+            'fieldErrors' => $fieldErrors,
             'old' => $old,
         ];
+    }
+
+    private function studentVisibleEvidence($complaintId) {
+        $evidence = CaseRecord::getEvidence($complaintId);
+        return array_values(array_filter($evidence, function ($file) {
+            return empty($file['counter_statement_id']);
+        }));
     }
 
     private function authenticate() {
@@ -157,6 +254,7 @@ class ComplaintController {
         Message::setConnection($this->db);
         Notification::setConnection($this->db);
         AuditLog::setConnection($this->db);
+        CounterStatement::setConnection($this->db);
 
         $this->user = User::findByEmail($_SESSION['email']);
 
@@ -193,10 +291,13 @@ class ComplaintController {
     }
 
     private function store() {
-        $errors = $this->validate($_POST, $_FILES);
+        $validation = $this->validate($_POST, $_FILES);
+        $errors = $validation['errors'];
+        $fieldErrors = $validation['fields'];
 
-        if (!empty($errors)) {
+        if (!empty($errors) || !empty($fieldErrors)) {
             $_SESSION['complaint_errors'] = $errors;
+            $_SESSION['complaint_field_errors'] = $fieldErrors;
             $_SESSION['complaint_old'] = $_POST;
             header('Location: create.php');
             exit;
@@ -282,7 +383,11 @@ class ComplaintController {
                 }
             }
 
-            $_SESSION['complaint_errors'] = ['Unable to submit complaint. Please try again.'];
+            error_log('[SICMS Complaint Submission] ' . get_class($exception) . ': ' . $exception->getMessage());
+            $_SESSION['complaint_errors'] = [
+                'Unable to submit complaint. Please try again.',
+                'System detail: ' . $exception->getMessage(),
+            ];
             $_SESSION['complaint_old'] = $_POST;
             header('Location: create.php');
             exit;
@@ -291,7 +396,15 @@ class ComplaintController {
 
     private function validate(array $post, array $files) {
         $errors = [];
+        $fieldErrors = [];
+        $field = function (string $key, string $message) use (&$fieldErrors) {
+            $fieldErrors[$key] = $message;
+        };
         $complainantType = trim((string) ($post['complainant_type'] ?? ''));
+
+        if (!in_array($complainantType, ['Student', 'Employee', 'Private Individual', 'Others'], true)) {
+            $field('complainant_type', 'Please select a valid complainant type.');
+        }
 
         $required = [
             'complainant_name' => 'Complainant name is required.',
@@ -302,43 +415,51 @@ class ComplaintController {
             'complaint_details' => 'Complaint details are required.',
         ];
 
-        foreach ($required as $field => $message) {
-            if (empty(trim($post[$field] ?? ''))) {
-                $errors[] = $message;
+        foreach ($required as $fieldName => $message) {
+            if (empty(trim($post[$fieldName] ?? ''))) {
+                $field($fieldName, $message);
             }
         }
 
-        if (!in_array($complainantType, ['Student', 'Employee', 'Private Individual', 'Others'], true)) {
-            $errors[] = 'Please select a valid complainant type.';
-        } elseif ($complainantType === 'Student') {
-            foreach (['complainant_student_no' => 'Student number', 'complainant_college' => 'College', 'complainant_course' => 'Course', 'complainant_section' => 'Section'] as $field => $label) {
-                if (trim((string) ($post[$field] ?? '')) === '') $errors[] = $label . ' is required for student complainants.';
+        $contact = trim((string) ($post['complainant_contact'] ?? ''));
+        if ($contact !== '' && !preg_match('/^[0-9+()\-\s.]{7,20}$/', $contact)) {
+            $field('complainant_contact', 'Please enter a valid contact number using digits, spaces, +, -, or parentheses (7 to 20 characters).');
+        }
+
+        $incident = trim((string) ($post['incident_datetime'] ?? ''));
+        if ($incident !== '' && strtotime($incident) !== false && strtotime($incident) > time()) {
+            $field('incident_datetime', 'Incident date cannot be in the future.');
+        }
+
+        if ($complainantType === 'Student') {
+            foreach (['complainant_student_no' => 'Student number', 'complainant_college' => 'College', 'complainant_course' => 'Course', 'complainant_section' => 'Section'] as $fieldName => $label) {
+                if (trim((string) ($post[$fieldName] ?? '')) === '') $field($fieldName, $label . ' is required for student complainants.');
             }
             $validSections = array_merge(...array_values(Courses::sections()));
-            if (!Colleges::contains($post['complainant_college'] ?? '')) $errors[] = 'Please select a valid college.';
-            if (!in_array($post['complainant_course'] ?? '', Courses::all(), true)) $errors[] = 'Please select a valid course.';
-            if (!in_array($post['complainant_section'] ?? '', $validSections, true)) $errors[] = 'Please select a valid section.';
+            if (!Colleges::contains($post['complainant_college'] ?? '')) $field('complainant_college', 'Please select a valid college.');
+            if (!in_array($post['complainant_course'] ?? '', Courses::all(), true)) $field('complainant_course', 'Please select a valid course.');
+            if (!in_array($post['complainant_section'] ?? '', $validSections, true)) $field('complainant_section', 'Please select a valid section.');
         } elseif ($complainantType === 'Employee') {
-            foreach (['complainant_employee_no' => 'Employee number', 'complainant_department' => 'College, office, or department', 'complainant_position' => 'Position'] as $field => $label) {
-                if (trim((string) ($post[$field] ?? '')) === '') $errors[] = $label . ' is required for employee complainants.';
+            foreach (['complainant_employee_no' => 'Employee number', 'complainant_department' => 'College, office, or department', 'complainant_position' => 'Position'] as $fieldName => $label) {
+                if (trim((string) ($post[$fieldName] ?? '')) === '') $field($fieldName, $label . ' is required for employee complainants.');
             }
         } elseif ($complainantType === 'Private Individual' && !in_array(trim((string) ($post['complainant_relationship'] ?? '')), ['', 'Parent', 'Guardian', 'Alumni', 'Visitor', 'Community Member', 'Other'], true)) {
-            $errors[] = 'Please select a valid relationship to CLSU.';
+            $field('complainant_relationship', 'Please select a valid relationship to CLSU.');
         }
 
         if (!empty($post['complainant_gender']) && !in_array($post['complainant_gender'], ['Male', 'Female'], true)) {
-            $errors[] = 'Please select a valid complainant gender.';
+            $field('complainant_gender', 'Please select a valid complainant gender.');
         }
 
         $age = trim((string) ($post['complainant_age'] ?? ''));
         if ($age === '') {
-            $errors[] = 'Complainant age is required.';
+            $field('complainant_age', 'Complainant age is required.');
         } elseif (!ctype_digit($age) || (int) $age < 1 || (int) $age > 120) {
-            $errors[] = 'Please enter a valid complainant age (1 to 120).';
+            $field('complainant_age', 'Please enter a valid complainant age (1 to 120).');
         }
 
         if (!empty($post['complainant_email']) && !filter_var($post['complainant_email'], FILTER_VALIDATE_EMAIL)) {
-            $errors[] = 'Please enter a valid complainant email address.';
+            $field('complainant_email', 'Please enter a valid complainant email address.');
         }
 
         $hasEvidence = trim((string) ($post['has_evidence'] ?? '')) === 'yes';
@@ -356,7 +477,7 @@ class ComplaintController {
         $errors = array_merge($errors, (array) $this->validateRespondents($post));
         $errors = array_merge($errors, (array) $this->validateWitnesses($post));
 
-        return array_merge($errors, $this->validateEvidenceFiles($evidenceFiles));
+        return ['errors' => array_merge($errors, $this->validateEvidenceFiles($evidenceFiles)), 'fields' => $fieldErrors];
     }
 
     private function storeRevision(array $case, array $revision) {
@@ -365,11 +486,15 @@ class ComplaintController {
             $revision['revision_fields']
         ));
         $errors = [];
+        $fieldErrors = [];
+        $field = function (string $key, string $message) use (&$fieldErrors) {
+            $fieldErrors[$key] = $message;
+        };
 
         if (empty($_POST['revision_confirmation'])) $errors[] = 'Please confirm that you completed all requested revisions.';
-        foreach (['complaint_details', 'incident_date', 'incident_time', 'incident_location'] as $field) {
-            if (in_array($field, $allowed, true) && trim((string) ($_POST[$field] ?? '')) === '') {
-                $errors[] = ucwords(str_replace('_', ' ', $field)) . ' is required.';
+        foreach (['complaint_details', 'incident_date', 'incident_time', 'incident_location'] as $fieldName) {
+            if (in_array($fieldName, $allowed, true) && trim((string) ($_POST[$fieldName] ?? '')) === '') {
+                $field($fieldName, ucwords(str_replace('_', ' ', $fieldName)) . ' is required.');
             }
         }
 
@@ -408,6 +533,7 @@ class ComplaintController {
 
         if ($errors) {
             $_SESSION['revision_errors'] = $errors;
+            $_SESSION['revision_field_errors'] = $fieldErrors;
             $_SESSION['revision_old'] = $_POST;
             header('Location: revise.php?id=' . (int) $case['complaint_id']);
             exit;
@@ -424,6 +550,13 @@ class ComplaintController {
             $timestamp = strtotime($date . ' ' . $time);
             if (!$timestamp) {
                 $_SESSION['revision_errors'] = ['Please provide a valid incident date and time.'];
+                $_SESSION['revision_old'] = $_POST;
+                header('Location: revise.php?id=' . (int) $case['complaint_id']);
+                exit;
+            }
+            if ($timestamp > time()) {
+                $_SESSION['revision_errors'] = [];
+                $_SESSION['revision_field_errors'] = ['incident_date' => 'Incident date cannot be in the future.'];
                 $_SESSION['revision_old'] = $_POST;
                 header('Location: revise.php?id=' . (int) $case['complaint_id']);
                 exit;
@@ -475,6 +608,9 @@ class ComplaintController {
 
     private function normalizeRespondents(array $post) {
         $respondents = [];
+        if (!empty($post['respondent_unknown'])) {
+            return $respondents;
+        }
         $names = $post['respondent_name'] ?? [];
         $validTypes = ['Student', 'Employee', 'Private Individual', 'Other'];
 
@@ -616,6 +752,9 @@ class ComplaintController {
 
     private function normalizeWitnesses(array $post) {
         $witnesses = [];
+        if (!empty($post['witness_none'])) {
+            return $witnesses;
+        }
         $names = $post['witness_name'] ?? [];
         $validTypes = ['Student', 'Employee', 'Private Individual', 'Other'];
 

@@ -12,6 +12,7 @@ $respondents = $viewData['respondents'];
 $witnesses = $viewData['witnesses'];
 $evidence = $viewData['evidence'];
 $errors = $viewData['errors'];
+$fieldErrors = $viewData['fieldErrors'] ?? [];
 $old = $viewData['old'];
 
 $allowed = array_values(array_intersect(
@@ -21,6 +22,11 @@ $allowed = array_values(array_intersect(
 
 function h($value) {
     return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
+}
+
+function field_error_html($fieldErrors, $field) {
+    $message = $fieldErrors[$field] ?? '';
+    return $message !== '' ? '<div class="field-error" role="alert">' . htmlspecialchars($message, ENT_QUOTES, 'UTF-8') . '</div>' : '';
 }
 
 function editable($field, $allowed) {
@@ -71,7 +77,7 @@ $oldTime = $oldIncident ? date('H:i', $oldIncident) : '';
                     </div>
                 <?php endif; ?>
 
-                <form id="revisionForm" method="post" enctype="multipart/form-data">
+                <form id="revisionForm" method="post" enctype="multipart/form-data" data-sicms-validate>
                     <?= Security::csrfField() ?>
                     <input type="hidden" name="revision_fields" value="<?= h(implode(',', $allowed)) ?>">
 
@@ -83,13 +89,14 @@ $oldTime = $oldIncident ? date('H:i', $oldIncident) : '';
                             <?php endif; ?>
                         </div>
                         <div class="field">
-                            <label>Complaint Description</label>
+                            <label>Complaint Description <span class="required">*</span></label>
                             <textarea
                                 name="complaint_details"
                                 rows="6"
                                 <?= editable('complaint_details', $allowed) ? '' : 'readonly' ?>
                                 <?= editable('complaint_details', $allowed) ? 'required' : '' ?>
                             ><?= h($old['complaint_details'] ?? $case['complaint_details'] ?? '') ?></textarea>
+                            <?= field_error_html($fieldErrors, 'complaint_details') ?>
                         </div>
                     </section>
 
@@ -102,17 +109,19 @@ $oldTime = $oldIncident ? date('H:i', $oldIncident) : '';
                         </div>
                         <div class="form-grid">
                             <div class="field">
-                                <label>Incident Date</label>
+                                <label>Incident Date <span class="required">*</span></label>
                                 <input
                                     type="date"
                                     name="incident_date"
                                     value="<?= h($old['incident_date'] ?? $oldDate) ?>"
                                     <?= editable('incident_date', $allowed) ? '' : 'readonly' ?>
                                     <?= editable('incident_date', $allowed) ? 'required' : '' ?>
+                                    <?= editable('incident_date', $allowed) ? ' max="' . h(date('Y-m-d')) . '" data-sicms-future="0"' : '' ?>
                                 >
+                                <?= field_error_html($fieldErrors, 'incident_date') ?>
                             </div>
                             <div class="field">
-                                <label>Incident Time</label>
+                                <label>Incident Time <span class="required">*</span></label>
                                 <input
                                     type="time"
                                     name="incident_time"
@@ -120,15 +129,17 @@ $oldTime = $oldIncident ? date('H:i', $oldIncident) : '';
                                     <?= editable('incident_time', $allowed) ? '' : 'readonly' ?>
                                     <?= editable('incident_time', $allowed) ? 'required' : '' ?>
                                 >
+                                <?= field_error_html($fieldErrors, 'incident_time') ?>
                             </div>
                             <div class="field full">
-                                <label>Incident Location</label>
+                                <label>Incident Location <span class="required">*</span></label>
                                 <input
                                     name="incident_location"
                                     value="<?= h($old['incident_location'] ?? $case['incident_location'] ?? '') ?>"
                                     <?= editable('incident_location', $allowed) ? '' : 'readonly' ?>
                                     <?= editable('incident_location', $allowed) ? 'required' : '' ?>
                                 >
+                                <?= field_error_html($fieldErrors, 'incident_location') ?>
                             </div>
                         </div>
                     </section>
@@ -408,7 +419,7 @@ $oldTime = $oldIncident ? date('H:i', $oldIncident) : '';
                                     <?= !empty($old['witness_none']) ? 'checked' : '' ?>
                                 >
 
-                                <span>I do not have a witness</span>
+                                <span>There is no witness / I don't know the witness</span>
 
                             </label>
 
@@ -1048,7 +1059,16 @@ $oldTime = $oldIncident ? date('H:i', $oldIncident) : '';
             controls.forEach(control => {
                 control.disabled = checkbox.checked;
             });
+
+            if (!checkbox.checked) {
+                list.querySelectorAll('.respondent-repeat-item').forEach(updateRespondentFields);
+                list.querySelectorAll('.witness-repeat-item').forEach(updateWitnessFields);
+            }
         }
+
+        document.querySelectorAll('.unknown-toggle input').forEach(checkbox => {
+            toggleUnknown(checkbox.name === 'respondent_unknown' ? 'respondents' : 'witnesses', checkbox);
+        });
 
         form.addEventListener('submit', () => {
             submit.disabled = true;

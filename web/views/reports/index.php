@@ -343,6 +343,18 @@ function applied_filter_labels(array $filters, array $options) {
             text-transform: uppercase;
         }
 
+        .pdf-columns-overlay { align-items: center; background: rgba(15, 31, 18, .5); display: flex; inset: 0; justify-content: center; padding: 16px; position: fixed; z-index: 1200; }
+        .pdf-columns-modal { background: #fff; border-radius: 14px; box-shadow: 0 22px 60px rgba(0,0,0,.25); max-width: 520px; padding: 22px; width: 100%; }
+        .pdf-columns-modal h2 { color: #123c1b; font-size: 18px; margin: 0 0 5px; }
+        .pdf-columns-modal p { color: #536052; font-size: 13px; margin: 0 0 16px; }
+        .pdf-columns-grid { display: grid; gap: 8px 14px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .pdf-columns-grid label { align-items: center; display: flex; font-size: 14px; gap: 8px; }
+        .pdf-columns-grid input { accent-color: #1a9d00; height: 16px; width: 16px; }
+        .pdf-columns-feedback { color: #b42318; font-size: 13px; min-height: 18px; margin: 12px 0 0; }
+        .pdf-columns-actions { align-items: center; display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+        .pdf-columns-tools { display: flex; gap: 8px; margin-top: 14px; }
+        @media (max-width: 520px) { .pdf-columns-grid { grid-template-columns: 1fr; } .pdf-columns-actions .btn:last-child { width: 100%; } }
+
         /* ===== Sex-disaggregated data ===== */
         .sex-disaggregated .section-heading h2 {
             letter-spacing: .03em;
@@ -513,7 +525,7 @@ function applied_filter_labels(array $filters, array $options) {
             margin-bottom: 16px;
         }
     </style>
-    <link rel="stylesheet" href="../layout/system.css?v=2">
+    <link rel="stylesheet" href="../layout/system.css?v=3">
 </head>
 
 <body>
@@ -538,7 +550,7 @@ function applied_filter_labels(array $filters, array $options) {
         </div>
 
         <div class="reports-toolbar">
-            <form id="reportFilters" class="filters-host" method="GET" action="index.php">
+            <form id="reportFilters" class="filters-host" method="GET" action="index.php" data-sicms-validate data-sicms-datefrom="date_from" data-sicms-dateto="date_to">
                 <input type="hidden" name="report" value="<?= h($mode) ?>">
                 <button type="button" class="filters-toggle-btn" id="reportFiltersToggle" aria-expanded="false" aria-controls="reportFiltersPanel">
                     <i class="bi bi-funnel"></i> Filters
@@ -639,7 +651,7 @@ function applied_filter_labels(array $filters, array $options) {
             </fieldset>
             </div>
                     <div class="actions">
-                        <button class="btn btn-primary" type="submit"><i class="bi bi-check2"></i> Apply Filters</button>
+                        <button class="btn btn-primary" id="reportApplyFilters" type="submit"><i class="bi bi-check2"></i> Apply Filters</button>
                         <button class="btn btn-secondary" id="resetFilters" type="button"><i class="bi bi-arrow-counterclockwise"></i> Reset</button>
                     </div>
                 </div>
@@ -648,6 +660,23 @@ function applied_filter_labels(array $filters, array $options) {
                 <a class="btn btn-primary" data-export="pdf" href="<?= h(query_with(['export' => 'pdf', 'csrf_token' => Security::csrfToken()])) ?>"><i class="bi bi-file-earmark-pdf"></i> Generate PDF</a>
                 <a class="btn btn-primary" data-export="excel" href="<?= h(query_with(['export' => 'excel', 'csrf_token' => Security::csrfToken()])) ?>"><i class="bi bi-file-earmark-spreadsheet"></i> Generate Excel</a>
                 <a class="btn btn-primary" data-export="print" href="<?= h(query_with(['export' => 'print', 'csrf_token' => Security::csrfToken()])) ?>" target="_blank"><i class="bi bi-printer"></i> Print Report</a>
+            </div>
+            <div class="pdf-columns-overlay" id="pdfColumnsOverlay" hidden>
+                <div class="pdf-columns-modal" role="dialog" aria-modal="true" aria-labelledby="pdfColumnsTitle">
+                    <h2 id="pdfColumnsTitle">Choose Columns to Include</h2>
+                    <p>Selected columns apply only to this PDF export.</p>
+                    <div class="pdf-columns-grid" id="pdfColumnsGrid">
+                        <?php foreach ([
+                            'case_number' => 'Case Number', 'student_name' => 'Student Name', 'gender' => 'Gender', 'classification' => 'Classification',
+                            'status' => 'Status', 'coordinator' => 'Coordinator', 'college' => 'College', 'submitted_date' => 'Submitted Date',
+                        ] as $key => $label): ?>
+                            <label><input type="checkbox" name="pdf_columns" value="<?= h($key) ?>" checked> <?= h($label) ?></label>
+                        <?php endforeach; ?>
+                    </div>
+                    <div class="pdf-columns-tools"><button class="btn btn-secondary" type="button" id="pdfColumnsSelectAll">Select All</button><button class="btn btn-secondary" type="button" id="pdfColumnsReset">Reset</button></div>
+                    <div class="pdf-columns-feedback" id="pdfColumnsFeedback" role="alert"></div>
+                    <div class="pdf-columns-actions"><button class="btn btn-secondary" type="button" id="pdfColumnsCancel">Cancel</button><button class="btn btn-primary" type="button" id="pdfColumnsGenerate"><i class="bi bi-file-earmark-pdf"></i> Generate PDF</button></div>
+                </div>
             </div>
         </div>
 
@@ -1369,9 +1398,20 @@ function applied_filter_labels(array $filters, array $options) {
         };
 
         const updateReport = async () => {
+            if (window.SICMSValidation && !SICMSValidation.run(reportForm)) {
+                reportFilterError.hidden = true;
+                return;
+            }
             const params = new URLSearchParams(new FormData(reportForm));
             const requestParams = new URLSearchParams(params);
             requestParams.set('ajax', '1');
+            const applyButton = document.getElementById('reportApplyFilters');
+            const originalApplyLabel = applyButton?.innerHTML;
+            if (applyButton) {
+                applyButton.disabled = true;
+                applyButton.setAttribute('aria-busy', 'true');
+                applyButton.innerHTML = '<span class="sicms-processing-spinner" aria-hidden="true"></span> Updating...';
+            }
             reportForm.setAttribute('aria-busy', 'true');
             reportFilterError.hidden = true;
             try {
@@ -1405,6 +1445,11 @@ function applied_filter_labels(array $filters, array $options) {
                 reportFilterError.hidden = false;
             } finally {
                 reportForm.removeAttribute('aria-busy');
+                if (applyButton) {
+                    applyButton.disabled = false;
+                    applyButton.removeAttribute('aria-busy');
+                    applyButton.innerHTML = originalApplyLabel;
+                }
                 updateReportFilterButton();
             }
         };
@@ -1458,6 +1503,45 @@ function applied_filter_labels(array $filters, array $options) {
 
         renderCharts(chartData);
         if (Object.keys(yearlyData).length) renderYearly(yearlyData);
+
+        const pdfExportLink = document.querySelector('[data-export="pdf"]');
+        const pdfColumnsOverlay = document.getElementById('pdfColumnsOverlay');
+        const pdfColumnsGrid = document.getElementById('pdfColumnsGrid');
+        const pdfColumnsFeedback = document.getElementById('pdfColumnsFeedback');
+        let pendingPdfUrl = '';
+        const closePdfColumns = () => {
+            pdfColumnsOverlay.hidden = true;
+            pdfColumnsFeedback.textContent = '';
+        };
+        pdfExportLink?.addEventListener('click', (event) => {
+            if (<?= json_encode($mode === 'analytics') ?> !== true) return;
+            event.preventDefault();
+            pendingPdfUrl = pdfExportLink.href;
+            pdfColumnsGrid.querySelectorAll('input[type="checkbox"]').forEach((input) => { input.checked = true; });
+            pdfColumnsFeedback.textContent = '';
+            pdfColumnsOverlay.hidden = false;
+        });
+        document.getElementById('pdfColumnsSelectAll')?.addEventListener('click', () => {
+            pdfColumnsGrid.querySelectorAll('input[type="checkbox"]').forEach((input) => { input.checked = true; });
+            pdfColumnsFeedback.textContent = '';
+        });
+        document.getElementById('pdfColumnsReset')?.addEventListener('click', () => {
+            pdfColumnsGrid.querySelectorAll('input[type="checkbox"]').forEach((input) => { input.checked = true; });
+            pdfColumnsFeedback.textContent = '';
+        });
+        document.getElementById('pdfColumnsCancel')?.addEventListener('click', closePdfColumns);
+        pdfColumnsOverlay?.addEventListener('mousedown', (event) => { if (event.target === pdfColumnsOverlay) closePdfColumns(); });
+        document.getElementById('pdfColumnsGenerate')?.addEventListener('click', () => {
+            const columns = [...pdfColumnsGrid.querySelectorAll('input[type="checkbox"]:checked')].map((input) => input.value);
+            if (!columns.length) {
+                pdfColumnsFeedback.textContent = 'Select at least one column to include in the report.';
+                return;
+            }
+            const url = new URL(pendingPdfUrl, window.location.href);
+            url.searchParams.delete('pdf_columns[]');
+            columns.forEach((column) => url.searchParams.append('pdf_columns[]', column));
+            window.location.assign(url.toString());
+        });
 
         <?php if ($isPrint): ?>
             window.addEventListener('load', () => setTimeout(() => window.print(), 500));

@@ -6,7 +6,7 @@ class Message extends Model {
     protected static $table = 'case_messages';
     protected static $primaryKey = 'message_id';
 
-    private static $staffRoles = ['super-admin', 'admin', 'sdr staff', 'sdr-staff', 'sdru-staff', 'coordinator', 'reformation-coordinator', 'head-of-sdru', 'sdru-head', 'head of sdru'];
+    private static $staffRoles = ['admin', 'sdr staff', 'sdr-staff', 'sdru-staff', 'coordinator', 'reformation-coordinator', 'head-of-sdru', 'sdru-head', 'head of sdru'];
     private static $headRoles = ['head-of-sdru', 'sdru-head', 'head of sdru'];
     private static $columnCache = [];
 
@@ -106,7 +106,11 @@ class Message extends Model {
             $counterparts = self::distinctCounterpartsForAccount($accountId);
 
             if (empty($counterparts) && !self::isStaffRole($user['role'])) {
-                foreach (self::defaultStaffForStudent($accountId) as $staff) {
+                $defaultStaff = self::isRespondentRole($user['role'])
+                    ? self::defaultStaffForRespondent($accountId)
+                    : self::defaultStaffForStudent($accountId);
+
+                foreach ($defaultStaff as $staff) {
                     $counterparts[] = $staff;
                 }
             }
@@ -121,10 +125,16 @@ class Message extends Model {
                     continue;
                 }
 
-                if (self::isAssignmentRole($user['role'])
-                    && strtolower((string) ($counterpart['role'] ?? '')) === 'student'
-                    && !self::studentAssignedToStaff($user['role'], $peerId, $accountId)) {
-                    continue;
+                if (self::isAssignmentRole($user['role'])) {
+                    $counterpartRoleKey = strtolower((string) ($counterpart['role'] ?? ''));
+
+                    if ($counterpartRoleKey === 'student' && !self::studentAssignedToStaff($user['role'], $peerId, $accountId)) {
+                        continue;
+                    }
+
+                    if ($counterpartRoleKey === 'respondent' && !self::respondentAssignedToStaff($user['role'], $peerId, $accountId)) {
+                        continue;
+                    }
                 }
 
                 if (self::isPairHidden($accountId, $peerId)) {
@@ -207,6 +217,26 @@ class Message extends Model {
                     'counterpart_last_name' => $staff['last_name'],
                     'counterpart_role' => $staff['role'],
                     'cases' => [],
+                ];
+            }
+
+            $respondentPool = self::isAssignmentRole($user['role'])
+                ? self::respondentAccountsForStaff($accountId)
+                : self::allActiveRespondentAccounts();
+
+            foreach ($respondentPool as $respondent) {
+                $respondentId = (int) $respondent['account_id'];
+
+                if ($respondentId === $accountId || in_array($respondentId, $exclude, true)) {
+                    continue;
+                }
+
+                $candidates[] = [
+                    'counterpart_account_id' => $respondentId,
+                    'counterpart_first_name' => $respondent['first_name'],
+                    'counterpart_last_name' => $respondent['last_name'],
+                    'counterpart_role' => $respondent['role'],
+                    'cases' => self::casesForRespondent($respondentId),
                 ];
             }
 
@@ -324,6 +354,29 @@ class Message extends Model {
         }
     }
 
+    public static function casesForRespondent($accountId) {
+        try {
+            $accountId = (int) $accountId;
+            $sql = "SELECT c.complaint_id, c.case_number, c.case_classification, c.status,
+                           coordinator.first_name AS coord_first_name,
+                           coordinator.last_name AS coord_last_name
+                    FROM complaint_respondents r
+                    INNER JOIN complaints c ON c.complaint_id = r.complaint_id
+                    LEFT JOIN accounts coordinator ON coordinator.account_id = c.assigned_coordinator_account_id
+                    WHERE r.account_id = ?
+                      AND COALESCE(c.case_source, 'Online Submission') <> 'Legacy'
+                    ORDER BY c.complaint_id DESC";
+            $stmt = self::$conn->prepare($sql);
+            $stmt->bind_param("i", $accountId);
+            $stmt->execute();
+            $result = $stmt->get_result();
+
+            return $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
+        } catch (Throwable $exception) {
+            return [];
+        }
+    }
+
     private static function studentAssignedToStaff($staffRole, $studentId, $staffId) {
         try {
             $studentId = (int) $studentId;
@@ -337,6 +390,29 @@ class Message extends Model {
                     LIMIT 1";
             $stmt = self::$conn->prepare($sql);
             $stmt->bind_param("ii", $studentId, $staffId);
+            $stmt->execute();
+            $result = $stmt->get_result();
+
+            return $result && $result->num_rows > 0;
+        } catch (Throwable $exception) {
+            return false;
+        }
+    }
+
+    private static function respondentAssignedToStaff($staffRole, $respondentId, $staffId) {
+        try {
+            $respondentId = (int) $respondentId;
+            $staffId = (int) $staffId;
+            $column = self::assignmentColumn($staffRole);
+            $sql = "SELECT r.complaint_id
+                    FROM complaint_respondents r
+                    INNER JOIN complaints c ON c.complaint_id = r.complaint_id
+                    WHERE r.account_id = ?
+                      AND c.$column = ?
+                      AND COALESCE(c.case_source, 'Online Submission') <> 'Legacy'
+                    LIMIT 1";
+            $stmt = self::$conn->prepare($sql);
+            $stmt->bind_param("ii", $respondentId, $staffId);
             $stmt->execute();
             $result = $stmt->get_result();
 
@@ -482,6 +558,14 @@ class Message extends Model {
         return strtolower(str_replace(['_', ' '], '-', (string) $role)) === 'coordinator';
     }
 
+    public static function isRespondentRole($role) {
+        return strtolower(str_replace(['_', ' '], '-', (string) $role)) === 'respondent';
+    }
+
+    public static function canStartConversations(array $user) {
+        return self::isStaffRole($user['role']);
+    }
+
     public static function isHeadRole($role) {
         $roleKey = strtolower(str_replace(['_', ' '], '-', (string) $role));
 
@@ -500,7 +584,7 @@ class Message extends Model {
         return match ($roleKey) {
             'head-of-sdru', 'sdru-head' => 'Head SDRU',
             'sdr-staff', 'sdru-staff' => 'Staff',
-            'admin', 'super-admin' => 'Administrator',
+            'admin' => 'Administrator',
             'student' => 'Student',
             default => ucwords(str_replace('-', ' ', $roleKey)),
         };
@@ -509,6 +593,42 @@ class Message extends Model {
     /* -----------------------------------------------------------------
      * Internals
      * ----------------------------------------------------------------- */
+
+    private static function respondentAccountsForStaff($staffId) {
+        try {
+            $staffId = (int) $staffId;
+            $sql = "SELECT DISTINCT acct.account_id, acct.first_name, acct.last_name, acct.email, acct.role
+                    FROM complaint_respondents r
+                    INNER JOIN complaints c ON c.complaint_id = r.complaint_id
+                    INNER JOIN accounts acct ON acct.account_id = r.account_id
+                    WHERE c.assigned_coordinator_account_id = ?
+                      AND COALESCE(c.case_source, 'Online Submission') <> 'Legacy'
+                      AND acct.status = 'active'
+                    ORDER BY acct.first_name, acct.last_name";
+            $stmt = self::$conn->prepare($sql);
+            $stmt->bind_param("i", $staffId);
+            $stmt->execute();
+            $result = $stmt->get_result();
+
+            return $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
+        } catch (Throwable $exception) {
+            return [];
+        }
+    }
+
+    private static function allActiveRespondentAccounts() {
+        try {
+            $sql = "SELECT account_id, first_name, last_name, email, role
+                    FROM accounts
+                    WHERE status = 'active' AND LOWER(role) = 'respondent'
+                    ORDER BY first_name, last_name";
+            $result = self::$conn->query($sql);
+
+            return $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
+        } catch (Throwable $exception) {
+            return [];
+        }
+    }
 
     private static function distinctCounterpartsForAccount($accountId) {
         try {
@@ -582,6 +702,43 @@ class Message extends Model {
                     FROM complaints
                     WHERE submitted_by_account_id = ?
                     ORDER BY complaint_id DESC
+                    LIMIT 1";
+            $stmt = self::$conn->prepare($sql);
+            $stmt->bind_param("i", $accountId);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            $case = $result ? $result->fetch_assoc() : null;
+
+            if ($case && !empty($case['assigned_coordinator_account_id'])) {
+                $coordinator = self::findAccount((int) $case['assigned_coordinator_account_id']);
+
+                if ($coordinator && ($coordinator['status'] ?? '') === 'active') {
+                    return [$coordinator];
+                }
+            }
+
+            $heads = self::getHeadAccounts();
+
+            if (!empty($heads)) {
+                return [$heads[0]];
+            }
+
+            return self::getStaffAccounts();
+        } catch (Throwable $exception) {
+            return [];
+        }
+    }
+
+    private static function defaultStaffForRespondent($accountId) {
+        try {
+            $accountId = (int) $accountId;
+            $sql = "SELECT c.complaint_id, c.assigned_coordinator_account_id
+                    FROM complaint_respondents r
+                    INNER JOIN complaints c ON c.complaint_id = r.complaint_id
+                    WHERE r.account_id = ?
+                      AND c.assigned_coordinator_account_id IS NOT NULL
+                      AND COALESCE(c.case_source, 'Online Submission') <> 'Legacy'
+                    ORDER BY c.complaint_id DESC
                     LIMIT 1";
             $stmt = self::$conn->prepare($sql);
             $stmt->bind_param("i", $accountId);

@@ -431,3 +431,42 @@ body {
 .cookie-accept:hover {
     background: #158a00;
 }
+
+.field.is-invalid input,
+.field.is-invalid select,
+.field.is-invalid textarea,
+.form-group.is-invalid input,
+.form-group.is-invalid select,
+.form-group.is-invalid textarea,
+.settings-field.is-invalid input,
+.settings-field.is-invalid select,
+.settings-field.is-invalid textarea {
+    border-color: #b42318 !important;
+}
+
+.field-error {
+    color: #b42318;
+    font-size: 11px;
+    min-height: 15px;
+    margin-top: 4px;
+}
+
+.filter-error {
+    color: #b42318;
+    font-size: 12px;
+    margin-top: 8px;
+}
+
+.required {
+    color: #b42318;
+}
+.password-hint {
+    color: #6b7280;
+    font-size: 11px;
+    min-height: 15px;
+    margin-top: 3px;
+}
+.password-hint.ok {
+    color: #1a8c2b;
+}
+

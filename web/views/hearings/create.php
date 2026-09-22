@@ -7,10 +7,16 @@ $viewData = $controller->create();
 $user = $viewData['user'];
 $cases = $viewData['cases'];
 $errors = $viewData['errors'];
+$fieldErrors = $viewData['fieldErrors'] ?? [];
 $old = $viewData['old'];
 
 function h($value) {
     return htmlspecialchars((string) $value);
+}
+
+function field_error_html($fieldErrors, $field) {
+    $message = $fieldErrors[$field] ?? '';
+    return $message !== '' ? '<div class="field-error" role="alert">' . htmlspecialchars($message, ENT_QUOTES, 'UTF-8') . '</div>' : '';
 }
 ?>
 <!DOCTYPE html>
@@ -63,7 +69,7 @@ function h($value) {
             </div>
         <?php endif; ?>
 
-        <form class="panel hearing-form-panel" method="POST" action="create.php">
+        <form class="panel hearing-form-panel" method="POST" action="create.php" data-sicms-validate>
             <?= Security::csrfField() ?>
             <div class="hearing-form-heading">
                 <span><i class="bi bi-calendar-plus"></i></span>
@@ -71,7 +77,7 @@ function h($value) {
             </div>
             <div class="grid hearing-form-grid">
                 <div class="field full">
-                    <label for="complaint_id">Case</label>
+                    <label for="complaint_id">Case <span class="required">*</span></label>
                     <select id="complaint_id" name="complaint_id" required>
                         <option value="">Select verified or assigned case</option>
                         <?php foreach ($cases as $case): ?>
@@ -80,14 +86,17 @@ function h($value) {
                             </option>
                         <?php endforeach; ?>
                     </select>
+                    <?= field_error_html($fieldErrors, 'complaint_id') ?>
                 </div>
                 <div class="field">
-                    <label for="hearing_datetime">Date and Time</label>
-                    <input id="hearing_datetime" type="datetime-local" name="hearing_datetime" value="<?= h($old['hearing_datetime'] ?? '') ?>" required>
+                    <label for="hearing_datetime">Date and Time <span class="required">*</span></label>
+                    <input id="hearing_datetime" type="datetime-local" name="hearing_datetime" value="<?= h($old['hearing_datetime'] ?? '') ?>" required min="<?= h(date('Y-m-d\TH:i')) ?>" data-sicms-past="0">
+                    <?= field_error_html($fieldErrors, 'hearing_datetime') ?>
                 </div>
                 <div class="field">
-                    <label for="venue">Venue</label>
+                    <label for="venue">Venue <span class="required">*</span></label>
                     <input id="venue" name="venue" value="<?= h($old['venue'] ?? '') ?>" required>
+                    <?= field_error_html($fieldErrors, 'venue') ?>
                 </div>
                 <div class="field full">
                     <label for="google_meet_link">Google Meet Link</label>
@@ -97,6 +106,7 @@ function h($value) {
                         <button type="button" class="btn btn-secondary" id="generateMeetBtn"><i class="bi bi-camera-video"></i> Generate Meet Link</button>
                     </div>
                     <span class="meet-field-hint" id="meetFieldHint"></span>
+                    <?= field_error_html($fieldErrors, 'google_meet_link') ?>
                 </div>
                 <div class="field full">
                     <label for="remarks">Remarks</label>

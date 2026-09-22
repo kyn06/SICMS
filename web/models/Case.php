@@ -620,6 +620,218 @@ class CaseRecord extends Model {
         }
     }
 
+    /*
+     * ---- Respondent account helpers ----
+     */
+
+    const INVITATION_VALID_HOURS = 72;
+
+    /* Info sections a coordinator may release to the respondent when forwarding a case. */
+    const RESPONDENT_VISIBILITY_KEYS = [
+        'complaint_details',
+        'incident',
+        'hearings',
+        'final_information',
+    ];
+
+    /* Whether the case has been released/forwarded to its respondents. */
+    public static function respondentReleased($complaintId) {
+        $case = self::findCase($complaintId);
+        return $case && !empty($case['respondent_released_at']);
+    }
+
+    /* The visibility array for a case (all keys true when never explicitly set). */
+    public static function respondentVisibility($complaintId) {
+        $case = self::findCase($complaintId);
+        $raw = (string) ($case['respondent_visibility'] ?? '');
+        if ($raw !== '') {
+            $decoded = json_decode($raw, true);
+            if (is_array($decoded)) {
+                $allowed = [];
+                foreach (self::RESPONDENT_VISIBILITY_KEYS as $key) {
+                    $allowed[$key] = !empty($decoded[$key]);
+                }
+                return $allowed;
+            }
+        }
+        return array_fill_keys(self::RESPONDENT_VISIBILITY_KEYS, true);
+    }
+
+    /* Coordinator/head releases permitted case info to all linked respondents. */
+    public static function releaseToRespondents($complaintId, $actorAccountId, array $visibility = []) {
+        $complaintId = (int) $complaintId;
+        $case = self::findCase($complaintId);
+        if (!$case) return false;
+
+        $now = date('Y-m-d H:i:s');
+
+        $normalized = [];
+        foreach (self::RESPONDENT_VISIBILITY_KEYS as $key) {
+            $normalized[$key] = isset($visibility[$key]) && $visibility[$key];
+        }
+        $normalized['complaint_details'] = true;
+
+        self::$conn->begin_transaction();
+
+        try {
+            $json = json_encode($normalized);
+            $stmt = self::$conn->prepare(
+                "UPDATE complaints
+                 SET respondent_released_at = ?, respondent_released_by_account_id = ?, respondent_visibility = ?, updated_at = ?
+                 WHERE complaint_id = ?"
+            );
+            $stmt->bind_param('sissi', $now, $actorAccountId, $json, $now, $complaintId);
+            $stmt->execute();
+
+            self::createHistory([
+                'complaint_id' => $complaintId,
+                'action' => 'Forwarded to Respondent',
+                'previous_status' => $case['status'],
+                'new_status' => $case['status'],
+                'remarks' => 'Coordinator released the permitted case information to the respondent(s).',
+                'revision_fields' => null,
+                'assigned_coordinator_account_id' => $case['assigned_coordinator_account_id'],
+                'created_by_account_id' => $actorAccountId,
+                'created_at' => $now,
+            ]);
+
+            Notification::createForHeads(
+                'respondent_case_released',
+                'Case Forwarded to Respondent',
+                'The permitted case information for ' . ($case['case_number'] ?? ('case #' . $complaintId)) . ' was released to the respondent(s).',
+                'web/views/cases/show.php?id=' . $complaintId
+            );
+
+            foreach (self::linkedRespondentAccounts($complaintId) as $account) {
+                Notification::createForUser(
+                    (int) $account['account_id'],
+                    'respondent_case_released',
+                    'Case Forwarded to You',
+                    'The SDRU has forwarded case ' . ($case['case_number'] ?? ('case #' . $complaintId)) . ' to you as a respondent. You may now review the permitted details and file your counter-statement.',
+                    'web/views/respondent/case_show.php?id=' . $complaintId
+                );
+            }
+
+            self::$conn->commit();
+            return true;
+        } catch (Throwable $exception) {
+            self::$conn->rollback();
+            throw $exception;
+        }
+    }
+
+    /* Whether a respondent invitation link (sent at $invitedAt) has expired. */
+    public static function invitationIsExpired($invitedAt, $now = null) {
+        $invitedAt = trim((string) $invitedAt);
+        if ($invitedAt === '') return true;
+        $sentTs = strtotime($invitedAt);
+        if ($sentTs === false) return true;
+        $now = $now === null ? time() : (int) $now;
+        return ($now - $sentTs) > self::INVITATION_VALID_HOURS * 3600;
+    }
+
+    /* Single complaint_respondents link row for an account on a case, or null. */
+    public static function respondentLink($complaintId, $accountId) {
+        $sql = "SELECT r.*, c.case_number, c.status AS case_status, c.case_source
+                FROM complaint_respondents r
+                INNER JOIN complaints c ON c.complaint_id = r.complaint_id
+                WHERE r.complaint_id = ? AND r.account_id = ? AND (c.case_source IS NULL OR c.case_source <> 'Legacy')
+                LIMIT 1";
+        $stmt = self::$conn->prepare($sql);
+        if (!$stmt) return null;
+        $stmt->bind_param('ii', $complaintId, $accountId);
+        $stmt->execute();
+        $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        return $rows[0] ?? null;
+    }
+
+    public static function isAccountRespondentForCase($complaintId, $accountId) {
+        return self::respondentLink($complaintId, $accountId) !== null;
+    }
+
+    /* Every complaint_respondents row on a case with any linked account info. */
+    public static function respondentsWithAccounts($complaintId) {
+        $sql = "SELECT r.*, a.account_id AS linked_account_id, a.email AS account_email,
+                       a.status AS account_status, a.role AS account_role,
+                       a.first_name AS account_first_name, a.last_name AS account_last_name
+                FROM complaint_respondents r
+                LEFT JOIN accounts a ON a.account_id = r.account_id
+                WHERE r.complaint_id = ?
+                ORDER BY r.respondent_id ASC";
+        $stmt = self::$conn->prepare($sql);
+        if (!$stmt) return [];
+        $stmt->bind_param('i', $complaintId);
+        $stmt->execute();
+        return $stmt->get_result()->fetch_all(MYSQLI_ASSOC) ?: [];
+    }
+
+    /* All non-legacy cases an account is explicitly named as a respondent on.
+     * Unreleased cases are returned so the respondent can see their assignment
+     * state, but case contents remain protected by respondentReleased(). */
+    public static function casesForRespondent($accountId) {
+        $sql = "SELECT c.*, r.respondent_id, r.full_name AS respondent_display_name,
+                       (SELECT MAX(cs.updated_at)
+                        FROM counter_statements cs
+                        WHERE cs.complaint_id = c.complaint_id AND cs.respondent_id = r.respondent_id) AS counter_updated_at
+                FROM complaints c
+                INNER JOIN complaint_respondents r
+                    ON r.complaint_id = c.complaint_id AND r.account_id = ?
+                WHERE (c.case_source IS NULL OR c.case_source <> 'Legacy')
+                ORDER BY c.created_at DESC";
+        $stmt = self::$conn->prepare($sql);
+        if (!$stmt) return [];
+        $stmt->bind_param('i', $accountId);
+        $stmt->execute();
+        return $stmt->get_result()->fetch_all(MYSQLI_ASSOC) ?: [];
+    }
+
+    /* Link an existing account to a respondent row (email match validated by caller). */
+    public static function linkRespondent($complaintId, $respondentId, $accountId) {
+        $stmt = self::$conn->prepare(
+            "UPDATE complaint_respondents SET account_id = ?, invitation_token = NULL, invited_at = NULL
+             WHERE respondent_id = ? AND complaint_id = ?"
+        );
+        if (!$stmt) return false;
+        $stmt->bind_param('iii', $accountId, $respondentId, $complaintId);
+        return $stmt->execute() && $stmt->affected_rows > 0;
+    }
+
+    /* Store the invitation token on a respondent row (used by activation). */
+    public static function storeRespondentInvitation($complaintId, $respondentId, $token) {
+        $stmt = self::$conn->prepare(
+            "UPDATE complaint_respondents SET invitation_token = ?, invited_at = ?
+             WHERE respondent_id = ? AND complaint_id = ?"
+        );
+        if (!$stmt) return false;
+        $now = date('Y-m-d H:i:s');
+        $stmt->bind_param('ssii', $token, $now, $respondentId, $complaintId);
+        return $stmt->execute() && $stmt->affected_rows > 0;
+    }
+
+    /* Clear invitation token once the respondent activates their account. */
+    public static function clearRespondentInvitation($complaintId, $respondentId) {
+        $stmt = self::$conn->prepare(
+            "UPDATE complaint_respondents SET invitation_token = NULL WHERE respondent_id = ? AND complaint_id = ?"
+        );
+        if (!$stmt) return false;
+        $stmt->bind_param('ii', $respondentId, $complaintId);
+        return $stmt->execute();
+    }
+
+    /* Active linked respondent account IDs + emails for a case (non-legacy). */
+    public static function linkedRespondentAccounts($complaintId) {
+        $sql = "SELECT a.account_id, a.email, a.first_name, a.last_name
+                FROM complaint_respondents r
+                INNER JOIN accounts a ON a.account_id = r.account_id
+                WHERE r.complaint_id = ? AND a.status = 'active'
+                ORDER BY r.respondent_id ASC";
+        $stmt = self::$conn->prepare($sql);
+        if (!$stmt) return [];
+        $stmt->bind_param('i', $complaintId);
+        $stmt->execute();
+        return $stmt->get_result()->fetch_all(MYSQLI_ASSOC) ?: [];
+    }
+
     public static function resolveCase($complaintId, $remarks, $outcome, $actorAccountId) {
         $complaintId = (int) $complaintId;
         $case = self::findCase($complaintId);
@@ -1026,5 +1238,96 @@ class CaseRecord extends Model {
             'Case ' . $case['case_number'] . ' is now ' . $newStatus . '.',
             'web/views/complaints/case_details.php?id=' . $case['complaint_id']
         );
+
+        self::notifyRespondentsOfCaseUpdate(
+            (int) $case['complaint_id'],
+            $case['case_number'],
+            $type,
+            $title,
+            'Case ' . $case['case_number'] . ' status updated to ' . $newStatus . '.'
+        );
+    }
+
+    private static function notifyRespondentsOfCaseUpdate($complaintId, $caseNumber, $type, $title, $message) {
+        try {
+            if (!self::respondentReleased($complaintId)) return;
+            foreach (self::linkedRespondentAccounts($complaintId) as $account) {
+                Notification::createForUser(
+                    (int) $account['account_id'],
+                    $type,
+                    $title,
+                    $message,
+                    'web/views/respondent/case_show.php?id=' . $complaintId
+                );
+            }
+        } catch (Throwable $exception) {
+            return;
+        }
+    }
+
+    /*
+     * Case status timeline for a respondent: only status-change events and the
+     * respondent's own activity. Never exposes internal notes/remarks.
+     */
+    public static function respondentHistory($complaintId, $respondentAccountId) {
+        $allowedActions = [
+            'Under Investigation',
+            'Returned for Revision',
+            'Rejected Complaint',
+            'Resolved Case',
+            'Escalated Case',
+            'Archived Case',
+            'Unarchived Case',
+            'Reformation in Progress',
+            'Reformation Completed',
+            'Counter-Statement Submitted',
+            'Counter-Statement Updated',
+            'Respondent Account Activated',
+            'Forwarded to Respondent',
+        ];
+
+        $rows = self::getHistory($complaintId);
+        $timeline = [];
+
+        foreach ($rows as $row) {
+            $isOwnAction = (int) $row['created_by_account_id'] === (int) $respondentAccountId;
+
+            if (!$isOwnAction && !in_array($row['action'], $allowedActions, true)) {
+                continue;
+            }
+
+            $timeline[] = [
+                'action' => $row['action'],
+                'new_status' => $row['new_status'],
+                'created_at' => $row['created_at'],
+                'is_own_action' => $isOwnAction,
+            ];
+        }
+
+        return $timeline;
+    }
+
+    /*
+     * Activity visible to staff (and, for respondent-triggered actions, to the
+     * respondent themselves). Written to case_history so the existing case
+     * timeline picks it up without schema changes.
+     */
+    public static function recordCaseActivity($complaintId, $action, $remarks, $actorAccountId) {
+        $case = self::findCase($complaintId);
+        if (!$case) return false;
+
+        self::createHistory([
+            'complaint_id' => $complaintId,
+            'action' => $action,
+            'previous_status' => $case['status'],
+            'new_status' => $case['status'],
+            'remarks' => $remarks,
+            'revision_fields' => null,
+            'assigned_coordinator_account_id' => null,
+            'created_by_account_id' => $actorAccountId,
+            'created_at' => date('Y-m-d H:i:s'),
+        ]);
+
+        return true;
     }
 }

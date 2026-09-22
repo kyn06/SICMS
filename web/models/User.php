@@ -62,13 +62,44 @@ class User extends Model {
         return $result->fetch_assoc();
     }
 
+    /* Case-insensitive email lookup used when linking an existing account to a respondent. */
+    public static function findByEmailInexact($email) {
+        $query = "SELECT * FROM accounts WHERE LOWER(email) = LOWER(?) LIMIT 1";
+        $stmt = self::$conn->prepare($query);
+        $stmt->bind_param("s", $email);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        return $result->fetch_assoc();
+    }
+
+    /* Accounts whose email (or name) keys into respondent contact info. */
+    public static function searchAccounts($term, $limit = 20) {
+        $term = trim((string) $term);
+        if ($term === '') return [];
+        $like = '%' . $term . '%';
+        $sql = "SELECT account_id, email, first_name, last_name, role, status
+                FROM accounts
+                WHERE LOWER(email) LIKE LOWER(?)
+                   OR LOWER(first_name) LIKE LOWER(?)
+                   OR LOWER(last_name) LIKE LOWER(?)
+                   OR LOWER(CONCAT(first_name, ' ', last_name)) LIKE LOWER(?)
+                ORDER BY last_name ASC
+                LIMIT ?";
+        $stmt = self::$conn->prepare($sql);
+        if (!$stmt) return [];
+        $stmt->bind_param("ssssi", $like, $like, $like, $like, $limit);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        return $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
+    }
+
     public static function login($email, $password) {
         $userData = self::findByEmail($email);
 
         if ($userData) {
             if (password_verify($password, $userData['password_hash'])) {
                 if ($userData['status'] == 'inactive') {
-                    $_SESSION['error'] = "Your account is deactivated. Please contact the super-admin.";
+                    $_SESSION['error'] = "Your account is deactivated. Please contact the SDRU office.";
                     return false;
                 }
                 session_regenerate_id(true);
@@ -104,7 +135,7 @@ class User extends Model {
 
         if ($userData) {
             if ($userData['status'] == 'inactive') {
-                $_SESSION['error'] = "Your account is deactivated. Please contact the super-admin.";
+                $_SESSION['error'] = "Your account is deactivated. Please contact the SDRU office.";
                 return false;
             }
 
@@ -255,9 +286,12 @@ class User extends Model {
 
     public static function listAccounts(array $filters = []) {
         $group = ($filters['group'] ?? '') === 'complainants' ? 'complainants' : 'staff';
-        $sql = "SELECT account_id, first_name, last_name, email, role, status, created_at, updated_at
+        $roleKey = "LOWER(REPLACE(REPLACE(role, '_', '-'), ' ', '-'))";
+        $sql = "SELECT account_id, first_name, last_name, email, role, status, phone_number, address, created_at, updated_at
                 FROM accounts
-                WHERE role " . ($group === 'complainants' ? "= 'student'" : "!= 'student'");
+                WHERE " . ($group === 'complainants'
+                    ? "$roleKey = 'student'"
+                    : "$roleKey NOT IN ('student', 'respondent')");
         $params = [];
         $types = '';
 

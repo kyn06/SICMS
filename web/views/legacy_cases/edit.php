@@ -81,7 +81,7 @@ $complainantType = ov($old, 'complainant_type', $case['complainant_type'] ?? 'St
                 </div>
             <?php endif; ?>
 
-            <form id="legacyEditForm" method="POST" action="index.php" enctype="multipart/form-data">
+            <form id="legacyEditForm" method="POST" action="index.php" enctype="multipart/form-data" data-sicms-validate>
                 <?= Security::csrfField() ?>
                 <input type="hidden" name="legacy_action" value="update">
                 <input type="hidden" name="complaint_id" value="<?= (int) $case['complaint_id'] ?>">
@@ -338,7 +338,7 @@ $complainantType = ov($old, 'complainant_type', $case['complainant_type'] ?? 'St
                     <h2 style="margin-top:18px">Add New Evidence</h2>
                     <div id="newEvidenceList"></div>
                     <button type="button" class="btn btn-secondary" id="addEvidenceBtn">Add Evidence File</button>
-                    <input type="file" name="evidence[]" id="evidenceInput" multiple style="display:none">
+                    <input type="file" name="evidence[]" id="evidenceInput" multiple accept=".pdf,.jpg,.jpeg,.png,.docx" data-sicms-size-mb="5" data-sicms-accept-ext="pdf,jpg,jpeg,png,docx" style="display:none">
                 </section>
 
                 <section class="form-section" data-has="has_hearings" hidden>

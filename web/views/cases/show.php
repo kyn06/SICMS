@@ -28,6 +28,8 @@ $message = $viewData['message'];
 $errors = $viewData['errors'];
 $resubmission = $viewData['resubmission'];
 $classificationOptions = $viewData['classificationOptions'];
+$respondentAccounts = $viewData['respondentAccounts'] ?? [];
+$counterStatements = $viewData['counterStatements'] ?? [];
 $pendingApproval = $viewData['pendingApproval'] ?? null;
 $caseStatus = $case['status'] ?? '';
 $statusMeta = [
@@ -46,12 +48,17 @@ $caseUpdatedAt = $case['updated_at'] ?? $case['submitted_at'] ?? null;
 $viewerRoleKey = strtolower(str_replace(['_', ' '], '-', $user['role'] ?? ''));
 $viewOnlyStaffRoles = ['sdr-staff', 'sdru-staff'];
 $isReformationCoordinator = $viewerRoleKey === 'reformation-coordinator';
-$isHeadViewer = in_array($viewerRoleKey, ['super-admin', 'head-of-sdru', 'sdru-head'], true);
+$isHeadViewer = in_array($viewerRoleKey, ['head-of-sdru', 'sdru-head'], true);
 $canManageCase = !in_array($viewerRoleKey, $viewOnlyStaffRoles, true)
     && ($viewerRoleKey !== 'coordinator'
         || ((int) ($case['assigned_coordinator_account_id'] ?? 0) === (int) ($user['account_id'] ?? 0)))
     && ($viewerRoleKey !== 'reformation-coordinator'
         || ((int) ($case['assigned_reformation_coordinator_account_id'] ?? 0) === (int) ($user['account_id'] ?? 0)));
+$canManageRespondentAccounts = $isHeadViewer
+    || ($viewerRoleKey === 'coordinator' && (int) ($case['assigned_coordinator_account_id'] ?? 0) === (int) ($user['account_id'] ?? 0))
+    || ($viewerRoleKey === 'reformation-coordinator' && (int) ($case['assigned_reformation_coordinator_account_id'] ?? 0) === (int) ($user['account_id'] ?? 0));
+$canDecideCounterStatement = $isHeadViewer
+    || ($viewerRoleKey === 'coordinator' && (int) ($case['assigned_coordinator_account_id'] ?? 0) === (int) ($user['account_id'] ?? 0));
 
 $controller->clearFlash();
 
@@ -161,6 +168,26 @@ function person_name($first, $last) {
         margin: 0 auto;
         padding: 24px;
     }
+
+    .case-section-nav { display:flex; gap:8px; overflow-x:auto; padding:10px 0 18px; position:sticky; top:0; z-index:5; background:#f5f7f4; }
+    .case-section-nav a { white-space:nowrap; padding:7px 10px; border:1px solid #dce5da; border-radius:999px; color:#123c1b; background:#fff; text-decoration:none; font-size:12px; }
+    .case-section-nav a:hover { background:#eaf7e8; }
+    .case-content-section { scroll-margin-top:66px; }
+    .case-summary-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin:0 0 18px; }
+    .case-summary-item { background:#fff; border:1px solid #dce5da; border-radius:10px; padding:12px 14px; }
+    .case-summary-item .label { color:#637162; font-size:11px; text-transform:uppercase; letter-spacing:.04em; }
+    .case-summary-item .value { color:#123c1b; font-weight:700; margin-top:4px; overflow-wrap:anywhere; }
+    .people-summary { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+    .people-summary details { background:#f9fcf8; border:1px solid #dce5da; border-radius:8px; padding:10px 12px; }
+    .people-summary summary { cursor:pointer; color:#123c1b; font-weight:700; }
+    .respondent-record { background:#fff; border:1px solid #dce5da; border-radius:10px; margin-bottom:10px; }
+    .respondent-record > summary { cursor:pointer; color:#123c1b; font-weight:700; list-style:none; padding:13px 14px; }
+    .respondent-record > summary::-webkit-details-marker { display:none; }
+    .respondent-record > summary::after { content:'View details'; color:#637162; float:right; font-size:12px; font-weight:400; }
+    .respondent-record[open] > summary::after { content:'Hide details'; }
+    .respondent-record-body { border-top:1px solid #e7eee5; padding:12px 14px; }
+    .long-case-text { max-height:15rem; overflow:auto; line-height:1.65; white-space:normal; }
+    @media (max-width:720px) { .case-summary-grid,.people-summary { grid-template-columns:1fr; } .case-section-nav { top:0; } }
 
     .status-banner {
         --status-color: #5b6b5c;
@@ -379,6 +406,17 @@ function person_name($first, $last) {
         flex-direction: column;
         gap: 10px;
         margin-bottom: 14px;
+    }
+
+    .form-group {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .form-group label {
+        color: #5c6a59;
+        font-size: 12px;
     }
 
     .revision-form {
@@ -611,6 +649,26 @@ function person_name($first, $last) {
 
     .btn-secondary:hover {
         background: #e2e7df;
+    }
+
+    .badge-status {
+        border-radius: 20px;
+        display: inline-block;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: .3px;
+        padding: 3px 10px;
+        text-transform: uppercase;
+    }
+
+    .badge-status.active {
+        background: #e2f5dc;
+        color: #0d5c00;
+    }
+
+    .badge-status.inactive {
+        background: #ffe9e2;
+        color: #a02b00;
     }
 
     .staff-actions-extra .btn {
@@ -978,7 +1036,7 @@ function person_name($first, $last) {
         }
     }
     </style>
-    <link rel="stylesheet" href="../layout/system.css?v=2">
+    <link rel="stylesheet" href="../layout/system.css?v=5">
 </head>
 
 <body>
@@ -987,7 +1045,10 @@ function person_name($first, $last) {
         <div class="case-page app-content">
             <?php $pageTitle = $case['case_number']; require __DIR__ . '/../layout/topbar.php'; ?>
 
-            <main class="case-wrap">
+            <main class="case-wrap case-detail-view">
+                <nav class="case-section-nav" aria-label="Case details sections">
+                    <a href="#case-overview">Overview</a><a href="#people-involved">People</a><a href="#complaint-details">Complaint</a><a href="#counter-statements">Statements</a><a href="#case-evidence">Evidence</a><a href="#hearings">Hearings</a><a href="#case-messages">Messages</a><a href="#case-updates">Updates</a><?php if (!in_array($viewerRoleKey, ['sdr-staff', 'sdru-staff'], true)): ?><a href="#case-actions">Actions</a><?php endif; ?><a href="#case-timeline">Timeline</a>
+                </nav>
                 <div style="margin-bottom:14px"><a class="btn btn-secondary"
                         href="<?= h(app_route('cases.index')) ?>"><i class="bi bi-arrow-left"></i> Back to Case
                         Management</a></div>
@@ -1057,8 +1118,33 @@ function person_name($first, $last) {
 
                 <div class="grid">
                     <div>
-                        <section class="panel">
-                            <h2>Complaint Information</h2>
+                        <section class="panel case-content-section" id="case-overview">
+                            <h2>Case Overview</h2>
+                            <div class="case-summary-grid">
+                                <div class="case-summary-item"><div class="label">Case Number</div><div class="value"><?= h($case['case_number']) ?></div></div>
+                                <div class="case-summary-item"><div class="label">Current Stage</div><div class="value"><?= h($caseStatus) ?></div></div>
+                                <div class="case-summary-item"><div class="label">Classification</div><div class="value"><?= h($case['case_classification'] ?: 'Unclassified') ?></div></div>
+                                <div class="case-summary-item"><div class="label">Submitted</div><div class="value"><?= h(date('M d, Y', strtotime($case['submitted_at']))) ?></div></div>
+                                <div class="case-summary-item"><div class="label">Incident</div><div class="value"><?= !empty($case['incident_datetime']) ? h(date('M d, Y h:i A', strtotime($case['incident_datetime']))) : 'Not provided' ?></div></div>
+                                <div class="case-summary-item"><div class="label">Discipline Coordinator</div><div class="value"><?= h(person_name($case['coordinator_first_name'], $case['coordinator_last_name'])) ?></div></div>
+                                <?php if (!empty($case['assigned_reformation_coordinator_account_id'])): ?><div class="case-summary-item"><div class="label">Reformation Coordinator</div><div class="value"><?= h(person_name($case['reformation_coordinator_first_name'], $case['reformation_coordinator_last_name'])) ?></div></div><?php endif; ?>
+                            </div>
+                        </section>
+
+                        <section class="panel case-content-section" id="people-involved">
+                            <h2>People Involved</h2>
+                            <div class="people-summary">
+                                <?php if (!$respondents): ?><p class="muted">Respondent: Not yet identified</p><?php endif; ?>
+                                <?php if (!$witnesses): ?><p class="muted">Witness: None provided</p><?php endif; ?>
+                                <details open><summary>Complainant — <?= h($case['complainant_name']) ?></summary><p class="muted"><?= h($case['complainant_type'] ?? 'Student') ?><?= !empty($case['complainant_email']) ? ' · ' . h($case['complainant_email']) : '' ?></p></details>
+                                <details open><summary>Assigned Coordinators</summary><p class="muted">Discipline: <?= h(person_name($case['coordinator_first_name'], $case['coordinator_last_name'])) ?><br>Reformation: <?= h(person_name($case['reformation_coordinator_first_name'], $case['reformation_coordinator_last_name'])) ?></p></details>
+                                <details><summary>Respondents (<?= count($respondents) ?>)</summary><?php foreach ($respondents as $person): ?><p class="muted"><?= h($person['full_name']) ?><?= !empty($person['email']) ? ' · ' . h($person['email']) : '' ?></p><?php endforeach; ?></details>
+                                <details><summary>Witnesses (<?= count($witnesses) ?>)</summary><?php foreach ($witnesses as $person): ?><p class="muted"><?= h($person['full_name']) ?></p><?php endforeach; ?></details>
+                            </div>
+                        </section>
+
+                        <section class="panel case-content-section" id="complaint-details">
+                            <h2>Complaint Details</h2>
                             <div class="details-grid">
                                 <div class="detail">
                                     <div class="label">Complainant</div>
@@ -1169,17 +1255,22 @@ function person_name($first, $last) {
                                 </div>
                                 <div class="detail full">
                                     <div class="label">Details</div>
-                                    <div class="value"><?= nl2br(h($case['complaint_details'])) ?></div>
+                                    <div class="value long-case-text"><?= nl2br(h($case['complaint_details'])) ?></div>
                                 </div>
                             </div>
                         </section>
 
-                        <section class="panel">
+                        <section class="panel case-content-section" id="respondents">
                             <h2>Respondents</h2>
                             <div class="respondent-details-list">
+                                <?php if (!$respondents): ?>
+                                <p class="muted">Respondent: Not yet identified</p>
+                                <?php endif; ?>
                                 <?php foreach ($respondents as $respondent): ?>
                                 <?php $rtype = $respondent['respondent_type'] ?? 'Student'; ?>
-                                <div class="respondent-details-card">
+                                <details class="respondent-record">
+                                    <summary><?= h($respondent['full_name']) ?> · <?= h($rtype) ?></summary>
+                                    <div class="respondent-record-body">
                                     <div class="details-grid">
                                     <div class="detail">
                                         <div class="label">Full Name</div>
@@ -1236,14 +1327,167 @@ function person_name($first, $last) {
                                     <div class="detail full"><div class="label">Details</div><div class="value"><?= nl2br(h($respondent['details'])) ?></div></div>
                                     <?php endif; ?>
                                     </div>
-                                </div>
+                                    </div>
+                                </details>
                                 <?php endforeach; ?>
                             </div>
                         </section>
 
-                        <section class="panel">
+                        <?php if ($canManageRespondentAccounts): ?>
+                        <section class="panel case-content-section" id="respondent-delivery">
+                            <h2><i class="bi bi-send"></i> Respondent Case Delivery</h2>
+                            <p class="muted" style="font-size:12px;margin:0 0 14px">Link the respondent to this case or send their case invitation. Profile and contact changes are managed from Users &rarr; Respondents.</p>
+                            <?php if (empty($respondentAccounts)): ?>
+                                <p class="muted">No respondents recorded on this case.</p>
+                            <?php else: ?>
+                                <?php foreach ($respondentAccounts as $ra): ?>
+                                <div class="respondent-details-card" style="margin-bottom:12px">
+                                    <div class="details-grid">
+                                    <div class="detail">
+                                        <div class="label">Respondent</div>
+                                        <div class="value"><strong><?= h($ra['full_name']) ?></strong></div>
+                                    </div>
+                                    <div class="detail">
+                                        <div class="label">Recorded Email</div>
+                                        <div class="value"><?= h($ra['email'] ?? '-') ?></div>
+                                    </div>
+                                    <div class="detail">
+                                        <div class="label">Case Link</div>
+                                        <div class="value">
+                                            <?php if (!empty($ra['linked_account_id'])): ?>
+                                                <?= h($ra['account_email']) ?>
+                                                <span class="badge-status <?= ($ra['account_status'] ?? '') === 'active' ? 'active' : 'inactive' ?>"><?= h($ra['account_status'] ?? 'unknown') ?></span>
+                                            <?php else: ?>
+                                                <span class="muted">Not linked yet</span>
+                                            <?php endif; ?>
+                                        </div>
+                                    </div>
+                                    <?php
+                                    if (empty($ra['linked_account_id'])) {
+                                        $invitationStatusLabel = 'Not Invited';
+                                        $invitationStatusClass = 'inactive';
+                                    } elseif (($ra['account_status'] ?? '') === 'active') {
+                                        $invitationStatusLabel = 'Account Activated';
+                                        $invitationStatusClass = 'active';
+                                    } elseif (!empty($ra['invited_at'])) {
+                                        $invitationStatusLabel = CaseRecord::invitationIsExpired((string) $ra['invited_at'])
+                                            ? 'Invitation Sent (Expired - Resend Required)'
+                                            : 'Invitation Sent (Awaiting Activation)';
+                                        $invitationStatusClass = 'inactive';
+                                    } else {
+                                        $invitationStatusLabel = 'Account Created (Not Yet Invited)';
+                                        $invitationStatusClass = 'inactive';
+                                    }
+                                    ?>
+                                    <div class="detail">
+                                        <div class="label">Invitation Status</div>
+                                        <div class="value"><span class="badge-status <?= $invitationStatusClass ?>"><?= h($invitationStatusLabel) ?></span></div>
+                                    </div>
+                                    <?php if (!empty($ra['linked_account_id']) && !empty($ra['invited_at'])): ?>
+                                    <div class="detail">
+                                        <div class="label">Invitation Sent</div>
+                                        <div class="value"><?= h(date('M d, Y h:i A', strtotime($ra['invited_at']))) ?></div>
+                                    </div>
+                                    <?php endif; ?>
+                                    </div>
+
+                                    <?php if (empty($ra['linked_account_id'])): ?>
+                                    <div class="case-action-group" style="margin-top:10px">
+                                        <h3 class="case-action-label">Link or Invite for This Case</h3>
+                                        <p class="muted" style="font-size:11px;margin:4px 0 8px">An email is required to send a case invitation.</p>
+                                        <form class="action-form" method="POST" action="show.php?id=<?= (int) $case['complaint_id'] ?>">
+                                            <?= Security::csrfField() ?>
+                                            <input type="hidden" name="case_action" value="create_respondent_account">
+                                            <input type="hidden" name="respondent_id" value="<?= (int) $ra['respondent_id'] ?>">
+                                            <div class="form-group">
+                                                <label>Account Email</label>
+                                                <input type="email" name="account_email" value="<?= h($ra['email'] ?? '') ?>" placeholder="Email for this respondent" required>
+                                            </div>
+                                            <div class="form-group">
+                                                <label>First Name</label>
+                                                <input type="text" name="account_first_name" value="<?= h(explode(' ', trim((string)$ra['full_name']))[0]) ?>" required>
+                                            </div>
+                                            <div class="form-group">
+                                                <label>Last Name</label>
+                                                <input type="text" name="account_last_name" value="<?= h(trim(preg_replace('/^[^ ]+\s*/', '', trim((string)$ra['full_name'])))) ?>" required>
+                                            </div>
+                                            <button class="btn btn-assign" type="submit" data-sicms-processing-label="Sending invitation..."><i class="bi bi-person-plus"></i> Send Case Invitation</button>
+                                        </form>
+                                        <h3 class="case-action-label" style="margin-top:10px">Link Existing Account</h3>
+                                        <form class="action-form" method="POST" action="show.php?id=<?= (int) $case['complaint_id'] ?>">
+                                            <?= Security::csrfField() ?>
+                                            <input type="hidden" name="case_action" value="link_respondent_account">
+                                            <input type="hidden" name="respondent_id" value="<?= (int) $ra['respondent_id'] ?>">
+                                            <div class="form-group">
+                                                <label>Account Email (or exact full name)</label>
+                                                <input type="text" name="account_search" placeholder="Search existing accounts by email or name" required>
+                                            </div>
+                                            <button class="btn btn-secondary" type="submit" data-sicms-processing-label="Linking account..."><i class="bi bi-link-45deg"></i> Link Existing Account</button>
+                                            <p class="muted" style="font-size:11px;margin:6px 0 0">Only active accounts whose email matches the recorded email can be linked.</p>
+                                        </form>
+                                    </div>
+                                    <?php elseif (($ra['account_status'] ?? '') !== 'active'): ?>
+                                    <div class="case-action-group" style="margin-top:10px">
+                                        <h3 class="case-action-label">Invitation</h3>
+                                        <form class="action-form" method="POST" action="show.php?id=<?= (int) $case['complaint_id'] ?>">
+                                            <?= Security::csrfField() ?>
+                                            <input type="hidden" name="case_action" value="resend_respondent_invite">
+                                            <input type="hidden" name="respondent_id" value="<?= (int) $ra['respondent_id'] ?>">
+                                            <button class="btn btn-assign" type="submit" data-sicms-processing-label="Sending invitation..."><i class="bi bi-envelope-arrow-up"></i> Resend Invitation</button>
+                                        </form>
+                                    </div>
+                                    <?php endif; ?>
+
+                                </div>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </section>
+                        <?php endif; ?>
+
+                        <?php if ($canManageRespondentAccounts): ?>
+                        <?php
+                        $released = !empty($case['respondent_released_at']);
+                        $visibility = CaseRecord::respondentVisibility($complaintId);
+                        $visibilityLabels = [
+                            'complaint_details' => 'Complaint Details (narrative)',
+                            'incident' => 'Incident date, time, and location',
+                            'hearings' => 'Scheduled hearings',
+                            'final_information' => 'Final information (outcome / action taken / remarks)',
+                        ];
+                        ?>
+                        <section class="panel" id="forward-respondent">
+                            <h2><i class="bi bi-send"></i> Forward Case Information to Respondent</h2>
+                            <?php if ($released): ?>
+                                <p class="muted" style="font-size:12px;margin:0 0 12px">Permitted case information was released to the respondent(s) on <?= h(date('M d, Y h:i A', strtotime($case['respondent_released_at']))) ?>. Respondents see only what is checked below; evidence, witnesses, and internal notes are never shown to them.</p>
+                            <?php else: ?>
+                                <p class="muted" style="font-size:12px;margin:0 0 12px">The respondent(s) can only view the case once you forward it. Select which information the respondent(s) may see, then forward. Evidence, witnesses, and internal notes are never shown to respondents. Re-forwarding updates the permitted sections.</p>
+                            <?php endif; ?>
+                            <form class="action-form" method="POST" action="show.php?id=<?= (int) $case['complaint_id'] ?>">
+                                <?= Security::csrfField() ?>
+                                <input type="hidden" name="case_action" value="forward_to_respondents">
+                                <div class="form-group">
+                                    <label>Permitted Respondent Information</label>
+                                    <?php foreach ($visibilityLabels as $key => $label): ?>
+                                        <?php if ($key === 'complaint_details') continue; ?>
+                                        <label style="display:flex;gap:8px;align-items:center;font-weight:400;margin:4px 0">
+                                            <input type="checkbox" name="respondent_visibility[]" value="<?= h($key) ?>" <?= $visibility[$key] ? 'checked' : '' ?>>
+                                            <?= h($label) ?>
+                                        </label>
+                                    <?php endforeach; ?>
+                                    <p class="muted" style="font-size:11px;margin:6px 0 0">Complaint Details (narrative) is always included as the basis of the respondent&rsquo;s counter-statement.</p>
+                                </div>
+                                <div>
+                                    <button class="btn btn-assign" type="submit" data-sicms-processing-label="<?= $released ? 'Updating release...' : 'Forwarding case...' ?>"><i class="bi bi-send"></i> <?= $released ? 'Update &amp; Re-Forward' : 'Forward to Respondent' ?></button>
+                                </div>
+                            </form>
+                        </section>
+                        <?php endif; ?>
+                        <section class="panel case-content-section" id="witnesses">
                             <h2>Witnesses</h2>
                             <div class="list">
+                                <?php if (!$witnesses): ?>
+                                <p class="muted">Witness: None provided</p>
+                                <?php endif; ?>
                                 <?php foreach ($witnesses as $witness): ?>
                                 <?php $wtype = $witness['person_type'] ?? 'Private Individual'; ?>
                                 <div class="list-item">
@@ -1293,7 +1537,7 @@ function person_name($first, $last) {
                             </div>
                         </section>
 
-                        <section class="panel">
+                        <section class="panel case-content-section" id="case-evidence">
                             <h2>Evidence Attachments</h2>
                             <div class="list">
                                 <?php foreach ($evidence as $file): ?>
@@ -1312,7 +1556,138 @@ function person_name($first, $last) {
                             </div>
                         </section>
 
-                        <section class="panel">
+                        <section class="panel case-content-section" id="counter-statements">
+                            <h2>Statement Exchange</h2>
+                            <?php if (empty($counterStatements)): ?>
+                                <p class="muted">No counter-statements have been submitted by respondents yet.</p>
+                            <?php else: ?>
+                                <?php foreach ($counterStatements as $statement): ?>
+                                <?php
+                                $statementAttachments = CounterStatement::attachments((int) $statement['counter_statement_id']);
+                                $statementStatus = $statement['status'] ?? 'Draft';
+                                ?>
+                                <div class="respondent-details-card" style="margin-bottom:12px">
+                                    <div class="details-grid">
+                                    <div class="detail">
+                                        <div class="label">Respondent</div>
+                                        <div class="value"><strong><?= h($statement['respondent_full_name']) ?></strong></div>
+                                    </div>
+                                    <div class="detail">
+                                        <div class="label">Status</div>
+                                        <div class="value">
+                                            <span class="badge-status <?= $statementStatus === 'Submitted' ? 'active' : 'inactive' ?>"><?= h($statementStatus) ?></span>
+                                            <?php if (!empty($statement['submitted_at'])): ?>
+                                                &middot; submitted <?= h(date('M d, Y h:i A', strtotime($statement['submitted_at']))) ?>
+                                            <?php endif; ?>
+                                        </div>
+                                    </div>
+                                    <?php if (!empty($statement['account_first_name'])): ?>
+                                    <div class="detail">
+                                        <div class="label">Submitted by Account</div>
+                                        <div class="value"><?= h(trim($statement['account_first_name'] . ' ' . $statement['account_last_name'])) ?> (<?= h($statement['respondent_account_id'] ?? '-') ?>)</div>
+                                    </div>
+                                    <?php endif; ?>
+                                    <div class="detail full">
+                                        <div class="label">Statement Content</div>
+                                        <div class="value" style="white-space:pre-wrap"><?= nl2br(h($statement['content'] ?? '')) ?></div>
+                                    </div>
+                                    <?php if (!empty($statementAttachments)): ?>
+                                    <div class="detail full">
+                                        <div class="label">Evidence Attachments</div>
+                                        <div class="button-row" style="margin-top:6px">
+                                            <?php foreach ($statementAttachments as $attachment): ?>
+                                                <a class="btn btn-secondary" target="_blank" href="../complaints/attachment.php?id=<?= (int) $attachment['evidence_id'] ?>&amp;mode=view"><i class="bi bi-paperclip"></i> View</a>
+                                                <a class="btn btn-secondary" href="../complaints/attachment.php?id=<?= (int) $attachment['evidence_id'] ?>&amp;mode=download"><i class="bi bi-download"></i> Download</a>
+                                                <span class="muted" style="display:inline-block;margin-left:4px"><?= h($attachment['original_filename']) ?> (<?= h(number_format($attachment['file_size'] / 1024, 1)) ?> KB)</span>
+                                            <?php endforeach; ?>
+                                        </div>
+                                    </div>
+                                    <?php endif; ?>
+                                    </div>
+                                    <?php if ($statementStatus === 'Submitted' && !in_array($viewerRoleKey, ['sdr-staff', 'sdru-staff'], true)): ?>
+                                    <form class="action-form" method="POST" action="show.php?id=<?= (int) $case['complaint_id'] ?>"
+                                        style="margin-top:10px">
+                                        <?= Security::csrfField() ?>
+                                        <input type="hidden" name="case_action" value="request_counter_revision">
+                                        <input type="hidden" name="counter_statement_id" value="<?= (int) $statement['counter_statement_id'] ?>">
+                                        <button class="btn btn-archive" type="submit" data-swal-confirm="Return this counter-statement to the respondent for revision?"><i class="bi bi-arrow-counterclockwise"></i> Request Revision</button>
+                                    </form>
+                                    <?php endif; ?>
+
+                                    <?php if ($statementStatus === 'Submitted'): ?>
+                                    <?php if (!empty($statement['coordinator_action'])): ?>
+                                    <div class="details-grid" style="margin-top:12px">
+                                        <div class="detail">
+                                            <div class="label">Coordinator Decision</div>
+                                            <div class="value">
+                                                <?= $statement['coordinator_action'] === 'proceed_to_investigation'
+                                                    ? 'Proceeded to Investigation'
+                                                    : 'Forwarded to Complainant' ?>
+                                                <?php if (!empty($statement['coordinator_action_at'])): ?>
+                                                    &middot; <?= h(date('M d, Y h:i A', strtotime($statement['coordinator_action_at']))) ?>
+                                                <?php endif; ?>
+                                            </div>
+                                        </div>
+                                        <?php if (trim((string) ($statement['complaint_response_content'] ?? '')) !== ''): ?>
+                                        <div class="detail full">
+                                            <div class="label">Complainant Response
+                                                <?php if (!empty($statement['complaint_response_submitted_at'])): ?>
+                                                    <span class="badge-status active">Submitted <?= h(date('M d, Y h:i A', strtotime($statement['complaint_response_submitted_at']))) ?></span>
+                                                <?php else: ?>
+                                                    <span class="badge-status inactive">Draft</span>
+                                                <?php endif; ?>
+                                            </div>
+                                            <div class="value" style="white-space:pre-wrap"><?= nl2br(h($statement['complaint_response_content'])) ?></div>
+                                        </div>
+                                        <?php endif; ?>
+                                    </div>
+                                    <?php if ($statement['coordinator_action'] === 'forwarded_to_complainant' && $canDecideCounterStatement): ?>
+                                        <?php if (!empty($statement['complaint_response_submitted_at'])): ?>
+                                        <div style="margin-top:12px">
+                                            <div class="label">Next Action</div>
+                                            <div class="value" style="margin:6px 0 10px">The complainant has submitted a response. You may now advance the case to the investigation stage.</div>
+                                            <div class="button-row">
+                                                <form class="action-form" method="POST" action="show.php?id=<?= (int) $case['complaint_id'] ?>">
+                                                    <?= Security::csrfField() ?>
+                                                    <input type="hidden" name="case_action" value="proceed_counter_statement">
+                                                    <input type="hidden" name="counter_statement_id" value="<?= (int) $statement['counter_statement_id'] ?>">
+                                                    <button class="btn btn-assign" type="submit"><i class="bi bi-search"></i> Proceed to Investigation</button>
+                                                </form>
+                                            </div>
+                                        </div>
+                                        <?php else: ?>
+                                        <div style="margin-top:12px">
+                                            <div class="value" style="margin:6px 0 10px">The complainant has not yet responded to the forwarded counter-statement.</div>
+                                        </div>
+                                        <?php endif; ?>
+                                    <?php endif; ?>
+                                    <?php elseif ($canDecideCounterStatement): ?>
+                                    <div style="margin-top:12px">
+                                        <div class="label">Next Action</div>
+                                        <div class="value" style="margin:6px 0 10px">What would you like to do with the Respondent&rsquo;s Counter-Statement?</div>
+                                        <div class="button-row">
+                                            <form class="action-form" method="POST" action="show.php?id=<?= (int) $case['complaint_id'] ?>">
+                                                <?= Security::csrfField() ?>
+                                                <input type="hidden" name="case_action" value="proceed_counter_statement">
+                                                <input type="hidden" name="counter_statement_id" value="<?= (int) $statement['counter_statement_id'] ?>">
+                                                <button class="btn btn-assign" type="submit"><i class="bi bi-search"></i> Proceed to Investigation</button>
+                                            </form>
+                                            <form class="action-form" method="POST" action="show.php?id=<?= (int) $case['complaint_id'] ?>">
+                                                <?= Security::csrfField() ?>
+                                                <input type="hidden" name="case_action" value="forward_counter_statement">
+                                                <input type="hidden" name="counter_statement_id" value="<?= (int) $statement['counter_statement_id'] ?>">
+                                                <button class="btn btn-archive" type="submit" data-swal-confirm="Are you sure you want to forward the permitted Respondent Counter-Statement information to the Complainant?"><i class="bi bi-send"></i> Forward to Complainant</button>
+                                            </form>
+                                        </div>
+                                    </div>
+                                    <?php endif; ?>
+                                    <?php endif; ?>
+                                </div>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </section>
+
+                        <section class="panel case-content-section" id="hearings">
                             <h2>Hearing Schedule</h2>
                             <?php
                             $caseHearings = $viewData['hearings'] ?? [];
@@ -1347,7 +1722,7 @@ function person_name($first, $last) {
                             </div>
                         </section>
 
-                        <section class="panel">
+                        <section class="panel case-content-section" id="case-messages">
                             <h2>Conversation<?php if ($messageReceiver): ?> —
                                 <?= h(trim(($messageReceiver['first_name'] ?? '') . ' ' . ($messageReceiver['last_name'] ?? ''))) ?><?php endif; ?>
                             </h2>
@@ -1389,7 +1764,7 @@ function person_name($first, $last) {
                             </form>
                         </section>
 
-                        <section class="panel">
+                        <section class="panel case-content-section" id="case-updates">
                             <h2><i class="bi bi-journal-plus"></i> Case Updates</h2>
                             <p class="muted" style="margin:-8px 0 14px"><i class="bi bi-shield-lock"></i> Internal SDRU
                                 records added by staff, coordinators, or the SDRU head. They are not shown to the
@@ -1484,7 +1859,7 @@ function person_name($first, $last) {
                         <?php $caseStatus = $case['status'] ?? ''; $caseLocked = in_array($caseStatus, ['Resolved', 'Reformation in Progress', 'Reformation Completed', 'Escalated', 'Archived'], true); ?>
                         <?php if (!in_array($viewerRoleKey, ['sdr-staff', 'sdru-staff'], true)): ?>
                         <?php if ($isReformationCoordinator): ?>
-                        <section class="panel">
+                        <section class="panel case-content-section" id="case-actions">
                             <h2><i class="bi bi-arrow-repeat"></i> Reformation Panel</h2>
                             <?php if (!$canManageCase): ?>
                             <p class="muted" style="margin-bottom:10px"><i class="bi bi-lock-fill"></i> This case is
@@ -1529,7 +1904,7 @@ function person_name($first, $last) {
                             <?php endif; ?>
                         </section>
                         <?php else: ?>
-                        <section class="panel">
+                        <section class="panel case-content-section" id="case-actions">
                             <h2>Case Actions</h2>
                             <?php if (!$canManageCase): ?>
                             <p class="muted" style="margin-bottom:10px"><i class="bi bi-lock-fill"></i> This case is
@@ -1627,7 +2002,7 @@ function person_name($first, $last) {
                         <?php endif; ?>
                         <?php endif; ?>
 
-                        <section class="panel">
+                        <section class="panel case-content-section" id="case-timeline">
                             <h2>Timeline</h2>
                             <div class="timeline-scroll">
                             <?php if (empty($history)): ?>
@@ -1770,7 +2145,7 @@ function person_name($first, $last) {
                 </div>
                 <button class="case-modal-close" type="button" data-close-modal aria-label="Close">&times;</button>
             </div>
-            <form class="action-form" method="POST" action="show.php?id=<?= (int) $case['complaint_id'] ?>" enctype="multipart/form-data">
+            <form class="action-form" method="POST" action="show.php?id=<?= (int) $case['complaint_id'] ?>" enctype="multipart/form-data" data-sicms-validate>
                 <?= Security::csrfField() ?>
                 <div class="case-modal-body">
                     <label class="case-modal-label" for="progressDate">Date</label>
@@ -1786,11 +2161,11 @@ function person_name($first, $last) {
                     <label class="case-modal-label" for="progressRemarks">Remarks / Progress Notes</label>
                     <textarea id="progressRemarks" name="remarks" required placeholder="Enter observations and progress notes."></textarea>
                     <label class="case-modal-label" for="progressAttachments">Attachments (optional, max 5MB per file: PDF, JPG, PNG, DOCX)</label>
-                    <input id="progressAttachments" type="file" name="progress_attachments[]" multiple accept=".pdf,.jpg,.jpeg,.png,.docx">
+                    <input id="progressAttachments" type="file" name="progress_attachments[]" multiple accept=".pdf,.jpg,.jpeg,.png,.docx" data-sicms-size-mb="5" data-sicms-accept-ext="pdf,jpg,jpeg,png,docx">
                 </div>
                 <div class="case-modal-actions">
                     <button type="button" class="btn btn-secondary" data-close-modal>Cancel</button>
-                    <button class="btn btn-assign" type="submit" name="case_action" value="reformation_activity">Submit Update</button>
+                    <button class="btn btn-assign" type="submit" name="case_action" value="reformation_activity" data-sicms-processing-label="Submitting update...">Submit Update</button>
                 </div>
             </form>
         </div>
@@ -1806,7 +2181,7 @@ function person_name($first, $last) {
                 <button class="case-modal-close" type="button" data-close-modal aria-label="Close">&times;</button>
             </div>
             <form class="action-form" method="POST"
-                action="show.php?id=<?= (int) $case['complaint_id'] ?>" enctype="multipart/form-data">
+                action="show.php?id=<?= (int) $case['complaint_id'] ?>" enctype="multipart/form-data" data-sicms-validate>
                 <?= Security::csrfField() ?>
                 <div class="case-modal-body">
                     <label class="case-modal-label" for="caseUpdateType">Update Type</label>
@@ -1853,11 +2228,11 @@ function person_name($first, $last) {
                     <label class="case-modal-label" for="caseUpdateAttachments">Attach Evidence (optional, max 5MB
                         per file: PDF, JPG, PNG, DOCX)</label>
                     <input id="caseUpdateAttachments" type="file" name="attachments[]" multiple
-                        accept=".pdf,.jpg,.jpeg,.png,.docx">
+                        accept=".pdf,.jpg,.jpeg,.png,.docx" data-sicms-size-mb="5" data-sicms-accept-ext="pdf,jpg,jpeg,png,docx">
                 </div>
                 <div class="case-modal-actions">
                     <button type="button" class="btn btn-secondary" data-close-modal>Cancel</button>
-                    <button class="btn btn-assign" type="submit" name="case_action" value="case_update"
+                    <button class="btn btn-assign" type="submit" name="case_action" value="case_update" data-sicms-processing-label="Submitting update..."
                         id="submitCaseUpdate" data-swal-confirm="Add this case update? The original complaint and the case status will remain unchanged."><i class="bi bi-plus-circle"></i> <span id="submitCaseUpdateLabel">Add Case Update</span></button>
                 </div>
             </form>

@@ -21,6 +21,9 @@ $routes = [
     'legacy.index' => 'web/views/legacy/index.php',
     'messages.index' => 'web/views/messages/index.php',
     'messages.send' => 'web/views/messages/send.php',
+    'respondent.cases' => 'web/views/respondent/cases.php',
+    'respondent.case_show' => 'web/views/respondent/case_show.php',
+    'respondent.activate' => 'web/views/auth/activate.php',
     'settings.index' => 'web/views/settings/index.php',
     'logout' => 'web/views/auth/logout.php',
 ];
@@ -70,6 +73,7 @@ function app_current_route() {
     if (str_starts_with($path, 'web/views/complaints/')) return 'complaints.my_cases';
     if (str_starts_with($path, 'web/views/messages/')) return 'messages.index';
     if (str_starts_with($path, 'web/views/settings/')) return 'settings.index';
+    if (str_starts_with($path, 'web/views/respondent/')) return 'respondent.cases';
 
     return null;
 }

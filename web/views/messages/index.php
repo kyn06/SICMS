@@ -24,8 +24,7 @@ $recipient = $viewData['recipient'];
 $cases = $viewData['cases'];
 $isStaffPeer = $viewData['isStaffPeer'];
 
-$roleKey = strtolower(str_replace(['_', ' '], '-', (string) ($user['role'] ?? '')));
-$canStartConversation = $roleKey !== 'student';
+$canStartConversation = Message::canStartConversations($user);
 
 function h($value) {
     return htmlspecialchars((string) $value);
@@ -37,7 +36,7 @@ function normalize_role_label($role) {
     return match ($roleKey) {
         'head-of-sdru', 'sdru-head' => 'Head SDRU',
         'sdr-staff', 'sdru-staff' => 'Staff',
-        'admin', 'super-admin' => 'Administrator',
+        'admin' => 'Administrator',
         'student' => 'Student',
         default => ucwords(str_replace('-', ' ', $roleKey)),
     };
@@ -190,7 +189,7 @@ function preview_text($text) {
             .dashboard-link { display: none; }
         }
     </style>
-    <link rel="stylesheet" href="../layout/system.css?v=2">
+    <link rel="stylesheet" href="../layout/system.css?v=3">
     <link rel="stylesheet" href="../layout/messages.css">
 </head>
 
@@ -227,7 +226,7 @@ function preview_text($text) {
                             <strong><i class="bi bi-chat-plus-dots"></i> Start a new conversation</strong>
                             <button class="popover-close" id="candidateClose" type="button" aria-label="Close"><i class="bi bi-x-lg"></i></button>
                         </div>
-                        <p class="popover-hint">Search any student or staff. Searching a case number will show the complainant.</p>
+                        <p class="popover-hint">Search any student, staff, or respondent. Searching a case number will show the complainant.</p>
                         <div class="popover-search"><input class="search" id="candidateSearch" type="search" placeholder="Search name, role, or case number" autocomplete="off"></div>
                         <div class="candidate-list" id="candidateList"></div>
                     </div>
@@ -379,7 +378,6 @@ function preview_text($text) {
                 'sdr-staff': 'Staff',
                 'sdru-staff': 'Staff',
                 'admin': 'Administrator',
-                'super-admin': 'Administrator',
                 'student': 'Student'
             };
 
@@ -789,6 +787,10 @@ function preview_text($text) {
                 return;
             }
 
+            const originalDeleteLabel = deleteConfirm.textContent;
+            deleteConfirm.disabled = true;
+            deleteConfirm.textContent = 'Deleting...';
+
             const csrfInput = messageForm.querySelector('input[name="csrf_token"]');
             const formData = new FormData();
             formData.append('counterpart_account_id', pendingDeleteId);
@@ -797,38 +799,44 @@ function preview_text($text) {
                 formData.append('csrf_token', csrfInput.value);
             }
 
-            const response = await fetch('delete.php', {
-                method: 'POST',
-                headers: { 'X-Requested-With': 'XMLHttpRequest' },
-                body: formData
-            });
-            const data = await response.json();
+            try {
+                const response = await fetch('delete.php', {
+                    method: 'POST',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                    body: formData
+                });
+                const data = await response.json();
 
-            if (!data.success) {
+                if (!response.ok || !data.success) {
+                    throw new Error(data.message || 'Unable to delete this conversation. Please try again.');
+                }
+
+                conversations = data.conversations;
+                candidates = data.candidates;
+
+                if (conversations.some(item => String(item.counterpart_account_id) === String(selectedConversationId))) {
+                    renderAll();
+                } else if (conversations.length) {
+                    await openConversation(String(conversations[0].counterpart_account_id));
+                } else {
+                    selectedConversationId = '';
+                    selectedRecipient = null;
+                    selectedCases = [];
+                    selectedIsStaff = false;
+                    messages = [];
+                    recipientInput.value = '';
+                    complaintId.value = 0;
+                    history.replaceState(null, '', 'index.php');
+                    renderAll();
+                }
+
                 closeDeleteConfirm();
-                return;
+            } catch (error) {
+                deleteModalText.textContent = error.message || 'Unable to delete this conversation. Please try again.';
+            } finally {
+                deleteConfirm.disabled = false;
+                deleteConfirm.textContent = originalDeleteLabel;
             }
-
-            conversations = data.conversations;
-            candidates = data.candidates;
-
-            if (conversations.some(item => String(item.counterpart_account_id) === String(selectedConversationId))) {
-                renderAll();
-            } else if (conversations.length) {
-                await openConversation(String(conversations[0].counterpart_account_id));
-            } else {
-                selectedConversationId = '';
-                selectedRecipient = null;
-                selectedCases = [];
-                selectedIsStaff = false;
-                messages = [];
-                recipientInput.value = '';
-                complaintId.value = 0;
-                history.replaceState(null, '', 'index.php');
-                renderAll();
-            }
-
-            closeDeleteConfirm();
         });
 
         conversationSearch.addEventListener('input', () => {
@@ -853,6 +861,10 @@ function preview_text($text) {
             }
 
             sendButton.disabled = true;
+            sendButton.setAttribute('aria-busy', 'true');
+            sendButton.innerHTML = '<span class="sicms-processing-spinner" aria-hidden="true"></span>';
+            recipientNote.classList.remove('recipient-error');
+            recipientNote.textContent = 'Sending message...';
 
             try {
                 const formData = new FormData(messageForm);
@@ -891,6 +903,8 @@ function preview_text($text) {
                 recipientNote.textContent = 'Could not send message. Check your connection and try again.';
                 recipientNote.classList.add('recipient-error');
             } finally {
+                sendButton.removeAttribute('aria-busy');
+                sendButton.innerHTML = '<i class="bi bi-send-fill"></i>';
                 syncComposerState();
             }
         });
@@ -914,7 +928,7 @@ function preview_text($text) {
             const role = normalizeRole(candidate.counterpart_role);
             const caseList = candidate.cases || [];
 
-            if (candidate.counterpart_role === 'student') {
+            if (candidate.counterpart_role === 'student' || candidate.counterpart_role === 'respondent') {
                 if (!caseList.length) {
                     return `${role} | No case yet`;
                 }

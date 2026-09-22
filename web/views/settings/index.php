@@ -42,13 +42,30 @@ function session_location($ipAddress) {
     return in_array($ipAddress, ['', '::1', '127.0.0.1'], true) ? 'Localhost (this computer)' : $ipAddress;
 }
 
+function field_error_html($fieldErrors, $field) {
+    $messages = $fieldErrors[$field] ?? [];
+    if (is_array($messages)) {
+        if (!$messages) return '';
+        $items = array_map(fn($m) => htmlspecialchars((string) $m, ENT_QUOTES, 'UTF-8'), $messages);
+        return '<div class="field-error" role="alert">' . implode('<br>', $items) . '</div>';
+    }
+    return $messages !== '' && $messages !== null
+        ? '<div class="field-error" role="alert">' . htmlspecialchars((string) $messages, ENT_QUOTES, 'UTF-8') . '</div>'
+        : '';
+}
+
 $isStudent = ProfileCompletion::isStudentAccount($user);
+$roleKey = strtolower(str_replace(['_', ' '], '-', (string) ($user['role'] ?? '')));
+$staffRoles = ['admin', 'sdr-staff', 'sdru-staff', 'coordinator', 'reformation-coordinator', 'head-of-sdru', 'sdru-head'];
+$isStaffView = in_array($roleKey, $staffRoles, true);
 
 $success = null;
 $errors = [];
+$fieldErrors = [];
+$pwErrors = [];
+$pwFieldErrors = [];
 $old = [];
 $pwSuccess = null;
-$pwErrors = [];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     Security::requireCsrfToken();
@@ -56,9 +73,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $formAction = $_POST['action'] ?? 'profile';
 
     if ($formAction === 'disconnect_calendar') {
-        $service = GoogleCalendarService::instance($db);
-        $service->disconnect();
-        $calSuccess = 'Google Calendar disconnected. Hearing events will no longer be synced.';
+        if (!$isStaffView) {
+            $errors[] = 'You do not have access to calendar integrations.';
+        } else {
+            $service = GoogleCalendarService::instance($db);
+            $service->disconnect();
+            $calSuccess = 'Google Calendar disconnected. Hearing events will no longer be synced.';
+        }
     } elseif ($formAction === 'logout_device') {
         $targetSession = trim((string) ($_POST['session_id'] ?? ''));
         if ($targetSession === session_id()) {
@@ -78,36 +99,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if ($hasPassword && $currentPassword === '') {
             $pwErrors[] = 'Please enter your current password.';
+            $pwFieldErrors['current_password'][] = 'Please enter your current password.';
         }
 
         if ($newPassword === '') {
             $pwErrors[] = 'Please enter a new password.';
+            $pwFieldErrors['new_password'][] = 'Please enter a new password.';
         } elseif (strlen($newPassword) < 8) {
             $pwErrors[] = 'New password must be at least 8 characters.';
+            $pwFieldErrors['new_password'][] = 'New password must be at least 8 characters.';
         } else {
             if (!preg_match('/[A-Z]/', $newPassword)) {
                 $pwErrors[] = 'New password must include at least one uppercase letter.';
+                $pwFieldErrors['new_password'][] = 'New password must include at least one uppercase letter.';
             }
 
             if (!preg_match('/\d/', $newPassword)) {
                 $pwErrors[] = 'New password must include at least one number.';
+                $pwFieldErrors['new_password'][] = 'New password must include at least one number.';
             }
 
             if (!preg_match('/[^A-Za-z0-9]/', $newPassword)) {
                 $pwErrors[] = 'New password must include at least one symbol.';
+                $pwFieldErrors['new_password'][] = 'New password must include at least one symbol.';
             }
         }
 
         if ($newPassword !== '' && $newPassword !== $confirmPassword) {
             $pwErrors[] = 'New password and confirmation do not match.';
+            $pwFieldErrors['confirm_password'][] = 'New password and confirmation do not match.';
         }
 
         if (empty($pwErrors) && $hasPassword && !password_verify($currentPassword, $user['password_hash'])) {
             $pwErrors[] = 'Your current password is incorrect.';
+            $pwFieldErrors['current_password'][] = 'Your current password is incorrect.';
         }
 
         if (empty($pwErrors) && $hasPassword && password_verify($newPassword, $user['password_hash'])) {
             $pwErrors[] = 'New password must be different from your current password.';
+            $pwFieldErrors['new_password'][] = 'New password must be different from your current password.';
         }
 
         if (empty($pwErrors)) {
@@ -122,11 +152,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $user = User::findByEmail($_SESSION['email']);
             } else {
                 $pwErrors[] = 'Unable to change password. Please try again.';
+                $pwFieldErrors['current_password'][] = 'Unable to change password. Please try again.';
             }
         }
     } else {
         $firstName = trim($_POST['first_name'] ?? '');
         $lastName  = trim($_POST['last_name'] ?? '');
+        $email     = strtolower(trim((string) ($_POST['email'] ?? $user['email'] ?? '')));
         $phone     = trim($_POST['phone_number'] ?? '');
         $gender    = trim($_POST['gender'] ?? '');
         $address   = trim($_POST['address'] ?? '');
@@ -136,56 +168,84 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $course    = trim($_POST['course'] ?? '');
         $section   = trim($_POST['section'] ?? '');
 
-        if ($firstName === '' || $lastName === '') {
-            $errors[] = 'First name and last name are required.';
+        if ($firstName === '') {
+            $fieldErrors['first_name'][] = 'First name is required.';
+        } elseif (strlen($firstName) > 100) {
+            $fieldErrors['first_name'][] = 'First name must be 100 characters or fewer.';
         }
 
-        if ($firstName !== '' && strlen($firstName) > 100) {
-            $errors[] = 'First name must be 100 characters or fewer.';
+        if ($lastName === '') {
+            $fieldErrors['last_name'][] = 'Last name is required.';
+        } elseif (strlen($lastName) > 100) {
+            $fieldErrors['last_name'][] = 'Last name must be 100 characters or fewer.';
         }
 
-        if ($lastName !== '' && strlen($lastName) > 100) {
-            $errors[] = 'Last name must be 100 characters or fewer.';
+        if ($isStaffView) {
+            if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                $fieldErrors['email'][] = 'Please enter a valid email address.';
+            } elseif (strlen($email) > 255) {
+                $fieldErrors['email'][] = 'Email must be 255 characters or fewer.';
+            } else {
+                $existingEmail = User::findByEmailInexact($email);
+                if ($existingEmail && (int) $existingEmail['account_id'] !== (int) $user['account_id']) {
+                    $fieldErrors['email'][] = 'That email address is already in use.';
+                }
+            }
         }
 
-        if ($phone !== '' && strlen($phone) > 20) {
-            $errors[] = 'Phone number must be 20 characters or fewer.';
+        if ($phone !== '') {
+            if (strlen($phone) > 20) {
+                $fieldErrors['phone_number'][] = 'Phone number must be 20 characters or fewer.';
+            } elseif (!preg_match('/^[0-9+()\-\s.]{7,20}$/', $phone)) {
+                $fieldErrors['phone_number'][] = 'Please enter a valid phone number.';
+            }
+        }
+
+        if ($gender !== '') {
+            if (!in_array($gender, ['Male', 'Female', 'Prefer not to say'], true)) {
+                $fieldErrors['gender'][] = 'Please select a valid gender.';
+            }
         }
 
         if ($isStudent) {
             if ($birthday === '') {
-                $errors[] = 'Birthday is required.';
+                $fieldErrors['birthday'][] = 'Birthday is required.';
             } elseif (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $birthday)) {
-                $errors[] = 'Please select a valid birthday (YYYY-MM-DD).';
+                $fieldErrors['birthday'][] = 'Please select a valid birthday (YYYY-MM-DD).';
             } elseif ($birthday > date('Y-m-d')) {
-                $errors[] = 'Birthday cannot be in the future.';
+                $fieldErrors['birthday'][] = 'Birthday cannot be in the future.';
             }
-        }
 
-        if ($isStudent) {
             if ($studentNumber === '') {
-                $errors[] = 'Student number is required.';
+                $fieldErrors['student_number'][] = 'Student number is required.';
             } elseif (strlen($studentNumber) > 50) {
-                $errors[] = 'Student number must be 50 characters or fewer.';
+                $fieldErrors['student_number'][] = 'Student number must be 50 characters or fewer.';
             }
 
             if ($college === '') {
-                $errors[] = 'College is required.';
+                $fieldErrors['college'][] = 'College is required.';
             } elseif (!Colleges::contains($college)) {
-                $errors[] = 'Please select a valid college.';
+                $fieldErrors['college'][] = 'Please select a valid college.';
             }
 
             if ($course === '') {
-                $errors[] = 'Course is required.';
+                $fieldErrors['course'][] = 'Course is required.';
             } elseif (!in_array($course, Courses::all(), true)) {
-                $errors[] = 'Please select a valid course.';
+                $fieldErrors['course'][] = 'Please select a valid course.';
             }
 
             $validSections = array_merge(...array_values(Courses::sections()));
             if ($section === '') {
-                $errors[] = 'Section is required.';
+                $fieldErrors['section'][] = 'Section is required.';
             } elseif (!in_array($section, $validSections, true)) {
-                $errors[] = 'Please select a valid section.';
+                $fieldErrors['section'][] = 'Please select a valid section.';
+            }
+        }
+
+        $errors = [];
+        foreach ($fieldErrors as $fieldMessages) {
+            foreach ($fieldMessages as $fieldMessage) {
+                $errors[] = $fieldMessage;
             }
         }
 
@@ -203,6 +263,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'updated_at'   => date('Y-m-d H:i:s'),
                 ];
 
+                if ($isStaffView) {
+                    $updateData['email'] = $email;
+                }
+
                 if ($isStudent) {
                     $updateData['student_number'] = $studentNumber;
                     $updateData['college']        = $college;
@@ -214,6 +278,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $result = $currentUser->update($updateData);
 
                 if ($result) {
+                    if ($isStaffView) {
+                        $_SESSION['email'] = $email;
+                    }
                     $success = 'Profile updated successfully.';
                     $user = User::findByEmail($_SESSION['email']);
                 } else {
@@ -289,7 +356,7 @@ $loginSessions = LoginSession::forAccount((int) $user['account_id'], session_id(
                             <h3 class="settings-group-title"><i class="bi bi-person"></i> Personal Information</h3>
                             <p class="settings-group-desc">Update your personal details and contact information.</p>
                         </div>
-                    <form method="POST" action="<?= h(app_url('web/views/settings/index.php')) ?>" class="settings-form">
+                    <form method="POST" action="<?= h(app_url('web/views/settings/index.php')) ?>" class="settings-form" data-sicms-validate>
                         <?= Security::csrfField() ?>
 
                         <div class="settings-avatar-section">
@@ -308,30 +375,42 @@ $loginSessions = LoginSession::forAccount((int) $user['account_id'], session_id(
                                 <div class="settings-field">
                                     <label for="first_name">First Name <span class="required">*</span></label>
                                     <input type="text" id="first_name" name="first_name" value="<?= h($old['first_name'] ?? '') ?>" required maxlength="100">
+                                    <?= field_error_html($fieldErrors, 'first_name') ?>
                                 </div>
                                 <div class="settings-field">
                                     <label for="last_name">Last Name <span class="required">*</span></label>
                                     <input type="text" id="last_name" name="last_name" value="<?= h($old['last_name'] ?? '') ?>" required maxlength="100">
+                                    <?= field_error_html($fieldErrors, 'last_name') ?>
                                 </div>
                             </div>
 
                             <div class="settings-field">
-                                <label for="email">Email</label>
-                                <input type="email" id="email" value="<?= h($user['email'] ?? '') ?>" disabled>
-                                <span class="settings-field-note">Email cannot be changed.</span>
+                                <label for="email">Email<?= $isStaffView ? ' <span class="required">*</span>' : '' ?></label>
+                                <?php if ($isStaffView): ?>
+                                    <input type="email" id="email" name="email" value="<?= h($old['email'] ?? $user['email'] ?? '') ?>" required maxlength="255">
+                                    <span class="settings-field-note">This updates only your own sign-in email.</span>
+                                    <?= field_error_html($fieldErrors, 'email') ?>
+                                <?php else: ?>
+                                    <input type="email" id="email" value="<?= h($user['email'] ?? '') ?>" disabled>
+                                    <span class="settings-field-note">Email cannot be changed.</span>
+                                <?php endif; ?>
                             </div>
 
                             <div class="settings-field-row">
                                 <div class="settings-field">
                                     <label for="phone_number">Phone Number</label>
-                                    <input type="text" id="phone_number" name="phone_number" value="<?= h($old['phone_number'] ?? '') ?>" maxlength="20" placeholder="e.g. 09XXXXXXXXX">
+                                    <input type="text" id="phone_number" name="phone_number" value="<?= h($old['phone_number'] ?? '') ?>" maxlength="20" placeholder="e.g. 09XXXXXXXXX" data-sicms-phone>
+                                    <?= field_error_html($fieldErrors, 'phone_number') ?>
                                 </div>
                                 <div class="settings-field">
-                                    <label for="gender">Gender</label>
-                                    <select id="gender" name="gender">
+                                    <label for="gender">Gender <span class="required">*</span></label>
+                                    <select id="gender" name="gender" required>
+                                        <option value="" <?= ($old['gender'] ?? '') === '' ? 'selected' : '' ?>>Select gender</option>
                                         <option value="Male" <?= ($old['gender'] ?? '') === 'Male' ? 'selected' : '' ?>>Male</option>
                                         <option value="Female" <?= ($old['gender'] ?? '') === 'Female' ? 'selected' : '' ?>>Female</option>
+                                        <option value="Prefer not to say" <?= ($old['gender'] ?? '') === 'Prefer not to say' ? 'selected' : '' ?>>Prefer not to say</option>
                                     </select>
+                                    <?= field_error_html($fieldErrors, 'gender') ?>
                                 </div>
                             </div>
 
@@ -351,12 +430,13 @@ $loginSessions = LoginSession::forAccount((int) $user['account_id'], session_id(
                             <div class="settings-fields">
                                 <div class="settings-field">
                                     <label for="student_number">Student Number <span class="required">*</span></label>
-                                    <input type="text" id="student_number" name="student_number" value="<?= h($old['student_number'] ?? '') ?>" maxlength="50" placeholder="e.g. 12-3456">
+                                    <input type="text" id="student_number" name="student_number" value="<?= h($old['student_number'] ?? '') ?>" maxlength="50" placeholder="e.g. 12-3456" required>
+                                    <?= field_error_html($fieldErrors, 'student_number') ?>
                                 </div>
                                 <div class="settings-field-row">
                                     <div class="settings-field">
                                         <label for="college">College <span class="required">*</span></label>
-                                        <select id="college" name="college">
+                                        <select id="college" name="college" required>
                                             <option value="">Select your college</option>
                                             <?php foreach (Colleges::all() as $collegeOption): ?>
                                                 <option value="<?= h($collegeOption) ?>" <?= ($old['college'] ?? '') === $collegeOption ? 'selected' : '' ?>>
@@ -364,10 +444,11 @@ $loginSessions = LoginSession::forAccount((int) $user['account_id'], session_id(
                                                 </option>
                                             <?php endforeach; ?>
                                         </select>
+                                        <?= field_error_html($fieldErrors, 'college') ?>
                                     </div>
                                     <div class="settings-field">
                                         <label for="course">Course <span class="required">*</span></label>
-                                        <select id="course" name="course">
+                                        <select id="course" name="course" required>
                                             <option value="">Select your course</option>
                                             <?php foreach (Courses::all() as $courseOption): ?>
                                                 <option value="<?= h($courseOption) ?>" <?= ($old['course'] ?? '') === $courseOption ? 'selected' : '' ?>>
@@ -375,12 +456,13 @@ $loginSessions = LoginSession::forAccount((int) $user['account_id'], session_id(
                                                 </option>
                                             <?php endforeach; ?>
                                         </select>
+                                        <?= field_error_html($fieldErrors, 'course') ?>
                                     </div>
                                 </div>
                                 <div class="settings-field-row">
                                     <div class="settings-field">
                                         <label for="section">Section <span class="required">*</span></label>
-                                        <select id="section" name="section">
+                                        <select id="section" name="section" required>
                                             <option value="">Select your section</option>
                                             <?php foreach (Courses::sections() as $yearLabel => $sections): ?>
                                                 <optgroup label="<?= h($yearLabel) ?>">
@@ -392,11 +474,13 @@ $loginSessions = LoginSession::forAccount((int) $user['account_id'], session_id(
                                                 </optgroup>
                                             <?php endforeach; ?>
                                         </select>
+                                        <?= field_error_html($fieldErrors, 'section') ?>
                                     </div>
                                     <div class="settings-field">
                                         <label for="birthday">Birthday / Date of Birth <span class="required">*</span></label>
                                         <input type="date" id="birthday" name="birthday" value="<?= h($old['birthday'] ?? '') ?>" max="<?= h(date('Y-m-d')) ?>" required>
                                         <span class="settings-field-note">Cannot be a future date.</span>
+                                        <?= field_error_html($fieldErrors, 'birthday') ?>
                                     </div>
                                 </div>
                             </div>
@@ -424,7 +508,7 @@ $loginSessions = LoginSession::forAccount((int) $user['account_id'], session_id(
                         </div>
                     <?php endif; ?>
 
-                    <form method="POST" action="<?= h(app_url('web/views/settings/index.php')) ?>" class="settings-form settings-password-form">
+                    <form method="POST" action="<?= h(app_url('web/views/settings/index.php')) ?>" class="settings-form settings-password-form" data-sicms-validate>
                         <?= Security::csrfField() ?>
                         <input type="hidden" name="action" value="change_password">
 
@@ -457,6 +541,7 @@ $loginSessions = LoginSession::forAccount((int) $user['account_id'], session_id(
                                         <i class="bi bi-eye"></i>
                                     </button>
                                 </div>
+                                <?= field_error_html($pwFieldErrors, 'current_password') ?>
                             </div>
                             <?php endif; ?>
 
@@ -479,6 +564,7 @@ $loginSessions = LoginSession::forAccount((int) $user['account_id'], session_id(
                                             <i class="bi bi-eye"></i>
                                         </button>
                                     </div>
+                                    <?= field_error_html($pwFieldErrors, 'new_password') ?>
                                 </div>
                                 <div class="settings-field">
                                     <label for="confirm_password">Confirm New Password <span class="required">*</span></label>
@@ -491,11 +577,13 @@ $loginSessions = LoginSession::forAccount((int) $user['account_id'], session_id(
                                             placeholder="Re-enter your new password"
                                             required
                                             minlength="8"
+                                            data-sicms-match="#new_password"
                                         >
                                         <button type="button" class="password-toggle" aria-label="Show password">
                                             <i class="bi bi-eye"></i>
                                         </button>
                                     </div>
+                                    <?= field_error_html($pwFieldErrors, 'confirm_password') ?>
                                 </div>
                             </div>
                         </div>
@@ -506,7 +594,7 @@ $loginSessions = LoginSession::forAccount((int) $user['account_id'], session_id(
                     </form>
                     </div>
 
-                    <?php if (!$isStudent): ?>
+                    <?php if ($isStaffView): ?>
                     <div class="settings-group">
                         <div class="settings-group-header">
                             <h3 class="settings-group-title"><i class="bi bi-plug"></i> Integrations &amp; Data</h3>

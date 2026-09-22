@@ -85,7 +85,7 @@ SICMS/
      mysql -u root -h 127.0.0.1 -P 3307 < sicms.sql
      ```
 
-   > **Note:** The app connects to MySQL on host `127.0.0.1`, **port `3307`**, user `root`, no password. If your MySQL runs on the default port `3306`, update the credentials in [`web/config/Database.php`](web/config/Database.php).
+   > **Note:** The app connects to MySQL on host `127.0.0.1`, **port `3306`**, user `root`, password `1234`. If your MySQL uses a different port or password, update the credentials in [`web/config/Database.php`](web/config/Database.php).
 
 4. **Open the system** at:
 

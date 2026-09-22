@@ -8,19 +8,27 @@ $viewData = $controller->index();
 $user = $viewData['user'];
 $accounts = $viewData['accounts'];
 $complainants = $viewData['complainants'];
+$respondents = $viewData['respondents'] ?? [];
+$isHead = !empty($viewData['isHead']);
 $filters = $viewData['filters'];
 $roles = $viewData['roles'];
 $message = $viewData['message'];
 $errors = $viewData['errors'];
+$fieldErrors = $viewData['fieldErrors'] ?? [];
 $old = $viewData['old'];
-$visibleTotal = count($accounts) + count($complainants);
-$visibleActive = count(array_filter(array_merge($accounts, $complainants), fn($account) => strtolower($account['status']) === 'active'));
+$visibleTotal = count($accounts) + count($complainants) + count($respondents);
+$visibleActive = count(array_filter(array_merge($accounts, $complainants, $respondents), fn($account) => strtolower((string) ($account['status'] ?? $account['account_status'] ?? 'inactive')) === 'active'));
 $visibleInactive = $visibleTotal - $visibleActive;
 
 $controller->clearFlash();
 
 function h($value) {
     return htmlspecialchars((string) $value);
+}
+
+function field_error_html($fieldErrors, $field) {
+    $message = $fieldErrors[$field] ?? '';
+    return $message !== '' ? '<div class="field-error" role="alert">' . htmlspecialchars($message, ENT_QUOTES, 'UTF-8') . '</div>' : '';
 }
 
 function selected($left, $right) {
@@ -80,7 +88,7 @@ function account_role_label($role) {
             <?php endforeach; ?>
         </section>
 
-        <section class="panel user-directory-panel">
+        <?php if ($isHead): ?><section class="panel user-directory-panel">
             <div class="panel-heading directory-heading">
                 <div class="panel-heading-icon"><i class="bi bi-people" aria-hidden="true"></i></div>
                 <div><h2>Staff Directory</h2><p><span id="staffCount"><?= (int) count($accounts) ?></span> matching account<?= count($accounts) === 1 ? '' : 's' ?></p></div>
@@ -89,7 +97,7 @@ function account_role_label($role) {
                         <i class="bi bi-search" aria-hidden="true"></i>
                         <input id="accountSearch" name="search" type="text" value="<?= h($filters['search']) ?>" placeholder="Search name or email">
                     </div>
-                    <button class="btn btn-primary" id="openCreateAccount" type="button"><i class="bi bi-person-plus"></i> New Account</button>
+                    <?php if ($isHead): ?><button class="btn btn-primary" id="openCreateAccount" type="button"><i class="bi bi-person-plus"></i> New Account</button><?php endif; ?>
                 </div>
             </div>
             <div class="table-wrap">
@@ -136,9 +144,17 @@ function account_role_label($role) {
                     </tbody>
                 </table>
             </div>
-        </section>
+        </section><?php endif; ?>
 
-        <section class="panel user-directory-panel">
+        <?php if (!$isHead): ?><section class="panel user-directory-panel">
+            <div class="panel-heading directory-heading"><div class="panel-heading-icon"><i class="bi bi-person-badge"></i></div><div><h2>Respondents</h2><p><?= count($respondents) ?> case respondent record<?= count($respondents) === 1 ? '' : 's' ?>. Only contact and communication details can be changed.</p></div><?php if (!$isHead): ?><div class="heading-tools"><div class="heading-search"><i class="bi bi-search" aria-hidden="true"></i><input id="accountSearch" name="search" type="text" value="<?= h($filters['search']) ?>" placeholder="Search respondent, email, contact, or case"></div></div><?php endif; ?></div>
+            <div class="table-wrap"><table><thead><tr><th>Respondent</th><th>Case</th><th>Contact / Account</th><th>Permitted contact update</th></tr></thead><tbody id="respondentTableBody">
+            <?php if (empty($respondents)): ?><tr><td colspan="4">No respondents found.</td></tr><?php endif; ?>
+            <?php foreach ($respondents as $respondent): ?><tr><td><strong><?= h($respondent['full_name']) ?></strong></td><td><?= h($respondent['case_number']) ?></td><td><?= h($respondent['email'] ?: '-') ?><br><small><?= h($respondent['account_status'] ? 'Account: ' . $respondent['account_status'] : 'Not linked') ?></small></td><td><form method="post" action="index.php" class="contact-edit-form"><?= Security::csrfField() ?><input type="hidden" name="action" value="update_respondent_contact"><input type="hidden" name="respondent_id" value="<?= (int) $respondent['respondent_id'] ?>"><label>Email<input required type="email" name="email" value="<?= h($respondent['email']) ?>"></label><label>Contact number<input maxlength="255" name="contact_info" value="<?= h($respondent['contact_info']) ?>"></label><?php if (!empty($respondent['account_id'])): ?><p class="muted">Updating this email will also update the respondent's login email.</p><?php endif; ?><button class="btn btn-secondary" type="submit">Save contact</button></form></td></tr><?php endforeach; ?>
+            </tbody></table></div>
+        </section><?php endif; ?>
+
+        <?php if ($isHead): ?><section class="panel user-directory-panel">
             <div class="panel-heading directory-heading">
                 <div class="panel-heading-icon"><i class="bi bi-mortarboard" aria-hidden="true"></i></div>
                 <div><h2>Complainants</h2><p><span id="complainantCount"><?= (int) count($complainants) ?></span> matching account<?= count($complainants) === 1 ? '' : 's' ?></p></div>
@@ -176,12 +192,46 @@ function account_role_label($role) {
                     </tbody>
                 </table>
             </div>
-        </section>
+        </section><?php endif; ?>
+
+        <?php if ($isHead): ?><section class="panel user-directory-panel" id="respondentDirectory">
+            <div class="panel-heading directory-heading">
+                <div class="panel-heading-icon"><i class="bi bi-person-badge" aria-hidden="true"></i></div>
+                <div><h2>Respondents</h2><p><?= count($respondents) ?> respondent account<?= count($respondents) === 1 ? '' : 's' ?>. Respondents are separate from Staff and Complainants.</p></div>
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead><tr><th>Name</th><th>Number / Type</th><th>Email / Contact</th><th>Status</th><th>Linked Case(s)</th><th>Actions</th></tr></thead>
+                    <tbody id="respondentAccountTableBody">
+                    <?php if (empty($respondents)): ?><tr><td colspan="6">No respondent accounts found.</td></tr><?php endif; ?>
+                    <?php foreach ($respondents as $respondent): ?>
+                        <tr>
+                            <td><div class="user-identity"><span class="user-avatar" aria-hidden="true"><?= h(strtoupper(substr($respondent['first_name'], 0, 1) . substr($respondent['last_name'], 0, 1))) ?></span><strong><?= h(trim($respondent['first_name'] . ' ' . $respondent['last_name'])) ?></strong></div></td>
+                            <td><?= h($respondent['student_number'] ?: $respondent['employee_no'] ?: '—') ?><br><small><?= h($respondent['respondent_type'] ?: 'Not specified') ?></small></td>
+                            <td><?= h($respondent['email']) ?><br><small><?= h($respondent['phone_number'] ?: 'No contact number') ?></small></td>
+                            <td><span class="status"><?= h($respondent['account_status']) ?></span></td>
+                            <td><?= h($respondent['case_numbers'] ?: 'No linked case') ?></td>
+                            <td>
+                            <?php if (!empty($respondent['respondent_id'])): ?><details><summary class="btn btn-secondary">Edit</summary>
+                                <form method="post" action="index.php" class="contact-edit-form">
+                                    <?= Security::csrfField() ?><input type="hidden" name="action" value="update_respondent_profile"><input type="hidden" name="respondent_id" value="<?= (int) $respondent['respondent_id'] ?>">
+                                    <label>First name<input required name="first_name" value="<?= h($respondent['first_name']) ?>"></label><label>Last name<input required name="last_name" value="<?= h($respondent['last_name']) ?>"></label>
+                                    <label>Email<input required type="email" name="email" value="<?= h($respondent['email']) ?>"></label><label>Contact number<input maxlength="20" name="contact_info" value="<?= h($respondent['phone_number']) ?>"></label>
+                                    <button class="btn btn-secondary" type="submit">Save respondent</button>
+                                </form>
+                            </details><?php else: ?><span class="muted">No linked respondent record</span><?php endif; ?>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        </section><?php endif; ?>
     </main>
         </div>
     </div>
 
-    <div class="account-modal-overlay" id="createAccountOverlay">
+    <?php if ($isHead): ?><div class="account-modal-overlay" id="createAccountOverlay">
         <div class="account-modal" role="dialog" aria-modal="true" aria-labelledby="createAccountTitle">
             <div class="account-modal-header">
                 <div>
@@ -190,43 +240,50 @@ function account_role_label($role) {
                 </div>
                 <button class="account-modal-close" id="closeCreateAccount" type="button" aria-label="Close">&times;</button>
             </div>
-            <form method="POST" action="index.php" id="createAccountForm">
+            <form method="POST" action="index.php" id="createAccountForm" data-sicms-validate>
                 <?= Security::csrfField() ?>
                 <div class="user-form-grid">
                     <div class="field">
-                        <label for="first_name">First Name</label>
+                        <label for="first_name">First Name <span class="required">*</span></label>
                         <input id="first_name" name="first_name" autocomplete="given-name" value="<?= h($old['first_name'] ?? '') ?>" required>
+                        <?= field_error_html($fieldErrors, 'first_name') ?>
                     </div>
                     <div class="field">
-                        <label for="last_name">Last Name</label>
+                        <label for="last_name">Last Name <span class="required">*</span></label>
                         <input id="last_name" name="last_name" autocomplete="family-name" value="<?= h($old['last_name'] ?? '') ?>" required>
+                        <?= field_error_html($fieldErrors, 'last_name') ?>
                     </div>
                     <div class="field">
-                        <label for="email">Email</label>
+                        <label for="email">Email <span class="required">*</span></label>
                         <input id="email" name="email" type="email" autocomplete="email" value="<?= h($old['email'] ?? '') ?>" required>
+                        <?= field_error_html($fieldErrors, 'email') ?>
                     </div>
                     <div class="field">
-                        <label for="role">Role</label>
+                        <label for="role">Role <span class="required">*</span></label>
                         <select id="role" name="role" required>
                             <option value="">Select role</option>
                             <?php foreach ($roles as $role => $label): ?>
                                 <option value="<?= h($role) ?>" <?= selected($old['role'] ?? '', $role) ?>><?= h($label) ?></option>
                             <?php endforeach; ?>
                         </select>
+                        <?= field_error_html($fieldErrors, 'role') ?>
                     </div>
                     <div class="field">
-                        <label for="password">Temporary Password</label>
+                        <label for="password">Temporary Password <span class="required">*</span></label>
                         <div class="password-wrapper">
                             <input id="password" name="password" type="password" autocomplete="new-password" required>
                             <button type="button" class="password-toggle" aria-label="Show password" onclick="const p=this.previousElementSibling;p.type=p.type==='password'?'text':'password';this.innerHTML=p.type==='password'?'<i class=\'bi bi-eye\'></i>':'<i class=\'bi bi-eye-slash\'></i>';this.setAttribute('aria-label',p.type==='password'?'Show password':'Hide password')"><i class="bi bi-eye"></i></button>
                         </div>
+                        <div class="password-hint" id="passwordStrengthHint"></div>
+                        <?= field_error_html($fieldErrors, 'password') ?>
                     </div>
                     <div class="field">
-                        <label for="confirm_password">Confirm Password</label>
+                        <label for="confirm_password">Confirm Password <span class="required">*</span></label>
                         <div class="password-wrapper">
-                            <input id="confirm_password" name="confirm_password" type="password" autocomplete="new-password" required>
+                            <input id="confirm_password" name="confirm_password" type="password" autocomplete="new-password" required data-sicms-match="#password">
                             <button type="button" class="password-toggle" aria-label="Show password" onclick="const p=this.previousElementSibling;p.type=p.type==='password'?'text':'password';this.innerHTML=p.type==='password'?'<i class=\'bi bi-eye\'></i>':'<i class=\'bi bi-eye-slash\'></i>';this.setAttribute('aria-label',p.type==='password'?'Show password':'Hide password')"><i class="bi bi-eye"></i></button>
                         </div>
+                        <?= field_error_html($fieldErrors, 'confirm_password') ?>
                     </div>
                 </div>
                 <div class="actions">
@@ -235,7 +292,7 @@ function account_role_label($role) {
                 </div>
             </form>
         </div>
-    </div>
+    </div><?php endif; ?>
 
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <?php if (!empty($message)): ?>
@@ -269,7 +326,8 @@ function account_role_label($role) {
 
             modalForm.addEventListener('submit', e => {
                 e.preventDefault();
-                if (!modalForm.checkValidity()) { modalForm.reportValidity(); return; }
+                const invalid = window.SICMSValidation ? SICMSValidation.run(modalForm) : false;
+                if (invalid || !modalForm.checkValidity()) { modalForm.reportValidity(); return; }
                 const name = `${modalForm.first_name.value} ${modalForm.last_name.value}`.trim();
                 const role = modalForm.role.options[modalForm.role.selectedIndex]?.textContent || '';
                 overlay.style.zIndex = '1';
@@ -284,6 +342,24 @@ function account_role_label($role) {
                     reverseButtons: true
                 }).then(result => { overlay.style.zIndex = ''; if (result.isConfirmed) modalForm.submit(); });
             });
+
+            const passwordInput = modalForm.querySelector('#password');
+            const strengthHint = document.getElementById('passwordStrengthHint');
+            if (passwordInput && strengthHint) {
+                const checkStrength = () => {
+                    const value = passwordInput.value;
+                    const missing = [];
+                    if (value.length < 12) missing.push('at least 12 characters');
+                    if (!/[A-Z]/.test(value)) missing.push('an uppercase letter');
+                    if (!/[a-z]/.test(value)) missing.push('a lowercase letter');
+                    if (!/\d/.test(value)) missing.push('a number');
+                    if (!/[^A-Za-z0-9]/.test(value)) missing.push('a symbol');
+                    if (missing.length === 0) { strengthHint.textContent = ''; strengthHint.className = 'password-hint ok'; return; }
+                    strengthHint.textContent = 'Password needs ' + missing.join(', ') + '.';
+                    strengthHint.className = 'password-hint';
+                };
+                passwordInput.addEventListener('input', checkStrength);
+            }
         }
     })();
 
@@ -303,15 +379,24 @@ function account_role_label($role) {
             return `<tr><td><div class="user-identity"><span class="user-avatar">${esc((a.first_name[0]||'')+(a.last_name[0]||''))}</span><strong>${esc(a.first_name+' '+a.last_name)}</strong></div></td><td>${esc(a.email)}</td><td><span class="role-badge">${esc(a.role.replace(/[-_]/g,' '))}</span></td><td><span class="status">${esc(a.status)}</span></td><td>${esc(new Date(a.created_at.replace(' ','T')).toLocaleDateString('en-US',{month:'short',day:'2-digit',year:'numeric'}))}</td><td><label class="account-toggle" ${self?'title="You cannot change your own account"':''}><input type="checkbox" class="sicms-status-toggle" data-account="${a.account_id}" data-name="${esc(a.first_name+' '+a.last_name)}" ${active?'checked':''} ${self?'disabled':''}><span class="slider"></span></label></td></tr>`;
         };
         const complainantRowHtml = a => `<tr><td><div class="user-identity"><span class="user-avatar">${esc((a.first_name[0]||'')+(a.last_name[0]||''))}</span><strong>${esc(a.first_name+' '+a.last_name)}</strong></div></td><td>${esc(a.email)}</td><td><span class="role-badge">${esc(a.role.replace(/[-_]/g,' '))}</span></td><td><span class="status">${esc(a.status)}</span></td><td>${esc(new Date(a.created_at.replace(' ','T')).toLocaleDateString('en-US',{month:'short',day:'2-digit',year:'numeric'}))}</td></tr>`;
+        const respondentRowHtml = r => `<tr><td><strong>${esc(r.full_name)}</strong></td><td>${esc(r.case_number)}</td><td>${esc(r.email || '-')}<br><small>${esc(r.account_status ? 'Account: '+r.account_status : 'Not linked')}</small></td><td><form method="post" action="index.php" class="contact-edit-form"><input type="hidden" name="csrf_token" value="${esc(window.SICMS_ACCOUNTS.csrf)}"><input type="hidden" name="action" value="update_respondent_contact"><input type="hidden" name="respondent_id" value="${Number(r.respondent_id)}"><label>Email<input required type="email" name="email" value="${esc(r.email || '')}"></label><label>Contact number<input maxlength="255" name="contact_info" value="${esc(r.contact_info || '')}"></label>${r.account_id ? '<p class="muted">Updating this email will also update the respondent\'s login email.</p>' : ''}<button class="btn btn-secondary" type="submit">Save contact</button></form></td></tr>`;
         const fillTable = (node, rows, template, emptyText) => { if (node) node.innerHTML = (rows && rows.length) ? rows.map(template).join('') : `<tr><td colspan="${template === staffRowHtml ? 6 : 5}">${emptyText}</td></tr>`; };
         let timer, request;
         async function load() {
+            // The Head view includes an editable respondent-account table. Reload it
+            // for searches so its server-rendered edit forms remain complete.
+            if (document.getElementById('respondentAccountTableBody')) {
+                const q = input.value.trim();
+                window.location.assign(q ? `index.php?search=${encodeURIComponent(q)}` : 'index.php');
+                return;
+            }
             if (request) request.abort(); request = new AbortController();
             const params = new URLSearchParams({ search: input.value.trim() }); params.set('ajax', '1');
             const response = await fetch(`index.php?${params}`, {headers:{'X-Requested-With':'XMLHttpRequest'}, signal:request.signal});
             const data = await response.json(); if (!data.success) throw new Error(data.message);
             fillTable(document.getElementById('userTableBody'), data.accounts, staffRowHtml, 'No accounts found.');
             fillTable(document.getElementById('complainantTableBody'), data.complainants, complainantRowHtml, 'No complainants found.');
+            fillTable(document.getElementById('respondentTableBody'), data.respondents, respondentRowHtml, 'No respondents found.');
             const staffCount = document.getElementById('staffCount'), complainantCount = document.getElementById('complainantCount');
             if (staffCount) staffCount.textContent = (data.accounts || []).length;
             if (complainantCount) complainantCount.textContent = (data.complainants || []).length;

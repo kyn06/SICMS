@@ -3,6 +3,7 @@ require_once __DIR__ . '/../config/Database.php';
 require_once __DIR__ . '/../models/User.php';
 require_once __DIR__ . '/../models/Case.php';
 require_once __DIR__ . '/../models/ReformationReport.php';
+require_once __DIR__ . '/../models/CounterStatement.php';
 require_once __DIR__ . '/../models/AuditLog.php';
 require_once __DIR__ . '/../helpers/Security.php';
 
@@ -19,6 +20,7 @@ class AttachmentController {
         $this->database = new Database();
         $db = $this->database->getConnection();
         User::setConnection($db); CaseRecord::setConnection($db); AuditLog::setConnection($db);
+        CounterStatement::setConnection($db);
         $this->user = User::findByEmail($_SESSION['email']);
         if (!$this->user || $this->user['status'] !== 'active') {
             http_response_code(403);
@@ -188,10 +190,10 @@ class AttachmentController {
     private function canAccess(array $file) {
         $role = strtolower(str_replace(['_', ' '], '-', $this->user['role'] ?? ''));
         if (($file['case_source'] ?? '') === 'Legacy') {
-            return in_array($role, ['super-admin', 'admin', 'sdr-staff', 'sdru-staff', 'head-of-sdru', 'coordinator'], true);
+            return in_array($role, ['admin', 'sdr-staff', 'sdru-staff', 'head-of-sdru', 'coordinator'], true);
         }
         if ($role === 'student') {
-            if (!empty($file['update_id'])) {
+            if (!empty($file['update_id']) || !empty($file['counter_statement_id'])) {
                 return false;
             }
 
@@ -199,7 +201,13 @@ class AttachmentController {
         }
         if ($role === 'coordinator') return (int) $file['assigned_coordinator_account_id'] === (int) $this->user['account_id'];
         if ($role === 'reformation-coordinator') return (int) $file['assigned_reformation_coordinator_account_id'] === (int) $this->user['account_id'];
-        return in_array($role, ['super-admin', 'admin', 'sdr-staff', 'sdru-staff', 'head-of-sdru', 'sdru-head'], true);
+        if ($role === 'respondent') {
+            if (empty($file['counter_statement_id'])) return false;
+            $owner = CounterStatement::respondentAccountId((int) $file['counter_statement_id']);
+            if (!$owner || (int) $owner['respondent_account_id'] !== (int) $this->user['account_id']) return false;
+            return true;
+        }
+        return in_array($role, ['admin', 'sdr-staff', 'sdru-staff', 'head-of-sdru', 'sdru-head'], true);
     }
 
     private function canAccessReformationReport(array $report) {
@@ -209,6 +217,6 @@ class AttachmentController {
         }
         if ($role === 'reformation-coordinator') return (int) $report['assigned_reformation_coordinator_account_id'] === (int) $this->user['account_id'];
         if ($role === 'coordinator') return (int) $report['assigned_coordinator_account_id'] === (int) $this->user['account_id'];
-        return in_array($role, ['super-admin', 'admin', 'sdr-staff', 'sdru-staff', 'head-of-sdru', 'sdru-head'], true);
+        return in_array($role, ['admin', 'sdr-staff', 'sdru-staff', 'head-of-sdru', 'sdru-head'], true);
     }
 }

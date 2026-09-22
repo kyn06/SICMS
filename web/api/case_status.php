@@ -25,6 +25,15 @@ if (!$user || $user['status'] !== 'active') {
     exit(json_encode(['success' => false, 'message' => 'Access denied.']));
 }
 
+// This endpoint powers the staff Case Management status banner. Participant
+// portals have their own case views and must not be able to enumerate case IDs.
+$role = Security::normalizeRole($user['role'] ?? '');
+$staffRoles = ['admin', 'sdr-staff', 'sdru-staff', 'coordinator', 'reformation-coordinator', 'head-of-sdru', 'sdru-head'];
+if (!in_array($role, $staffRoles, true)) {
+    http_response_code(403);
+    exit(json_encode(['success' => false, 'message' => 'Access denied.']));
+}
+
 $complaintId = (int) ($_GET['id'] ?? 0);
 
 try {

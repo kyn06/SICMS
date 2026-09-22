@@ -14,7 +14,7 @@ class HearingController {
     private $database;
     private $db;
     private $user;
-    private $staffRoles = ['super-admin', 'admin', 'sdr staff', 'sdr-staff', 'sdru-staff', 'coordinator', 'head-of-sdru', 'sdru-head', 'head of sdru'];
+    private $staffRoles = ['admin', 'sdr staff', 'sdr-staff', 'sdru-staff', 'coordinator', 'head-of-sdru', 'sdru-head', 'head of sdru'];
 
     public function __construct() {
         Security::startSession();
@@ -73,13 +73,14 @@ class HearingController {
     public function create() {
         $errors = $_SESSION['hearing_errors'] ?? [];
         $old = $_SESSION['hearing_old'] ?? [];
+        $fieldErrors = $_SESSION['hearing_field_errors'] ?? [];
 
         $requestedComplaintId = (int) ($_GET['complaint_id'] ?? 0);
         if (empty($old['complaint_id']) && $requestedComplaintId > 0 && Hearing::isSchedulableCase($requestedComplaintId, $this->user)) {
             $old['complaint_id'] = $requestedComplaintId;
         }
 
-        unset($_SESSION['hearing_errors'], $_SESSION['hearing_old']);
+        unset($_SESSION['hearing_errors'], $_SESSION['hearing_old'], $_SESSION['hearing_field_errors']);
 
         if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
             Security::requireCsrfToken();
@@ -90,6 +91,7 @@ class HearingController {
             'user' => $this->user,
             'cases' => Hearing::getSchedulableCases($this->user),
             'errors' => $errors,
+            'fieldErrors' => $fieldErrors,
             'old' => $old,
         ];
     }
@@ -111,8 +113,9 @@ class HearingController {
 
         $errors = $_SESSION['hearing_errors'] ?? [];
         $old = $_SESSION['hearing_old'] ?? [];
+        $fieldErrors = $_SESSION['hearing_field_errors'] ?? [];
 
-        unset($_SESSION['hearing_errors'], $_SESSION['hearing_old']);
+        unset($_SESSION['hearing_errors'], $_SESSION['hearing_old'], $_SESSION['hearing_field_errors']);
 
         if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
             Security::requireCsrfToken();
@@ -124,12 +127,13 @@ class HearingController {
             'hearing' => $hearing,
             'cases' => Hearing::getSchedulableCases($this->user),
             'errors' => $errors,
+            'fieldErrors' => $fieldErrors,
             'old' => $old,
         ];
     }
 
     public function clearFlash() {
-        unset($_SESSION['hearing_message'], $_SESSION['hearing_errors']);
+        unset($_SESSION['hearing_message'], $_SESSION['hearing_errors'], $_SESSION['hearing_field_errors']);
     }
 
     private function authenticateStaff() {
@@ -159,10 +163,12 @@ class HearingController {
     }
 
     private function store() {
-        $errors = $this->validate($_POST);
+        $validation = $this->validate($_POST);
+        $errors = $validation['errors'];
 
-        if (!empty($errors)) {
+        if (!empty($errors) || !empty($validation['fields'])) {
             $_SESSION['hearing_errors'] = $errors;
+            $_SESSION['hearing_field_errors'] = $validation['fields'];
             $_SESSION['hearing_old'] = $_POST;
             header('Location: create.php');
             exit;
@@ -238,10 +244,13 @@ class HearingController {
     }
 
     private function update($hearingId) {
-        $errors = $this->validate($_POST);
+        $existingHearing = Hearing::findHearing($hearingId);
+        $validation = $this->validate($_POST, $existingHearing);
+        $errors = $validation['errors'];
 
-        if (!empty($errors)) {
+        if (!empty($errors) || !empty($validation['fields'])) {
             $_SESSION['hearing_errors'] = $errors;
+            $_SESSION['hearing_field_errors'] = $validation['fields'];
             $_SESSION['hearing_old'] = $_POST;
             header('Location: edit.php?id=' . $hearingId);
             exit;
@@ -344,28 +353,38 @@ class HearingController {
         exit;
     }
 
-    private function validate(array $post) {
+    private function validate(array $post, $existing = null) {
         $errors = [];
+        $fieldErrors = [];
+        $field = function (string $key, string $message) use (&$fieldErrors) {
+            $fieldErrors[$key] = $message;
+        };
 
         if (empty($post['complaint_id'])) {
-            $errors[] = 'Please select a case.';
+            $field('complaint_id', 'Please select a case.');
         } elseif (!Hearing::isSchedulableCase((int) $post['complaint_id'], $this->user)) {
-            $errors[] = 'Only verified cases can be scheduled for a hearing.';
+            $field('complaint_id', 'Only verified cases can be scheduled for a hearing.');
         }
 
-        if (empty(trim($post['hearing_datetime'] ?? ''))) {
-            $errors[] = 'Please select hearing date and time.';
+        $datetime = trim((string) ($post['hearing_datetime'] ?? ''));
+        if ($datetime === '') {
+            $field('hearing_datetime', 'Please select hearing date and time.');
+        } elseif (strtotime($datetime) === false) {
+            $field('hearing_datetime', 'Please select a valid hearing date and time.');
+        } elseif (strtotime($datetime) < time()
+            && (!$existing || strtotime($datetime) !== (int) strtotime((string) ($existing['hearing_datetime'] ?? '')))) {
+            $field('hearing_datetime', 'Hearing date and time cannot be in the past.');
         }
 
         if (empty(trim($post['venue'] ?? ''))) {
-            $errors[] = 'Venue is required.';
+            $field('venue', 'Venue is required.');
         }
 
         if (!empty($post['google_meet_link']) && !filter_var($post['google_meet_link'], FILTER_VALIDATE_URL)) {
-            $errors[] = 'Please enter a valid Google Meet link.';
+            $field('google_meet_link', 'Please enter a valid Google Meet link.');
         }
 
-        return $errors;
+        return ['errors' => $errors, 'fields' => $fieldErrors];
     }
 
     private function roleKey() {
