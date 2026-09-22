@@ -72,6 +72,39 @@ class User extends Model {
         return $result->fetch_assoc();
     }
 
+    /* Complainant (student-role) accounts matching a recorded student number.
+     * Used when forwarding a case to a respondent so staff can link an existing
+     * Complainant account instead of creating a new one. Each match includes a
+     * name_matches flag so the caller can prefer full-name matches when present. */
+    public static function findComplainantsByStudentNo($studentNo, $fullName = '', $limit = 10) {
+        $studentNo = trim((string) $studentNo);
+        if ($studentNo === '') return [];
+        $sql = "SELECT account_id, first_name, last_name, email, role, status, student_number, college, course
+                FROM accounts
+                WHERE role = 'student'
+                  AND LOWER(TRIM(student_number)) = LOWER(TRIM(?))
+                ORDER BY last_name ASC, first_name ASC
+                LIMIT ?";
+        $stmt = self::$conn->prepare($sql);
+        if (!$stmt) return [];
+        $stmt->bind_param('si', $studentNo, $limit);
+        $stmt->execute();
+        $matches = $stmt->get_result()->fetch_all(MYSQLI_ASSOC) ?: [];
+
+        $normalizedFull = $fullName !== '' ? self::normalizeName($fullName) : '';
+        foreach ($matches as &$match) {
+            $match['name_matches'] = $normalizedFull !== ''
+                && self::normalizeName(($match['first_name'] ?? '') . ' ' . ($match['last_name'] ?? '')) === $normalizedFull;
+        }
+        unset($match);
+
+        return $matches;
+    }
+
+    private static function normalizeName($name) {
+        return strtolower(preg_replace('/\s+/', ' ', trim((string) $name)));
+    }
+
     /* Accounts whose email (or name) keys into respondent contact info. */
     public static function searchAccounts($term, $limit = 20) {
         $term = trim((string) $term);

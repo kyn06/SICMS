@@ -240,6 +240,7 @@ class CaseController {
             'updates' => CaseUpdate::forCase($complaintId),
             'classificationOptions' => $this->classificationOptions(),
             'respondentAccounts' => CaseRecord::respondentsWithAccounts($complaintId),
+            'forwardPending' => $_SESSION['case_forward_pending'] ?? null,
             'counterStatements' => CounterStatement::forCase($complaintId),
             'pendingApproval' => in_array($this->roleKey(), ['head-of-sdru', 'sdru-head'], true)
                 ? CaseApproval::findForCase((int) ($_GET['approval_id'] ?? 0), $complaintId)
@@ -383,7 +384,7 @@ class CaseController {
 
             $headRoles = ['head-of-sdru', 'sdru-head'];
             $respondentManagerRoles = ['coordinator', 'reformation-coordinator', 'head-of-sdru', 'sdru-head'];
-            $respondentInvitationActions = ['create_respondent_account', 'link_respondent_account', 'resend_respondent_invite', 'toggle_respondent_account', 'forward_to_respondents'];
+            $respondentInvitationActions = ['create_respondent_account', 'link_respondent_account', 'resend_respondent_invite', 'toggle_respondent_account', 'forward_to_respondents', 'forward_case_to_respondent', 'confirm_forward_case_to_respondent', 'cancel_forward_case_to_respondent'];
             if (in_array($action, $respondentInvitationActions, true)
                 && !in_array($this->roleKey(), $respondentManagerRoles, true)
             ) {
@@ -966,6 +967,89 @@ class CaseController {
                 );
                 AuditLog::record($this->user, $actionLabel === 'Deactivated' ? 'Respondent Account Deactivated' : 'Respondent Account Reactivated', $actionLabel . ' account ' . $respondent['account_email'] . ' linked to respondent ' . $respondent['full_name'] . ' on ' . $caseLabel . '.');
                 $_SESSION['case_message'] = 'Respondent account ' . strtolower($actionLabel) . '.';
+            } elseif ($action === 'forward_case_to_respondent') {
+                $respondent = $this->respondentRowForAction($complaintId, (int) ($_POST['respondent_id'] ?? 0));
+                if (!$respondent) {
+                    $_SESSION['case_errors'] = ['Please select a valid respondent.'];
+                    header('Location: show.php?id=' . $complaintId); exit;
+                }
+                if (!empty($respondent['linked_account_id'])) {
+                    $_SESSION['case_errors'] = ['This respondent already has a linked account.'];
+                    header('Location: show.php?id=' . $complaintId); exit;
+                }
+
+                $studentNo = trim((string) ($respondent['student_no'] ?? ''));
+                $fullName = trim((string) ($respondent['full_name'] ?? ''));
+                if ($studentNo === '') {
+                    $_SESSION['case_errors'] = ['No Student Number is recorded for this respondent. Add the Student Number through "Update Respondent Details" before forwarding the case.'];
+                    header('Location: show.php?id=' . $complaintId); exit;
+                }
+
+                $matches = User::findComplainantsByStudentNo($studentNo, $fullName);
+                if (empty($matches)) {
+                    $_SESSION['case_errors'] = ['No existing account found.'];
+                    header('Location: show.php?id=' . $complaintId); exit;
+                }
+
+                $nameMatches = array_values(array_filter($matches, fn($match) => !empty($match['name_matches'])));
+                $candidates = !empty($nameMatches) ? $nameMatches : $matches;
+
+                $_SESSION['case_forward_pending'] = [
+                    'complaint_id' => (int) $complaintId,
+                    'respondent_id' => (int) $respondent['respondent_id'],
+                    'candidates' => $candidates,
+                ];
+                $_SESSION['case_message'] = 'A matching existing account was found for this respondent. Review the account below and confirm to link it.';
+            } elseif ($action === 'confirm_forward_case_to_respondent') {
+                $pending = $_SESSION['case_forward_pending'] ?? null;
+                $respondentId = (int) ($_POST['respondent_id'] ?? 0);
+                $accountId = (int) ($_POST['account_id'] ?? 0);
+
+                if (!$pending || (int) ($pending['complaint_id'] ?? 0) !== (int) $complaintId || (int) ($pending['respondent_id'] ?? 0) !== $respondentId) {
+                    unset($_SESSION['case_forward_pending']);
+                    $_SESSION['case_errors'] = ['The account search is no longer active. Run the search again before confirming.'];
+                    header('Location: show.php?id=' . $complaintId); exit;
+                }
+                $respondent = $this->respondentRowForAction($complaintId, $respondentId);
+                if (!$respondent) {
+                    unset($_SESSION['case_forward_pending']);
+                    $_SESSION['case_errors'] = ['Please select a valid respondent.'];
+                    header('Location: show.php?id=' . $complaintId); exit;
+                }
+                if (!empty($respondent['linked_account_id'])) {
+                    unset($_SESSION['case_forward_pending']);
+                    $_SESSION['case_errors'] = ['This respondent already has a linked account.'];
+                    header('Location: show.php?id=' . $complaintId); exit;
+                }
+
+                $selected = null;
+                foreach ($pending['candidates'] as $candidate) {
+                    if ((int) $candidate['account_id'] === $accountId) {
+                        $selected = $candidate;
+                        break;
+                    }
+                }
+                if (!$selected) {
+                    unset($_SESSION['case_forward_pending']);
+                    $_SESSION['case_errors'] = ['The selected account is no longer available. Run the search again.'];
+                    header('Location: show.php?id=' . $complaintId); exit;
+                }
+                if (($selected['status'] ?? '') !== 'active') {
+                    unset($_SESSION['case_forward_pending']);
+                    $_SESSION['case_errors'] = ['Only active accounts can be linked to a respondent.'];
+                    header('Location: show.php?id=' . $complaintId); exit;
+                }
+
+                unset($_SESSION['case_forward_pending']);
+                CaseRecord::linkRespondent($complaintId, $respondentId, $accountId);
+                AuditLog::record($this->user, 'Respondent Account Linked', 'Linked existing account ' . ($selected['email'] ?? '') . ' to respondent ' . $respondent['full_name'] . ' on ' . $caseLabel . '.');
+                $_SESSION['case_message'] = 'Respondent linked to the existing account. You can now forward the case information to them using the "Forward Case Information to Respondent" section.';
+            } elseif ($action === 'cancel_forward_case_to_respondent') {
+                $pending = $_SESSION['case_forward_pending'] ?? null;
+                if ($pending && (int) ($pending['complaint_id'] ?? 0) === (int) $complaintId) {
+                    unset($_SESSION['case_forward_pending']);
+                }
+                $_SESSION['case_message'] = 'The account search was cancelled.';
             } elseif ($action === 'forward_to_respondents') {
                 $linked = CaseRecord::linkedRespondentAccounts($complaintId);
                 if (empty($linked)) {
@@ -978,18 +1062,54 @@ class CaseController {
                     header('Location: show.php?id=' . $complaintId); exit;
                 }
 
+                $selectedIds = array_filter(array_map('intval', (array) ($_POST['respondent_ids'] ?? [])), fn($id) => $id > 0);
+                if (empty($selectedIds)) {
+                    $_SESSION['case_errors'] = ['Select at least one linked respondent to forward the case to.'];
+                    header('Location: show.php?id=' . $complaintId); exit;
+                }
+
+                $linkedById = [];
+                foreach ($linked as $account) {
+                    $linkedById[(int) $account['account_id']] = $account;
+                }
+                $recipients = [];
+                foreach ($selectedIds as $accountId) {
+                    if (isset($linkedById[$accountId])) {
+                        $recipients[$accountId] = $linkedById[$accountId];
+                    }
+                }
+                if (empty($recipients)) {
+                    $_SESSION['case_errors'] = ['The selected respondent is no longer linked to this case. Reload and try again.'];
+                    header('Location: show.php?id=' . $complaintId); exit;
+                }
+
                 $visibleKeys = (array) ($_POST['respondent_visibility'] ?? []);
                 $visibility = [];
                 foreach (CaseRecord::RESPONDENT_VISIBILITY_KEYS as $key) {
                     $visibility[$key] = in_array($key, $visibleKeys, true);
                 }
 
-                CaseRecord::releaseToRespondents($complaintId, $actorAccountId, $visibility);
+                CaseRecord::releaseToRespondents($complaintId, $actorAccountId, $visibility, array_keys($recipients));
+
+                $caseUrl = $this->siteUrl('web/views/respondent/case_show.php?id=' . $complaintId);
+                foreach ($recipients as $account) {
+                    Mailer::send(
+                        (string) ($account['email'] ?? ''),
+                        'Case Information Forwarded to You',
+                        Mailer::noticeEmailBody(
+                            'Dear ' . trim(($account['first_name'] ?? '') . ' ' . ($account['last_name'] ?? '')),
+                            'The SDRU has forwarded the permitted details of case ' . $caseLabel . ' to you as a respondent. You can now review the case and file your counter-statement through SICMS.',
+                            $caseUrl,
+                            'View Case Details'
+                        )
+                    );
+                }
+
                 $releasedNames = array_map(
                     fn($account) => trim(($account['first_name'] ?? '') . ' ' . ($account['last_name'] ?? '') ?: $account['email']),
-                    $linked
+                    $recipients
                 );
-                AuditLog::record($this->user, 'Case Forwarded to Respondent', 'Forwarded ' . $caseLabel . ' to respondent(s): ' . implode(', ', $releasedNames) . '.');
+                AuditLog::record($this->user, 'Case Forwarded to Respondent', 'Forwarded ' . $caseLabel . ' to respondent(s): ' . implode(', ', $releasedNames) . ' via email and in-app notification.');
                 $_SESSION['case_message'] = 'Case information forwarded to the respondent(s). They can now review the permitted details and file their counter-statement.';
             } elseif ($action === 'request_counter_revision') {
                 $counterStatementId = (int) ($_POST['counter_statement_id'] ?? 0);
