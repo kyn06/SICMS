@@ -63,7 +63,7 @@ class AccountController {
                 'accounts' => $accounts,
                 'complainants' => $complainants,
                 'respondents' => $respondents,
-                'summary' => $this->summaryFor(array_merge($accounts, $complainants, $respondents)),
+                'summary' => $this->summaryFor(array_merge($accounts, $complainants)),
             ]);
         } catch (Throwable $exception) {
             http_response_code(500);

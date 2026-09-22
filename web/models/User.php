@@ -72,6 +72,20 @@ class User extends Model {
         return $result->fetch_assoc();
     }
 
+    /* Active account whose student number matches exactly (any role).
+     * Used for the automatic respondent-account linking on detail updates. */
+    public static function findActiveByStudentNumber($studentNo) {
+        $studentNo = trim((string) $studentNo);
+        if ($studentNo === '') return null;
+        $query = "SELECT * FROM accounts WHERE status = 'active' AND LOWER(TRIM(student_number)) = LOWER(TRIM(?)) LIMIT 1";
+        $stmt = self::$conn->prepare($query);
+        if (!$stmt) return null;
+        $stmt->bind_param("s", $studentNo);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        return $result ? $result->fetch_assoc() : null;
+    }
+
     /* Complainant (student-role) accounts matching a recorded student number.
      * Used when forwarding a case to a respondent so staff can link an existing
      * Complainant account instead of creating a new one. Each match includes a
@@ -99,6 +113,24 @@ class User extends Model {
         unset($match);
 
         return $matches;
+    }
+
+    /* Active student-role accounts matching an exact student number.
+     * Returns the full row so the respondent-details form can be pre-filled
+     * and the respondent record can be linked to the chosen account. */
+    public static function findActiveStudentsByStudentNumber($studentNo, $limit = 10) {
+        $studentNo = trim((string) $studentNo);
+        if ($studentNo === '') return [];
+        $sql = "SELECT * FROM accounts
+                WHERE role = 'student' AND status = 'active'
+                  AND LOWER(TRIM(student_number)) = LOWER(TRIM(?))
+                ORDER BY last_name ASC, first_name ASC
+                LIMIT ?";
+        $stmt = self::$conn->prepare($sql);
+        if (!$stmt) return [];
+        $stmt->bind_param('si', $studentNo, $limit);
+        $stmt->execute();
+        return $stmt->get_result()->fetch_all(MYSQLI_ASSOC) ?: [];
     }
 
     private static function normalizeName($name) {

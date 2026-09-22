@@ -29,7 +29,6 @@ $errors = $viewData['errors'];
 $resubmission = $viewData['resubmission'];
 $classificationOptions = $viewData['classificationOptions'];
 $respondentAccounts = $viewData['respondentAccounts'] ?? [];
-$forwardPending = $viewData['forwardPending'] ?? null;
 $counterStatements = $viewData['counterStatements'] ?? [];
 $pendingApproval = $viewData['pendingApproval'] ?? null;
 $caseStatus = $case['status'] ?? '';
@@ -472,6 +471,16 @@ function person_name($first, $last) {
         width: 100%;
     }
 
+    input[type="checkbox"] {
+        width: 15px;
+        height: 15px;
+        min-width: 15px;
+        margin: 0;
+        padding: 0;
+        accent-color: #1c6dd0;
+        flex-shrink: 0;
+    }
+
     textarea {
         min-height: 78px;
         resize: vertical;
@@ -497,6 +506,61 @@ function person_name($first, $last) {
     .case-update-respondent-grid input,
     .case-update-respondent-grid select {
         min-width: 0;
+    }
+
+    .student-number-row {
+        display: flex;
+        gap: 8px;
+        width: 100%;
+    }
+
+    .student-number-row input {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .btn-find-student {
+        flex: 0 0 auto;
+        padding: 8px 14px;
+        white-space: nowrap;
+    }
+
+    .student-account-results {
+        grid-column: 1 / -1;
+        margin-top: 8px;
+        width: 100%;
+    }
+
+    .student-account-results .find-hint {
+        color: #6b7a68;
+        font-size: 12px;
+        padding: 4px 0;
+    }
+
+    .find-student-card {
+        align-items: center;
+        background: #f4f7f2;
+        border: 1px solid #ccd9c8;
+        border-radius: 8px;
+        display: flex;
+        gap: 12px;
+        justify-content: space-between;
+        margin-top: 6px;
+        padding: 10px 12px;
+    }
+
+    .find-student-card .find-student-meta {
+        min-width: 0;
+    }
+
+    .find-student-card .find-student-meta strong {
+        display: block;
+        font-size: 13px;
+    }
+
+    .find-student-card .find-student-meta span {
+        color: #6b7a68;
+        font-size: 12px;
     }
 
     .btn {
@@ -1048,7 +1112,7 @@ function person_name($first, $last) {
 
             <main class="case-wrap case-detail-view">
                 <nav class="case-section-nav" aria-label="Case details sections">
-                    <a href="#case-overview">Overview</a><a href="#people-involved">People</a><a href="#complaint-details">Complaint</a><a href="#counter-statements">Statements</a><a href="#case-evidence">Evidence</a><a href="#hearings">Hearings</a><a href="#case-messages">Messages</a><a href="#case-updates">Updates</a><?php if (!in_array($viewerRoleKey, ['sdr-staff', 'sdru-staff'], true)): ?><a href="#case-actions">Actions</a><?php endif; ?><a href="#case-timeline">Timeline</a>
+                    <a href="#case-overview">Overview</a><a href="#complaint-details">Complaint</a><a href="#counter-statements">Statements</a><a href="#case-evidence">Evidence</a><a href="#hearings">Hearings</a><a href="#case-messages">Messages</a><a href="#case-updates">Updates</a><?php if (!in_array($viewerRoleKey, ['sdr-staff', 'sdru-staff'], true)): ?><a href="#case-actions">Actions</a><?php endif; ?><a href="#case-timeline">Timeline</a>
                 </nav>
                 <div style="margin-bottom:14px"><a class="btn btn-secondary"
                         href="<?= h(app_route('cases.index')) ?>"><i class="bi bi-arrow-left"></i> Back to Case
@@ -1122,25 +1186,9 @@ function person_name($first, $last) {
                         <section class="panel case-content-section" id="case-overview">
                             <h2>Case Overview</h2>
                             <div class="case-summary-grid">
-                                <div class="case-summary-item"><div class="label">Case Number</div><div class="value"><?= h($case['case_number']) ?></div></div>
-                                <div class="case-summary-item"><div class="label">Current Stage</div><div class="value"><?= h($caseStatus) ?></div></div>
                                 <div class="case-summary-item"><div class="label">Classification</div><div class="value"><?= h($case['case_classification'] ?: 'Unclassified') ?></div></div>
-                                <div class="case-summary-item"><div class="label">Submitted</div><div class="value"><?= h(date('M d, Y', strtotime($case['submitted_at']))) ?></div></div>
-                                <div class="case-summary-item"><div class="label">Incident</div><div class="value"><?= !empty($case['incident_datetime']) ? h(date('M d, Y h:i A', strtotime($case['incident_datetime']))) : 'Not provided' ?></div></div>
                                 <div class="case-summary-item"><div class="label">Discipline Coordinator</div><div class="value"><?= h(person_name($case['coordinator_first_name'], $case['coordinator_last_name'])) ?></div></div>
-                                <?php if (!empty($case['assigned_reformation_coordinator_account_id'])): ?><div class="case-summary-item"><div class="label">Reformation Coordinator</div><div class="value"><?= h(person_name($case['reformation_coordinator_first_name'], $case['reformation_coordinator_last_name'])) ?></div></div><?php endif; ?>
-                            </div>
-                        </section>
-
-                        <section class="panel case-content-section" id="people-involved">
-                            <h2>People Involved</h2>
-                            <div class="people-summary">
-                                <?php if (!$respondents): ?><p class="muted">Respondent: Not yet identified</p><?php endif; ?>
-                                <?php if (!$witnesses): ?><p class="muted">Witness: None provided</p><?php endif; ?>
-                                <details open><summary>Complainant — <?= h($case['complainant_name']) ?></summary><p class="muted"><?= h($case['complainant_type'] ?? 'Student') ?><?= !empty($case['complainant_email']) ? ' · ' . h($case['complainant_email']) : '' ?></p></details>
-                                <details open><summary>Assigned Coordinators</summary><p class="muted">Discipline: <?= h(person_name($case['coordinator_first_name'], $case['coordinator_last_name'])) ?><br>Reformation: <?= h(person_name($case['reformation_coordinator_first_name'], $case['reformation_coordinator_last_name'])) ?></p></details>
-                                <details><summary>Respondents (<?= count($respondents) ?>)</summary><?php foreach ($respondents as $person): ?><p class="muted"><?= h($person['full_name']) ?><?= !empty($person['email']) ? ' · ' . h($person['email']) : '' ?></p><?php endforeach; ?></details>
-                                <details><summary>Witnesses (<?= count($witnesses) ?>)</summary><?php foreach ($witnesses as $person): ?><p class="muted"><?= h($person['full_name']) ?></p><?php endforeach; ?></details>
+                                <div class="case-summary-item"><div class="label">Submitted</div><div class="value"><?= h(date('M d, Y', strtotime($case['submitted_at']))) ?></div></div>
                             </div>
                         </section>
 
@@ -1335,164 +1383,6 @@ function person_name($first, $last) {
                                 <?php endforeach; ?>
                             </div>
                         </section>
-
-                        <?php if ($canManageRespondentAccounts): ?>
-                        <section class="panel case-content-section" id="respondent-delivery">
-                            <h2><i class="bi bi-send"></i> Respondent Case Delivery</h2>
-                            <p class="muted" style="font-size:12px;margin:0 0 14px">Link the respondent to this case or send their case invitation. Profile and contact changes are managed from Users &rarr; Respondents.</p>
-                            <?php if (empty($respondentAccounts)): ?>
-                                <p class="muted">No respondents recorded on this case.</p>
-                            <?php else: ?>
-                                <?php foreach ($respondentAccounts as $ra): ?>
-                                <div class="respondent-details-card" style="margin-bottom:12px">
-                                    <div class="details-grid">
-                                    <div class="detail">
-                                        <div class="label">Respondent</div>
-                                        <div class="value"><strong><?= h($ra['full_name']) ?></strong></div>
-                                    </div>
-                                    <div class="detail">
-                                        <div class="label">Recorded Email</div>
-                                        <div class="value"><?= h($ra['email'] ?? '-') ?></div>
-                                    </div>
-                                    <div class="detail">
-                                        <div class="label">Case Link</div>
-                                        <div class="value">
-                                            <?php if (!empty($ra['linked_account_id'])): ?>
-                                                <?= h($ra['account_email']) ?>
-                                                <span class="badge-status <?= ($ra['account_status'] ?? '') === 'active' ? 'active' : 'inactive' ?>"><?= h($ra['account_status'] ?? 'unknown') ?></span>
-                                            <?php else: ?>
-                                                <span class="muted">Not linked yet</span>
-                                            <?php endif; ?>
-                                        </div>
-                                    </div>
-                                    <?php
-                                    if (empty($ra['linked_account_id'])) {
-                                        $invitationStatusLabel = 'Not Invited';
-                                        $invitationStatusClass = 'inactive';
-                                    } elseif (($ra['account_status'] ?? '') === 'active') {
-                                        $invitationStatusLabel = 'Account Activated';
-                                        $invitationStatusClass = 'active';
-                                    } elseif (!empty($ra['invited_at'])) {
-                                        $invitationStatusLabel = CaseRecord::invitationIsExpired((string) $ra['invited_at'])
-                                            ? 'Invitation Sent (Expired - Resend Required)'
-                                            : 'Invitation Sent (Awaiting Activation)';
-                                        $invitationStatusClass = 'inactive';
-                                    } else {
-                                        $invitationStatusLabel = 'Account Created (Not Yet Invited)';
-                                        $invitationStatusClass = 'inactive';
-                                    }
-                                    ?>
-                                    <div class="detail">
-                                        <div class="label">Invitation Status</div>
-                                        <div class="value"><span class="badge-status <?= $invitationStatusClass ?>"><?= h($invitationStatusLabel) ?></span></div>
-                                    </div>
-                                    <?php if (!empty($ra['linked_account_id']) && !empty($ra['invited_at'])): ?>
-                                    <div class="detail">
-                                        <div class="label">Invitation Sent</div>
-                                        <div class="value"><?= h(date('M d, Y h:i A', strtotime($ra['invited_at']))) ?></div>
-                                    </div>
-                                    <?php endif; ?>
-                                    </div>
-
-                                    <?php if (empty($ra['linked_account_id'])): ?>
-                                    <div class="case-action-group" style="margin-top:10px">
-                                        <h3 class="case-action-label">Link or Invite for This Case</h3>
-                                        <p class="muted" style="font-size:11px;margin:4px 0 8px">An email is required to send a case invitation.</p>
-                                        <form class="action-form" method="POST" action="show.php?id=<?= (int) $case['complaint_id'] ?>">
-                                            <?= Security::csrfField() ?>
-                                            <input type="hidden" name="case_action" value="create_respondent_account">
-                                            <input type="hidden" name="respondent_id" value="<?= (int) $ra['respondent_id'] ?>">
-                                            <div class="form-group">
-                                                <label>Account Email</label>
-                                                <input type="email" name="account_email" value="<?= h($ra['email'] ?? '') ?>" placeholder="Email for this respondent" required>
-                                            </div>
-                                            <div class="form-group">
-                                                <label>First Name</label>
-                                                <input type="text" name="account_first_name" value="<?= h(explode(' ', trim((string)$ra['full_name']))[0]) ?>" required>
-                                            </div>
-                                            <div class="form-group">
-                                                <label>Last Name</label>
-                                                <input type="text" name="account_last_name" value="<?= h(trim(preg_replace('/^[^ ]+\s*/', '', trim((string)$ra['full_name'])))) ?>" required>
-                                            </div>
-                                            <button class="btn btn-assign" type="submit" data-sicms-processing-label="Sending invitation..."><i class="bi bi-person-plus"></i> Send Case Invitation</button>
-                                        </form>
-                                        <h3 class="case-action-label" style="margin-top:10px">Link Existing Account</h3>
-                                        <form class="action-form" method="POST" action="show.php?id=<?= (int) $case['complaint_id'] ?>">
-                                            <?= Security::csrfField() ?>
-                                            <input type="hidden" name="case_action" value="link_respondent_account">
-                                            <input type="hidden" name="respondent_id" value="<?= (int) $ra['respondent_id'] ?>">
-                                            <div class="form-group">
-                                                <label>Account Email (or exact full name)</label>
-                                                <input type="text" name="account_search" placeholder="Search existing accounts by email or name" required>
-                                            </div>
-                                            <button class="btn btn-secondary" type="submit" data-sicms-processing-label="Linking account..."><i class="bi bi-link-45deg"></i> Link Existing Account</button>
-                                            <p class="muted" style="font-size:11px;margin:6px 0 0">Only active accounts whose email matches the recorded email can be linked.</p>
-                                        </form>
-                                        <?php if ($forwardPending && (int) ($forwardPending['complaint_id'] ?? 0) === (int) $case['complaint_id'] && (int) ($forwardPending['respondent_id'] ?? 0) === (int) $ra['respondent_id']): ?>
-                                        <div class="case-forward-pending" style="margin-top:12px;border:1px solid #cfe2cb;background:#f4faf2;border-radius:8px;padding:12px 14px">
-                                            <h3 class="case-action-label"><i class="bi bi-search-check"></i> Matching Existing Account</h3>
-                                            <p class="muted" style="font-size:11px;margin:4px 0 8px">An existing Complainant account was found using the recorded Student Number<?= trim((string) ($ra['student_no'] ?? '')) !== '' ? ' (' . h($ra['student_no']) . ')' : '' ?><?= trim((string) ($ra['full_name'] ?? '')) !== '' ? ' of ' . h($ra['full_name']) : '' ?>. Confirm to link this respondent to that account and forward the case information to them.</p>
-                                            <?php foreach ($forwardPending['candidates'] as $candidate): ?>
-                                            <?php $accountName = trim((string) (($candidate['first_name'] ?? '') . ' ' . ($candidate['last_name'] ?? ''))); ?>
-                                            <div class="respondent-details-card" style="margin:8px 0;padding:10px 12px">
-                                                <div class="details-grid">
-                                                    <?php if ($accountName !== ''): ?>
-                                                    <div class="detail"><div class="label">Account Name</div><div class="value"><strong><?= h($accountName) ?></strong><?= $candidate['name_matches'] ? ' <span class="badge-status active">Name Matches</span>' : ' <span class="badge-status inactive">Name Differs</span>' ?></div></div>
-                                                    <?php endif; ?>
-                                                    <div class="detail"><div class="label">Email</div><div class="value"><?= h($candidate['email'] ?? '-') ?></div></div>
-                                                    <div class="detail"><div class="label">Student Number</div><div class="value"><?= h($candidate['student_number'] ?? '-') ?></div></div>
-                                                    <?php if (!empty($candidate['college'])): ?>
-                                                    <div class="detail"><div class="label">College</div><div class="value"><?= h($candidate['college']) ?></div></div>
-                                                    <?php endif; ?>
-                                                    <?php if (!empty($candidate['course'])): ?>
-                                                    <div class="detail"><div class="label">Course</div><div class="value"><?= h($candidate['course']) ?></div></div>
-                                                    <?php endif; ?>
-                                                    <div class="detail"><div class="label">Status</div><div class="value"><?= ($candidate['status'] ?? '') === 'active' ? '<span class="badge-status active">Active</span>' : '<span class="badge-status inactive">' . h($candidate['status'] ?? 'unknown') . '</span>' ?></div></div>
-                                                </div>
-                                                <form class="action-form" method="POST" action="show.php?id=<?= (int) $case['complaint_id'] ?>" style="margin-top:10px">
-                                                    <?= Security::csrfField() ?>
-                                                    <input type="hidden" name="respondent_id" value="<?= (int) $ra['respondent_id'] ?>">
-                                                    <input type="hidden" name="account_id" value="<?= (int) $candidate['account_id'] ?>">
-                                                    <div class="button-row">
-                                                        <button class="btn btn-assign" type="submit" name="case_action" value="confirm_forward_case_to_respondent" data-sicms-processing-label="Linking and forwarding..." data-swal-confirm="Link this respondent to this existing account and forward the case information to them?"><i class="bi bi-send-check"></i> Confirm Link &amp; Forward to Respondent</button>
-                                                        <button class="btn btn-secondary" type="submit" name="case_action" value="cancel_forward_case_to_respondent" data-sicms-processing-label="Cancelling...">Cancel Search</button>
-                                                    </div>
-                                                </form>
-                                            </div>
-                                            <?php endforeach; ?>
-                                        </div>
-                                        <?php else: ?>
-                                        <h3 class="case-action-label" style="margin-top:10px">Forward Case to Respondent</h3>
-                                        <form class="action-form" method="POST" action="show.php?id=<?= (int) $case['complaint_id'] ?>">
-                                            <?= Security::csrfField() ?>
-                                            <input type="hidden" name="case_action" value="forward_case_to_respondent">
-                                            <input type="hidden" name="respondent_id" value="<?= (int) $ra['respondent_id'] ?>">
-                                            <div class="form-group">
-                                                <label>Recorded Student Number</label>
-                                                <input type="text" value="<?= h($ra['student_no'] ?? '') ?>" placeholder="No student number recorded" readonly>
-                                            </div>
-                                            <button class="btn btn-assign" type="submit" data-sicms-processing-label="Searching for account..."><i class="bi bi-send"></i> Forward Case to Respondent</button>
-                                            <p class="muted" style="font-size:11px;margin:6px 0 0">Searches the existing Complainant accounts using the recorded Student Number and full name. No new account is created.</p>
-                                        </form>
-                                        <?php endif; ?>
-                                    </div>
-                                    <?php elseif (($ra['account_status'] ?? '') !== 'active'): ?>
-                                    <div class="case-action-group" style="margin-top:10px">
-                                        <h3 class="case-action-label">Invitation</h3>
-                                        <form class="action-form" method="POST" action="show.php?id=<?= (int) $case['complaint_id'] ?>">
-                                            <?= Security::csrfField() ?>
-                                            <input type="hidden" name="case_action" value="resend_respondent_invite">
-                                            <input type="hidden" name="respondent_id" value="<?= (int) $ra['respondent_id'] ?>">
-                                            <button class="btn btn-assign" type="submit" data-sicms-processing-label="Sending invitation..."><i class="bi bi-envelope-arrow-up"></i> Resend Invitation</button>
-                                        </form>
-                                    </div>
-                                    <?php endif; ?>
-
-                                </div>
-                                <?php endforeach; ?>
-                            <?php endif; ?>
-                        </section>
-                        <?php endif; ?>
 
                         <section class="panel case-content-section" id="witnesses">
                             <h2>Witnesses</h2>
@@ -2044,50 +1934,20 @@ function person_name($first, $last) {
                             $hasLinkedAccounts = !empty($linkedForwardAccounts);
                             ?>
                             <?php if ($released): ?>
-                                <p class="muted" style="font-size:12px;margin:0 0 12px">Permitted case information was released to the respondent(s) on <?= h(date('M d, Y h:i A', strtotime($case['respondent_released_at']))) ?>. Respondents see only what is checked below; evidence, witnesses, and internal notes are never shown to them.</p>
+                                <p class="muted" style="font-size:12px;margin:0 0 12px">Permitted case information was released to the respondent(s) on <?= h(date('M d, Y h:i A', strtotime($case['respondent_released_at']))) ?>. Respondents see only what is checked when forwarding; evidence, witnesses, and internal notes are never shown to them.</p>
                             <?php else: ?>
-                                <p class="muted" style="font-size:12px;margin:0 0 12px">The respondent(s) can only view the case once you forward it. Tick the linked student(s) below, select which information they may see, then forward. Evidence, witnesses, and internal notes are never shown to respondents. Re-forwarding updates the permitted sections.</p>
+                                <p class="muted" style="font-size:12px;margin:0 0 12px">The respondent(s) can only view the case once you forward it. Evidence, witnesses, and internal notes are never shown to respondents.</p>
                             <?php endif; ?>
-                            <form class="action-form" method="POST" action="show.php?id=<?= (int) $case['complaint_id'] ?>">
-                                <?= Security::csrfField() ?>
-                                <input type="hidden" name="case_action" value="forward_to_respondents">
-                                <div class="form-group">
-                                    <label>Linked Respondent(s) to Receive the Case</label>
-                                    <?php if (!$hasLinkedAccounts): ?>
-                                        <p class="muted" style="font-size:11px;margin:6px 0 0">No linked respondent accounts yet. Link a respondent first (e.g. using "Forward Case to Respondent"), then come back here to forward the case.</p>
-                                    <?php else: ?>
-                                        <?php foreach ($linkedForwardAccounts as $ra): ?>
-                                        <label style="display:flex;gap:8px;align-items:flex-start;font-weight:400;margin:4px 0">
-                                            <input type="checkbox" name="respondent_ids[]" value="<?= (int) $ra['linked_account_id'] ?>" checked>
-                                            <span>
-                                                <strong><?= h($ra['full_name']) ?></strong>
-                                                <?php if (!empty($ra['student_no'])): ?> &middot; <?= h($ra['student_no']) ?><?php endif; ?>
-                                                <br>
-                                                <span class="muted" style="font-size:11px"><?= h($ra['account_email']) ?> &middot; Linked &amp; active</span>
-                                            </span>
-                                        </label>
-                                        <?php endforeach; ?>
-                                        <p class="muted" style="font-size:11px;margin:6px 0 0">Only ticked respondent(s) will receive the case. Untick a respondent to leave the case hidden from them.</p>
-                                    <?php endif; ?>
-                                </div>
-                                <div class="form-group">
-                                    <label>Permitted Respondent Information</label>
-                                    <?php foreach ($visibilityLabels as $key => $label): ?>
-                                        <?php if ($key === 'complaint_details') continue; ?>
-                                        <label style="display:flex;gap:8px;align-items:center;font-weight:400;margin:4px 0">
-                                            <input type="checkbox" name="respondent_visibility[]" value="<?= h($key) ?>" <?= $visibility[$key] ? 'checked' : '' ?>>
-                                            <?= h($label) ?>
-                                        </label>
-                                    <?php endforeach; ?>
-                                    <p class="muted" style="font-size:11px;margin:6px 0 0">Complaint Details (narrative) is always included as the basis of the respondent&rsquo;s counter-statement.</p>
-                                </div>
-                                <div class="notice" style="font-size:12px;margin:0 0 12px;background:#fffdf5;border:1px solid #ead9a5;border-left:4px solid #b57600;border-radius:8px;color:#6a614c;padding:12px 14px">
-                                    <i class="bi bi-info-circle"></i> When you click <strong>Forward</strong>, the selected respondent(s) will be sent the case through <strong>Gmail</strong> and receive an <strong>in-app notification inside SICMS</strong>, so they can review the case and file their counter-statement.
-                                </div>
-                                <div>
-                                    <button class="btn btn-assign" type="submit" data-sicms-processing-label="<?= $released ? 'Updating release...' : 'Forwarding case...' ?>"><i class="bi bi-send"></i> <?= $released ? 'Update &amp; Re-Forward' : 'Forward to Respondent' ?></button>
-                                </div>
-                            </form>
+                            <button type="button"
+                                class="btn btn-assign"
+                                id="openForwardModal"
+                                style="width:100%"
+                                <?= !$hasLinkedAccounts ? 'disabled title="No linked respondent accounts yet. Link a respondent first, then come back here to forward the case."' : '' ?>>
+                                <i class="bi bi-send"></i> Forward
+                            </button>
+                            <?php if (!$hasLinkedAccounts): ?>
+                                <p class="muted" style="font-size:11px;margin:6px 0 0">No linked respondent accounts yet. Link a respondent first, then come back here to forward the case.</p>
+                            <?php endif; ?>
                         </section>
                         <?php endif; ?>
 
@@ -2291,15 +2151,21 @@ function person_name($first, $last) {
                     </select>
                     <?php endif; ?>
                     <div class="case-update-respondent-grid">
+                        <input type="hidden" name="respondent_linked_account_id" value="">
                         <select name="respondent_type"><option value="">Respondent Type</option><option>Student</option><option>Employee</option><option>Private Individual</option><option>Other</option></select>
                         <input name="respondent_name" placeholder="Full Name">
                         <input name="respondent_age" type="number" min="1" max="120" placeholder="Age">
                         <select name="respondent_gender"><option value="">Gender</option><option>Male</option><option>Female</option></select>
-                        <div class="update-respondent-field" data-update-respondent-types="Student"><input name="respondent_student_no" placeholder="Student Number"></div>
-                        <div class="update-respondent-field" data-update-respondent-types="Employee"><input name="respondent_employee_no" placeholder="Employee Number"></div>
+<div class="update-respondent-field" data-update-respondent-types="Student">
+                            <div class="student-number-row">
+                                <input name="respondent_student_no" placeholder="Student Number">
+                                <button type="button" class="btn btn-secondary btn-find-student" data-find-student>Find</button>
+                            </div>
+                        </div>
                         <div class="update-respondent-field" data-update-respondent-types="Student"><input name="respondent_college" placeholder="College"></div>
                         <div class="update-respondent-field" data-update-respondent-types="Student"><input name="respondent_course" placeholder="Course / Program"></div>
                         <div class="update-respondent-field" data-update-respondent-types="Student"><input name="respondent_section" placeholder="Section"></div>
+                        <div class="student-account-results" data-update-respondent-types="Student" data-student-results></div>
                         <div class="update-respondent-field" data-update-respondent-types="Employee"><input name="respondent_position" placeholder="Position"></div>
                         <div class="update-respondent-field" data-update-respondent-types="Employee"><input name="respondent_department" placeholder="College / Office / Department"></div>
                         <div class="update-respondent-field" data-update-respondent-types="Other"><input name="respondent_affiliation" placeholder="Affiliation / Organization"></div>
@@ -2328,12 +2194,83 @@ function person_name($first, $last) {
         </div>
     </div>
 
+    <?php if ($canManageRespondentAccounts): ?>
+    <div class="case-modal-overlay" id="forwardModalOverlay">
+        <div class="case-modal" role="dialog" aria-modal="true" aria-labelledby="forwardModalTitle">
+            <div class="case-modal-header">
+                <div>
+                    <h3 id="forwardModalTitle"><i class="bi bi-send"></i> Forward Case Information to Respondent</h3>
+                    <p>Click the linked respondent(s) to receive the case and select which information they may see. Re-forwarding updates the permitted sections.</p>
+                </div>
+                <button class="case-modal-close" type="button" data-close-modal aria-label="Close">&times;</button>
+            </div>
+            <form class="action-form" method="POST" action="show.php?id=<?= (int) $case['complaint_id'] ?>">
+                <?= Security::csrfField() ?>
+                <input type="hidden" name="case_action" value="forward_to_respondents">
+                <div class="case-modal-body">
+                    <label class="case-modal-label">Linked Respondent(s) to Receive the Case</label>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 16px">
+                    <?php foreach ($linkedForwardAccounts as $ra): ?>
+                    <label style="display:flex;gap:8px;align-items:flex-start;font-weight:400">
+                        <input type="checkbox" name="respondent_ids[]" value="<?= (int) $ra['linked_account_id'] ?>" checked style="margin-top:1px">
+                        <span>
+                            <?= h($ra['full_name']) ?><?php if (!empty($ra['student_no'])): ?> <span class="muted"><?= h($ra['student_no']) ?></span><?php endif; ?>
+                            <br>
+                            <span class="muted" style="font-size:11px"><?= h($ra['account_email']) ?> &middot; Linked &amp; active</span>
+                        </span>
+                    </label>
+                    <?php endforeach; ?>
+                    </div>
+                    <p class="muted" style="font-size:11px;margin:6px 0 14px">Only ticked respondent(s) will receive the case. Untick a respondent to leave the case hidden from them.</p>
+                    <label class="case-modal-label">Permitted Respondent Information</label>
+                    <?php foreach ($visibilityLabels as $key => $label): ?>
+                        <?php if ($key === 'complaint_details') continue; ?>
+                        <label style="display:flex;gap:8px;align-items:center;font-weight:400;font-size:13px;margin:3px 0">
+                            <input type="checkbox" name="respondent_visibility[]" value="<?= h($key) ?>" <?= $visibility[$key] ? 'checked' : '' ?>>
+                            <?= h($label) ?>
+                        </label>
+                    <?php endforeach; ?>
+                    <p class="muted" style="font-size:11px;margin:4px 0 0">Complaint Details (narrative) is always included as the basis of the respondent&rsquo;s counter-statement.</p>
+                    <div class="notice" style="font-size:12px;margin:12px 0 0;background:#fffdf5;border:1px solid #ead9a5;border-left:4px solid #b57600;border-radius:8px;color:#6a614c;padding:12px 14px">
+                        <i class="bi bi-info-circle"></i> The selected respondent(s) will be sent the case through <strong>Gmail</strong> and receive an <strong>in-app notification inside SICMS</strong>, so they can review the case and file their counter-statement.
+                    </div>
+                </div>
+                <div class="case-modal-actions">
+                    <button type="button" class="btn btn-secondary" data-close-modal>Cancel</button>
+                    <button class="btn btn-assign" type="submit" data-sicms-processing-label="<?= $released ? 'Updating release...' : 'Forwarding case...' ?>" data-swal-confirm="<?= $released ? 'Update and re-forward the permitted case information to the selected respondent(s)?' : 'Forward the permitted case information to the selected respondent(s)? They will be notified by email and in-app.' ?>"><i class="bi bi-send"></i> <?= $released ? 'Re-Forward' : 'Forward to Respondent' ?></button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <?php endif; ?>
+
     <script>
     const caseConversation = document.getElementById('caseConversation');
 
     if (caseConversation) {
         caseConversation.scrollTop = caseConversation.scrollHeight;
     }
+
+    const caseRespondents = <?= json_encode(array_values(array_map(function ($respondent) {
+        return [
+            'respondent_id' => (int) $respondent['respondent_id'],
+            'respondent_type' => (string) ($respondent['respondent_type'] ?? ''),
+            'full_name' => (string) ($respondent['full_name'] ?? ''),
+            'age' => (string) ($respondent['age'] ?? ''),
+            'gender' => (string) ($respondent['gender'] ?? ''),
+            'student_no' => (string) ($respondent['student_no'] ?? ''),
+            'employee_no' => (string) ($respondent['employee_no'] ?? ''),
+            'college' => (string) ($respondent['college'] ?? ''),
+            'course_year' => (string) ($respondent['course_year'] ?? ''),
+            'position' => (string) ($respondent['position'] ?? ''),
+            'office_department' => (string) ($respondent['office_department'] ?? ''),
+            'affiliation' => (string) ($respondent['affiliation'] ?? ''),
+            'contact_info' => (string) ($respondent['contact_info'] ?? ''),
+            'email' => (string) ($respondent['email'] ?? ''),
+            'address' => (string) ($respondent['address'] ?? ''),
+            'details' => (string) ($respondent['details'] ?? ''),
+        ];
+    }, $respondents))) ?>;
 
     (() => {
         const archivedUrl = <?= json_encode(app_route('archived_cases.index')) ?>;
@@ -2366,12 +2303,175 @@ function person_name($first, $last) {
             if (submitButton && submitLabel) {
                 submitLabel.textContent = isRespondentUpdate ? 'Submit Respondent Details' : 'Add Case Update';
                 submitButton.dataset.swalConfirm = isRespondentUpdate
-                    ? 'Submit these respondent details for head approval?'
+                    ? <?= json_encode(in_array($viewerRoleKey, ['head-of-sdru', 'sdru-head'], true)
+                        ? 'Update this respondent\'s details? They will be applied immediately.'
+                        : 'Submit these respondent details for head approval?') ?>
                     : 'Add this case update? The original complaint and the case status will remain unchanged.';
             }
         };
         updateType?.addEventListener('change', syncUpdateFields);
         syncUpdateFields();
+
+        const respondentFieldMap = {
+            respondent_name: 'full_name',
+            respondent_age: 'age',
+            respondent_gender: 'gender',
+            respondent_student_no: 'student_no',
+            respondent_employee_no: 'employee_no',
+            respondent_college: 'college',
+            respondent_position: 'position',
+            respondent_department: 'office_department',
+            respondent_affiliation: 'affiliation',
+            respondent_contact: 'contact_info',
+            respondent_email: 'email',
+            respondent_address: 'address',
+            respondent_details: 'details'
+        };
+        const setRespondentField = (name, value) => {
+            const field = document.querySelector('[name="' + name + '"]');
+            if (field) field.value = value ?? '';
+        };
+        const splitCourseYear = value => {
+            const parts = String(value || '').split('|').map(part => part.trim());
+            return { course: parts[0] || '', section: parts[1] || '' };
+        };
+        const clearRespondentFields = () => {
+            if (respondentType) respondentType.value = '';
+            syncRespondentTypeFields();
+            Object.keys(respondentFieldMap).forEach(name => setRespondentField(name, ''));
+            setRespondentField('respondent_course', '');
+            setRespondentField('respondent_section', '');
+            const linkedAccountField = document.querySelector('[name="respondent_linked_account_id"]');
+            if (linkedAccountField) linkedAccountField.value = '';
+            const studentResults = document.querySelector('[data-student-results]');
+            if (studentResults) studentResults.innerHTML = '';
+        };
+        const fillRespondentFields = () => {
+            const selectedId = respondentId ? parseInt(respondentId.value, 10) : 0;
+            const data = selectedId ? caseRespondents.find(r => r.respondent_id === selectedId) : null;
+            if (!data) {
+                clearRespondentFields();
+                return;
+            }
+            if (respondentType) respondentType.value = data.respondent_type;
+            syncRespondentTypeFields();
+            Object.entries(respondentFieldMap).forEach(([name, key]) => setRespondentField(name, data[key]));
+            const { course, section } = splitCourseYear(data.course_year);
+            setRespondentField('respondent_course', course);
+            setRespondentField('respondent_section', section);
+        };
+        respondentId?.addEventListener('change', () => {
+            if (linkedAccountField) linkedAccountField.value = '';
+            if (studentResultsBox) studentResultsBox.innerHTML = '';
+            fillRespondentFields();
+        });
+        fillRespondentFields();
+
+        const studentLookupUrl = <?= json_encode(app_url('web/api/student_lookup.php')) ?>;
+        const studentLookupBtn = document.querySelector('[data-find-student]');
+        const studentResultsBox = document.querySelector('[data-student-results]');
+        const studentNumberField = document.querySelector('[name="respondent_student_no"]');
+        const linkedAccountField = document.querySelector('[name="respondent_linked_account_id"]');
+
+        const renderStudentResults = accounts => {
+            if (!studentResultsBox) return;
+            studentResultsBox.innerHTML = '';
+            if (!accounts.length) {
+                const empty = document.createElement('div');
+                empty.className = 'find-hint';
+                empty.textContent = 'No student account found for this Student Number.';
+                studentResultsBox.appendChild(empty);
+                return;
+            }
+            accounts.forEach(account => {
+                const card = document.createElement('div');
+                card.className = 'find-student-card';
+
+                const meta = document.createElement('div');
+                meta.className = 'find-student-meta';
+                const name = document.createElement('strong');
+                name.textContent = account.full_name || 'Unnamed Student';
+                const sub = document.createElement('span');
+                sub.textContent = [account.student_number, account.college, account.course].filter(Boolean).join(' · ');
+                meta.appendChild(name);
+                meta.appendChild(sub);
+
+                const select = document.createElement('button');
+                select.type = 'button';
+                select.className = 'btn btn-secondary btn-find-student';
+                select.textContent = 'Select Student';
+                select.addEventListener('click', () => {
+                    setRespondentField('respondent_name', account.full_name || '');
+                    setRespondentField('respondent_student_no', account.student_number);
+                    setRespondentField('respondent_college', account.college);
+                    setRespondentField('respondent_course', account.course);
+                    setRespondentField('respondent_section', account.section);
+                    setRespondentField('respondent_contact', account.phone_number);
+                    setRespondentField('respondent_email', account.email);
+                    setRespondentField('respondent_address', account.address);
+                    if (account.gender === 'Male' || account.gender === 'Female') {
+                        setRespondentField('respondent_gender', account.gender);
+                    }
+                    if (Number.isFinite(account.age) && account.age > 0) {
+                        setRespondentField('respondent_age', String(account.age));
+                    }
+                    if (linkedAccountField) linkedAccountField.value = String(account.account_id);
+                    if (studentResultsBox) {
+                        studentResultsBox.innerHTML = '';
+                        const selected = document.createElement('div');
+                        selected.className = 'find-hint';
+                        selected.textContent = 'Selected student account: ' + (account.full_name || '') + ' (' + account.student_number + '). The fields remain editable.';
+                        studentResultsBox.appendChild(selected);
+                    }
+                });
+
+                card.appendChild(meta);
+                card.appendChild(select);
+                studentResultsBox.appendChild(card);
+            });
+        };
+
+        studentNumberField?.addEventListener('input', () => {
+            if (linkedAccountField) linkedAccountField.value = '';
+            if (studentResultsBox) studentResultsBox.innerHTML = '';
+        });
+
+        studentLookupBtn?.addEventListener('click', async () => {
+            const query = (studentNumberField?.value || '').trim();
+            if (!studentResultsBox) return;
+            studentResultsBox.innerHTML = '';
+            if (!query) {
+                const hint = document.createElement('div');
+                hint.className = 'find-hint';
+                hint.textContent = 'Enter a student number to search first.';
+                studentResultsBox.appendChild(hint);
+                return;
+            }
+            if (linkedAccountField) linkedAccountField.value = '';
+            const hint = document.createElement('div');
+            hint.className = 'find-hint';
+            hint.textContent = 'Searching…';
+            studentResultsBox.appendChild(hint);
+            try {
+                const response = await fetch(studentLookupUrl + '?student_number=' + encodeURIComponent(query), {
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                });
+                const data = await response.json();
+                if (!data.success) throw new Error(data.message || 'Search failed.');
+                renderStudentResults(data.accounts || []);
+            } catch (error) {
+                studentResultsBox.innerHTML = '';
+                const failed = document.createElement('div');
+                failed.className = 'find-hint';
+                failed.textContent = error.message || 'Unable to search for student accounts.';
+                studentResultsBox.appendChild(failed);
+            }
+        });
+
+        respondentType?.addEventListener('change', () => {
+            if (linkedAccountField) linkedAccountField.value = '';
+            if (studentResultsBox) studentResultsBox.innerHTML = '';
+        });
 
         document.querySelectorAll('[data-approval-decision]').forEach(button => {
             button.addEventListener('click', () => {
@@ -2514,6 +2614,7 @@ function person_name($first, $last) {
         bindModal('openAssignReformationModal', 'assignReformationModalOverlay');
         bindModal('openReformationActivityModal', 'reformationActivityModalOverlay');
         bindModal('openUpdateModal', 'updateModalOverlay');
+        bindModal('openForwardModal', 'forwardModalOverlay');
 
         const caseClassification = document.getElementById('caseClassification');
         const caseClassificationOther = document.getElementById('caseClassificationOther');

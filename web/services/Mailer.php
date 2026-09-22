@@ -199,4 +199,15 @@ class Mailer {
                 : '')
             . '<p style="color:#71806e;font-size:13px">Please log in to SICMS to view the update. Do not reply to this email.</p>';
     }
+
+    /* External notice sent when a respondent is named on a case but no matching
+     * SICMS account exists yet. The account is NOT auto-created; this merely
+     * informs them that they are a respondent. */
+    public static function respondentNoticeEmailBody($fullName, $caseNumber) {
+        return '<p>Dear ' . htmlspecialchars($fullName, ENT_QUOTES, 'UTF-8') . ',</p>'
+            . '<p>You have been named as a <strong>respondent</strong> on case '
+            . '<strong>' . htmlspecialchars($caseNumber, ENT_QUOTES, 'UTF-8') . '</strong> in the SICMS Student Integrity Case Management System.</p>'
+            . '<p>Please watch your email for further instructions from the SDRU office regarding this case. You may be asked to file a counter-statement, provide additional information, or attend a hearing.</p>'
+            . '<p style="color:#71806e;font-size:13px">This is an automated message from SICMS. Do not reply to this email.</p>';
+    }
 }
