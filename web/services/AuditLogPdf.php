@@ -30,7 +30,7 @@ class AuditLogPdf extends FPDF {
         $this->SetFont('Helvetica', '', 9);
         $this->Cell(0, 5, 'Student Discipline and Reformation Unit (SDRU)', 0, 1, 'C');
         $this->SetFont('Helvetica', 'B', 10);
-        $this->Cell(0, 5, 'Student Information and Case Management System (SICMS)', 0, 1, 'C');
+        $this->Cell(0, 5, 'Discipline and Reformation Information Unit (DARIS)', 0, 1, 'C');
         $this->SetDrawColor(26, 157, 0);
         $this->SetLineWidth(0.6);
         $this->Line(12, 30, 198, 30);
