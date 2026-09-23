@@ -8,7 +8,7 @@ class Database{
     private $port = 3307;
     private $username= "root";
     private $password = "";
-    private $database = "sicms";
+    private $database = "daris";
     private $conn;
 
     public function __construct(){

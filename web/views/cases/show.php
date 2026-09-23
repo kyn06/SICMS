@@ -84,7 +84,7 @@ function person_name($first, $last) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Case Details | SICMS</title>
+    <title>Case Details | DARIS</title>
     <link rel="stylesheet" href="../layout/style.css">
     <link rel="stylesheet" href="../layout/sidebar.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
@@ -93,7 +93,8 @@ function person_name($first, $last) {
     body {
         align-items: stretch;
         justify-content: flex-start;
-        background: #f5f7f4;
+        background: var(--bg-page, #f5f7f4);
+        color: var(--text-primary, #172017);
         padding: 0;
     }
 
@@ -103,7 +104,7 @@ function person_name($first, $last) {
     }
 
     .case-header {
-        background: #123c1b;
+        background: var(--bg-sidebar, #123c1b);
         color: #fff;
         display: flex;
         justify-content: space-between;
@@ -118,14 +119,14 @@ function person_name($first, $last) {
     }
 
     .case-header p {
-        color: #dbe9d9;
+        color: rgba(255,255,255,0.8);
         font-size: 13px;
     }
 
     .case-header a {
-        background: #fff;
+        background: var(--surface-primary, #fff);
         border-radius: 8px;
-        color: #123c1b;
+        color: var(--text-secondary, #123c1b);
         font-size: 14px;
         padding: 10px 14px;
         text-decoration: none;
@@ -169,19 +170,19 @@ function person_name($first, $last) {
         padding: 24px;
     }
 
-    .case-section-nav { display:flex; gap:8px; overflow-x:auto; padding:10px 0 18px; position:sticky; top:0; z-index:5; background:#f5f7f4; }
-    .case-section-nav a { white-space:nowrap; padding:7px 10px; border:1px solid #dce5da; border-radius:999px; color:#123c1b; background:#fff; text-decoration:none; font-size:12px; }
-    .case-section-nav a:hover { background:#eaf7e8; }
+    .case-section-nav { display:flex; gap:8px; overflow-x:auto; padding:10px 0 18px; position:sticky; top:0; z-index:5; background: var(--bg-page, #f5f7f4); }
+    .case-section-nav a { white-space:nowrap; padding:7px 10px; border:1px solid var(--border-primary, #dce5da); border-radius:999px; color: var(--text-secondary, #123c1b); background: var(--surface-primary, #fff); text-decoration:none; font-size:12px; }
+    .case-section-nav a:hover { background: rgba(26, 157, 0, 0.08); }
     .case-content-section { scroll-margin-top:66px; }
     .case-summary-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin:0 0 18px; }
-    .case-summary-item { background:#fff; border:1px solid #dce5da; border-radius:10px; padding:12px 14px; }
-    .case-summary-item .label { color:#637162; font-size:11px; text-transform:uppercase; letter-spacing:.04em; }
-    .case-summary-item .value { color:#123c1b; font-weight:700; margin-top:4px; overflow-wrap:anywhere; }
+    .case-summary-item { background: var(--surface-primary, #fff); border:1px solid var(--border-primary, #dce5da); border-radius:10px; padding:12px 14px; }
+    .case-summary-item .label { color: var(--text-muted, #637162); font-size:11px; text-transform:uppercase; letter-spacing:.04em; }
+    .case-summary-item .value { color: var(--text-secondary, #123c1b); font-weight:700; margin-top:4px; overflow-wrap:anywhere; }
     .people-summary { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
-    .people-summary details { background:#f9fcf8; border:1px solid #dce5da; border-radius:8px; padding:10px 12px; }
-    .people-summary summary { cursor:pointer; color:#123c1b; font-weight:700; }
-    .respondent-record { background:#fff; border:1px solid #dce5da; border-radius:10px; margin-bottom:10px; }
-    .respondent-record > summary { cursor:pointer; color:#123c1b; font-weight:700; list-style:none; padding:13px 14px; }
+    .people-summary details { background: var(--surface-secondary, #f9fcf8); border:1px solid var(--border-primary, #dce5da); border-radius:8px; padding:10px 12px; }
+    .people-summary summary { cursor:pointer; color: var(--text-secondary, #123c1b); font-weight:700; }
+    .respondent-record { background: var(--surface-primary, #fff); border:1px solid var(--border-primary, #dce5da); border-radius:10px; margin-bottom:10px; }
+    .respondent-record > summary { cursor:pointer; color: var(--text-secondary, #123c1b); font-weight:700; list-style:none; padding:13px 14px; }
     .respondent-record > summary::-webkit-details-marker { display:none; }
     .respondent-record > summary::after { content:'View details'; color:#637162; float:right; font-size:12px; font-weight:400; }
     .respondent-record[open] > summary::after { content:'Hide details'; }
@@ -985,8 +986,8 @@ function person_name($first, $last) {
     }
 
     .message-thread {
-        background: #f7faf6;
-        border: 1px solid #edf4eb;
+        background: var(--surface-secondary, #f7faf6);
+        border: 1px solid var(--border-primary, #edf4eb);
         border-radius: 8px;
         display: flex;
         flex-direction: column;
@@ -1002,10 +1003,10 @@ function person_name($first, $last) {
     }
 
     .message-content {
-        background: #fff;
-        border: 1px solid #dce5da;
+        background: var(--surface-primary, #fff);
+        border: 1px solid var(--border-primary, #dce5da);
         border-radius: 18px 18px 18px 6px;
-        color: #1f2a1f;
+        color: var(--text-primary, #1f2a1f);
         line-height: 1.5;
         padding: 10px 13px;
         word-break: break-word;
@@ -1016,14 +1017,14 @@ function person_name($first, $last) {
     }
 
     .message-bubble.mine .message-content {
-        background: #1A9D00;
-        border-color: #1A9D00;
+        background: var(--accent, #1A9D00);
+        border-color: var(--accent, #1A9D00);
         border-radius: 18px 18px 6px 18px;
         color: #fff;
     }
 
     .message-meta {
-        color: #536052;
+        color: var(--text-muted, #536052);
         font-size: 12px;
         margin: 0 6px 6px;
     }
@@ -1033,8 +1034,8 @@ function person_name($first, $last) {
     }
 
     .message-composer {
-        background: #fff;
-        border: 1px solid #dce5da;
+        background: var(--surface-primary, #fff);
+        border: 1px solid var(--border-primary, #dce5da);
         border-radius: 8px;
         display: grid;
         gap: 10px;
@@ -1101,7 +1102,7 @@ function person_name($first, $last) {
         }
     }
     </style>
-    <link rel="stylesheet" href="../layout/system.css?v=5">
+    <link rel="stylesheet" href="../layout/system.css?v=6">
 </head>
 
 <body>
@@ -1112,7 +1113,7 @@ function person_name($first, $last) {
 
             <main class="case-wrap case-detail-view">
                 <nav class="case-section-nav" aria-label="Case details sections">
-                    <a href="#case-overview">Overview</a><a href="#complaint-details">Complaint</a><a href="#counter-statements">Statements</a><a href="#case-evidence">Evidence</a><a href="#hearings">Hearings</a><a href="#case-messages">Messages</a><a href="#case-updates">Updates</a><?php if (!in_array($viewerRoleKey, ['sdr-staff', 'sdru-staff'], true)): ?><a href="#case-actions">Actions</a><?php endif; ?><a href="#case-timeline">Timeline</a>
+                    <a href="#case-overview">Overview</a><a href="#complaint-details">Complaint</a><?php if (!$isReformationCoordinator): ?><a href="#counter-statements">Statements</a><?php endif; ?><a href="#case-evidence">Evidence</a><?php if (!$isReformationCoordinator): ?><a href="#hearings">Hearings</a><?php endif; ?><?php if (!$isReformationCoordinator): ?><a href="#case-messages">Messages</a><?php endif; ?><?php if (!$isReformationCoordinator): ?><a href="#case-updates">Updates</a><?php endif; ?><?php if (!in_array($viewerRoleKey, ['sdr-staff', 'sdru-staff'], true)): ?><a href="#case-actions">Actions</a><?php endif; ?><a href="#case-timeline">Timeline</a>
                 </nav>
                 <div style="margin-bottom:14px"><a class="btn btn-secondary"
                         href="<?= h(app_route('cases.index')) ?>"><i class="bi bi-arrow-left"></i> Back to Case
@@ -1187,7 +1188,7 @@ function person_name($first, $last) {
                             <h2>Case Overview</h2>
                             <div class="case-summary-grid">
                                 <div class="case-summary-item"><div class="label">Classification</div><div class="value"><?= h($case['case_classification'] ?: 'Unclassified') ?></div></div>
-                                <div class="case-summary-item"><div class="label">Discipline Coordinator</div><div class="value"><?= h(person_name($case['coordinator_first_name'], $case['coordinator_last_name'])) ?></div></div>
+                                <div class="case-summary-item"><div class="label"><?= $isReformationCoordinator ? 'Reformation Coordinator' : 'Discipline Coordinator' ?></div><div class="value"><?= h($isReformationCoordinator ? person_name($case['reformation_coordinator_first_name'], $case['reformation_coordinator_last_name']) : person_name($case['coordinator_first_name'], $case['coordinator_last_name'])) ?></div></div>
                                 <div class="case-summary-item"><div class="label">Submitted</div><div class="value"><?= h(date('M d, Y', strtotime($case['submitted_at']))) ?></div></div>
                             </div>
                         </section>
@@ -1463,6 +1464,7 @@ function person_name($first, $last) {
                             </div>
                         </section>
 
+                        <?php if (!$isReformationCoordinator): ?>
                         <section class="panel case-content-section" id="counter-statements">
                             <h2>Statement Exchange</h2>
                             <?php if (empty($counterStatements)): ?>
@@ -1597,7 +1599,9 @@ function person_name($first, $last) {
                                 <?php endforeach; ?>
                             <?php endif; ?>
                         </section>
+                        <?php endif; ?>
 
+                        <?php if (!$isReformationCoordinator): ?>
                         <section class="panel case-content-section" id="hearings">
                             <h2>Hearing Schedule</h2>
                             <?php
@@ -1632,7 +1636,9 @@ function person_name($first, $last) {
                                 <?php endif; ?>
                             </div>
                         </section>
+                        <?php endif; ?>
 
+                        <?php if (!$isReformationCoordinator): ?>
                         <section class="panel case-content-section" id="case-messages">
                             <h2>Conversation<?php if ($messageReceiver): ?> —
                                 <?= h(trim(($messageReceiver['first_name'] ?? '') . ' ' . ($messageReceiver['last_name'] ?? ''))) ?><?php endif; ?>
@@ -1674,7 +1680,9 @@ function person_name($first, $last) {
                                 <?php endif; ?>
                             </form>
                         </section>
+                        <?php endif; ?>
 
+                        <?php if (!$isReformationCoordinator): ?>
                         <section class="panel case-content-section" id="case-updates">
                             <h2><i class="bi bi-journal-plus"></i> Case Updates</h2>
                             <p class="muted" style="margin:-8px 0 14px"><i class="bi bi-shield-lock"></i> Internal SDRU
@@ -1722,6 +1730,7 @@ function person_name($first, $last) {
                                 <?php endforeach; ?>
                             </div>
                         </section>
+                        <?php endif; ?>
 
                         <?php
                         $outcomeText = trim((string) ($case['outcome'] ?? ''));
@@ -1752,7 +1761,7 @@ function person_name($first, $last) {
                             <h2><i class="bi bi-journal-text"></i> Reformation Activities</h2>
                             <?php foreach ($reformationRecords as $record): ?>
                             <div class="reformation-entry">
-                                <strong><?= h(($record['progress_status'] ?? '') === 'Ongoing' ? 'On Going' : ($record['progress_status'] ?: 'Progress Update')) ?></strong>
+                                <strong><?= h(($record['activity'] ?? '') ?: (($record['progress_status'] ?? '') === 'Ongoing' ? 'On Going' : ($record['progress_status'] ?: 'Progress Update'))) ?></strong>
                                 <span class="muted">&middot; <?= h(date('M d, Y', strtotime($record['progress_date'] ?: $record['created_at']))) ?> &middot; <?= h(person_name($record['coordinator_first_name'], $record['coordinator_last_name'])) ?></span>
                                 <div class="value"><?= nl2br(h($record['remarks'] ?: $record['activity'])) ?></div>
                                 <?php foreach (ReformationRecord::attachments((int) $record['reformation_record_id']) as $attachment): ?>
@@ -1781,6 +1790,7 @@ function person_name($first, $last) {
                                     <h3 class="case-action-label">Reformation Work</h3>
                                 <button type="button" class="btn btn-assign" id="openReformationActivityModal"
                                     <?= in_array($caseStatus, ['Resolved', 'Reformation in Progress'], true) ? '' : 'disabled title="Reformation begins once the case is resolved."' ?>><i class="bi bi-journal-text"></i> Add Progress Update</button>
+                                <button type="button" class="btn btn-secondary" id="openReformationReportModal" style="margin-top:8px; width:100%"><i class="bi bi-upload"></i> Upload Reformation Report</button>
                             </div>
 
                             <div class="case-action-group">
@@ -1913,7 +1923,7 @@ function person_name($first, $last) {
                         <?php endif; ?>
                         <?php endif; ?>
 
-                        <?php if ($canManageRespondentAccounts): ?>
+                        <?php if (!$isReformationCoordinator && $canManageRespondentAccounts): ?>
                         <?php
                         $released = !empty($case['respondent_released_at']);
                         $visibility = CaseRecord::respondentVisibility($complaintId);
@@ -2097,15 +2107,16 @@ function person_name($first, $last) {
             <form class="action-form" method="POST" action="show.php?id=<?= (int) $case['complaint_id'] ?>" enctype="multipart/form-data" data-sicms-validate>
                 <?= Security::csrfField() ?>
                 <div class="case-modal-body">
+                    <label class="case-modal-label" for="reformationActivityName">Activity Name</label>
+                    <input id="reformationActivityName" type="text" name="activity_name" required placeholder="e.g. Counseling session, case review, follow-up" maxlength="120">
                     <label class="case-modal-label" for="progressDate">Date</label>
                     <input id="progressDate" type="date" value="<?= h(date('Y-m-d')) ?>" readonly>
                     <label class="case-modal-label" for="progressStatus">Progress Status</label>
                     <select id="progressStatus" name="progress_status" required>
                         <option value="">Select progress status</option>
+                        <option value="Pending">Pending</option>
                         <option value="Ongoing">Ongoing</option>
                         <option value="Completed">Completed</option>
-                        <option value="Needs Improvement">Needs Improvement</option>
-                        <option value="For Follow-up">For Follow-up</option>
                     </select>
                     <label class="case-modal-label" for="progressRemarks">Remarks / Progress Notes</label>
                     <textarea id="progressRemarks" name="remarks" required placeholder="Enter observations and progress notes."></textarea>
@@ -2115,6 +2126,31 @@ function person_name($first, $last) {
                 <div class="case-modal-actions">
                     <button type="button" class="btn btn-secondary" data-close-modal>Cancel</button>
                     <button class="btn btn-assign" type="submit" name="case_action" value="reformation_activity" data-sicms-processing-label="Submitting update...">Submit Update</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="case-modal-overlay" id="reformationReportModalOverlay">
+        <div class="case-modal" role="dialog" aria-modal="true" aria-labelledby="reformationReportModalTitle">
+            <div class="case-modal-header">
+                <div>
+                    <h3 id="reformationReportModalTitle"><i class="bi bi-upload"></i> Upload Reformation Report</h3>
+                    <p>Attach the final reformation report for this case.</p>
+                </div>
+                <button class="case-modal-close" type="button" data-close-modal aria-label="Close">&times;</button>
+            </div>
+            <form class="action-form" method="POST" action="show.php?id=<?= (int) $case['complaint_id'] ?>" enctype="multipart/form-data" data-sicms-validate>
+                <?= Security::csrfField() ?>
+                <div class="case-modal-body">
+                    <label class="case-modal-label" for="reformationReportTitle">Report Title</label>
+                    <input id="reformationReportTitle" type="text" name="report_title" maxlength="120" value="Reformation Report" required>
+                    <label class="case-modal-label" for="reformationReportFile">Reformation Report File</label>
+                    <input id="reformationReportFile" type="file" name="reformation_report_file" accept=".pdf,.jpg,.jpeg,.png,.docx" required data-sicms-size-mb="5" data-sicms-accept-ext="pdf,jpg,jpeg,png,docx">
+                </div>
+                <div class="case-modal-actions">
+                    <button type="button" class="btn btn-secondary" data-close-modal>Cancel</button>
+                    <button class="btn btn-assign" type="submit" name="case_action" value="reformation_report_upload" data-sicms-processing-label="Uploading report...">Upload Report</button>
                 </div>
             </form>
         </div>
@@ -2235,7 +2271,7 @@ function person_name($first, $last) {
                     <?php endforeach; ?>
                     <p class="muted" style="font-size:11px;margin:4px 0 0">Complaint Details (narrative) is always included as the basis of the respondent&rsquo;s counter-statement.</p>
                     <div class="notice" style="font-size:12px;margin:12px 0 0;background:#fffdf5;border:1px solid #ead9a5;border-left:4px solid #b57600;border-radius:8px;color:#6a614c;padding:12px 14px">
-                        <i class="bi bi-info-circle"></i> The selected respondent(s) will be sent the case through <strong>Gmail</strong> and receive an <strong>in-app notification inside SICMS</strong>, so they can review the case and file their counter-statement.
+                        <i class="bi bi-info-circle"></i> The selected respondent(s) will be sent the case through <strong>Gmail</strong> and receive an <strong>in-app notification inside DARIS</strong>, so they can review the case and file their counter-statement.
                     </div>
                 </div>
                 <div class="case-modal-actions">
@@ -2616,6 +2652,7 @@ function person_name($first, $last) {
         bindModal('openAssignModal', 'assignModalOverlay');
         bindModal('openAssignReformationModal', 'assignReformationModalOverlay');
         bindModal('openReformationActivityModal', 'reformationActivityModalOverlay');
+        bindModal('openReformationReportModal', 'reformationReportModalOverlay');
         bindModal('openUpdateModal', 'updateModalOverlay');
         bindModal('openForwardModal', 'forwardModalOverlay');
 

@@ -43,8 +43,8 @@
 
 .hearing-summary-card {
     align-items: center;
-    background: #fff;
-    border: 1px solid var(--sicms-line);
+    background: var(--surface-primary, #fff);
+    border: 1px solid var(--border-primary, var(--sicms-line));
     border-radius: var(--sicms-radius);
     box-shadow: var(--sicms-shadow);
     display: flex;
@@ -54,7 +54,7 @@
 }
 
 .hearing-summary-card span {
-    color: var(--sicms-muted);
+    color: var(--text-muted, var(--sicms-muted));
     display: block;
     font-size: 12px;
     font-weight: 700;
@@ -62,7 +62,7 @@
 }
 
 .hearing-summary-card strong {
-    color: var(--sicms-green-900);
+    color: var(--text-secondary, var(--sicms-green-900));
     font-size: 27px;
     line-height: 1;
 }
@@ -289,8 +289,8 @@
 }
 
 .cal-cell {
-    background: #fbfdfb;
-    border: 1px solid var(--sicms-line);
+    background: var(--surface-primary, #fbfdfb);
+    border: 1px solid var(--border-primary, var(--sicms-line));
     border-radius: 8px;
     min-height: 82px;
     padding: 6px;
@@ -302,26 +302,26 @@
 }
 
 .cal-cell.is-today {
-    border-color: var(--sicms-green-600, #1A9D00);
+    border-color: var(--accent, #1A9D00);
     box-shadow: 0 0 0 2px rgba(26, 157, 0, 0.14);
 }
 
 .cal-daynum {
-    color: var(--sicms-text);
+    color: var(--text-primary, var(--sicms-text));
     font-size: 12px;
     font-weight: 700;
     margin-bottom: 5px;
 }
 
 .cal-cell.is-today .cal-daynum {
-    color: var(--sicms-green-700);
+    color: var(--accent, var(--sicms-green-700));
 }
 
 .cal-chip {
     align-items: center;
-    background: var(--sicms-green-100);
+    background: var(--surface-accent, var(--sicms-green-100));
     border-radius: 5px;
-    color: var(--sicms-green-800, #0f5a1a);
+    color: var(--text-secondary, var(--sicms-green-800, #0f5a1a));
     display: flex;
     font-size: 10.5px;
     font-weight: 600;
@@ -336,22 +336,22 @@
 }
 
 .cal-chip i {
-    color: var(--sicms-green-700);
+    color: var(--accent, var(--sicms-green-700));
     flex: 0 0 auto;
 }
 
 .cal-chip:hover {
-    background: var(--sicms-green-200, #d9ecd4);
+    background: var(--selected-bg, var(--sicms-green-200, #d9ecd4));
 }
 
 .cal-chip.is-cancelled {
-    background: #f2ecec;
-    color: #b42318;
+    background: var(--status-danger-bg, #f2ecec);
+    color: var(--status-danger-text, #b42318);
     text-decoration: line-through;
 }
 
 .cal-more {
-    color: var(--sicms-muted);
+    color: var(--text-muted, var(--sicms-muted));
     display: block;
     font-size: 10px;
     margin-top: 2px;
@@ -377,7 +377,7 @@
 }
 
 .cal-sync-list a {
-    color: var(--sicms-text);
+    color: var(--text-primary, var(--sicms-text));
     display: flex;
     flex-direction: column;
     gap: 3px;
@@ -385,18 +385,18 @@
 }
 
 .cal-sync-list strong {
-    color: var(--sicms-green-800, #0f5a1a);
+    color: var(--text-secondary, var(--sicms-green-800, #0f5a1a));
     font-size: 12.5px;
 }
 
 .cal-sync-list span {
-    color: var(--sicms-muted);
+    color: var(--text-muted, var(--sicms-muted));
     font-size: 11px;
 }
 
 .cal-sync-empty {
     align-items: center;
-    color: var(--sicms-muted);
+    color: var(--text-muted, var(--sicms-muted));
     display: flex;
     flex-direction: column;
     gap: 8px;
@@ -405,7 +405,7 @@
 }
 
 .cal-sync-empty i {
-    color: var(--sicms-green-700);
+    color: var(--accent, var(--sicms-green-700));
     font-size: 24px;
 }
 

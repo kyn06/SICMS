@@ -40,7 +40,7 @@ function legacy_photo_url(?string $photoPath): string {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Legacy of SDRU In-Charge | SICMS</title>
+    <title>Legacy of SDRU In-Charge | DARIS</title>
     <link rel="stylesheet" href="../layout/style.css">
     <link rel="stylesheet" href="../layout/sidebar.css">
     <link rel="stylesheet" href="../layout/accounts.css?v=2">

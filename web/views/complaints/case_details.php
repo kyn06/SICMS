@@ -37,7 +37,7 @@ function stage_done($status, $stage) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Case Details | SICMS</title>
+    <title>Case Details | DARIS</title>
     <link rel="stylesheet" href="../layout/style.css">
     <link rel="stylesheet" href="../layout/system.css?v=5">
     <link rel="stylesheet" href="../layout/sidebar.css">

@@ -36,7 +36,6 @@ $navGroups = [
         ['route' => 'respondent.cases', 'label' => 'Complaint Cases', 'icon' => 'bi-folder-check', 'roles' => ['respondent']],
     ],
     'MANAGEMENT' => [
-        ['route' => 'accounts.index', 'label' => 'Users', 'icon' => 'bi-people', 'roles' => ['head-of-sdru', 'sdru-head', 'sdr-staff', 'sdru-staff']],
         ['route' => 'messages.index', 'label' => 'Chat & Messaging', 'icon' => 'bi-chat-dots', 'roles' => ['student', 'respondent', 'admin', 'sdr-staff', 'sdru-staff', 'coordinator', 'reformation-coordinator', 'head-of-sdru', 'sdru-head']],
         ['route' => 'audit_logs.index', 'label' => 'Audit Logs', 'icon' => 'bi-shield-check', 'roles' => ['head-of-sdru', 'sdru-head']],
         ['route' => 'hearings.index', 'label' => 'Hearings', 'icon' => 'bi-calendar-event', 'roles' => ['admin', 'sdr-staff', 'sdru-staff', 'coordinator', 'head-of-sdru', 'sdru-head']],

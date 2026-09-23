@@ -1,9 +1,9 @@
 /* Legacy Cases module styles */
 
 .alert-success {
-    background: #f0fdf0;
-    border: 1px solid #1A9D00;
-    color: #137500;
+    background: var(--success-bg, #f0fdf0);
+    border: 1px solid var(--success-border, #1A9D00);
+    color: var(--success-text, #137500);
     border-radius: 8px;
     padding: 12px 14px;
     margin-bottom: 18px;
@@ -12,9 +12,9 @@
 
 .alert-danger,
 .alert-error {
-    background: #fff5f5;
-    border: 1px solid #dc3545;
-    color: #b42318;
+    background: var(--danger-bg, #fff5f5);
+    border: 1px solid var(--danger-border, #dc3545);
+    color: var(--danger-text, #b42318);
     border-radius: 8px;
     padding: 12px 14px;
     margin-bottom: 18px;
@@ -38,19 +38,19 @@
 }
 
 .form-section {
-    background: #fff;
-    border: 1px solid #dce5da;
+    background: var(--surface-primary, #fff);
+    border: 1px solid var(--border-primary, #dce5da);
     border-radius: 8px;
     padding: 18px;
     margin-bottom: 18px;
 }
 
 .form-section h2 {
-    color: #123c1b;
+    color: var(--text-secondary, #123c1b);
     font-size: 16px;
     margin: 0 0 14px;
     padding-bottom: 8px;
-    border-bottom: 1px solid #edf4eb;
+    border-bottom: 1px solid var(--divider, #edf4eb);
 }
 
 .form-grid {
@@ -64,26 +64,28 @@
 }
 
 .field label {
-    color: #536052;
+    color: var(--text-secondary, #536052);
     display: block;
     font-size: 12px;
     margin-bottom: 4px;
 }
 
 .field .required {
-    color: #b42318;
+    color: var(--danger, #b42318);
 }
 
 .field input,
 .field select,
 .field textarea {
     width: 100%;
-    border: 1px solid #b9c7b7;
+    border: 1px solid var(--input-border, #b9c7b7);
     border-radius: 8px;
     font-family: inherit;
     font-size: 14px;
     padding: 10px 12px;
     box-sizing: border-box;
+    background: var(--input-bg, #fff);
+    color: var(--text-primary, #172017);
 }
 
 .field textarea {
@@ -98,8 +100,8 @@
 }
 
 .dynamic-item {
-    background: #f7faf6;
-    border: 1px solid #dce5da;
+    background: var(--surface-soft, #f7faf6);
+    border: 1px solid var(--border-primary, #dce5da);
     border-radius: 8px;
     padding: 14px;
     margin-bottom: 12px;
@@ -176,9 +178,9 @@
     display: inline-block;
 }
 
-.btn-primary { background: #123c1b; color: #fff; }
-.btn-secondary { background: #e9efe6; color: #123c1b; }
-.btn-danger { background: #b42318; color: #fff; }
+.btn-primary { background: var(--accent, #123c1b); color: #fff; }
+.btn-secondary { background: var(--surface-accent, #e9efe6); color: var(--text-secondary, #123c1b); }
+.btn-danger { background: var(--danger, #b42318); color: #fff; }
 .btn-sm { padding: 6px 10px; font-size: 12px; }
 
 .field [disabled],

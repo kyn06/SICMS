@@ -48,8 +48,8 @@
 }
 
 .complaint-form input[readonly] {
-    background: #f1f4f0 !important;
-    color: #435241 !important;
+    background: var(--surface-soft, #f1f4f0) !important;
+    color: var(--text-secondary, #435241) !important;
     cursor: not-allowed;
 }
 
@@ -158,8 +158,8 @@
 
 .form-actions {
     align-items: center;
-    background: #fff;
-    border: 1px solid var(--sicms-line);
+    background: var(--surface-primary, #fff);
+    border: 1px solid var(--border-primary, var(--sicms-line));
     border-radius: var(--sicms-radius);
     box-shadow: var(--sicms-shadow);
     margin: 0 !important;
@@ -201,8 +201,8 @@
 
 .submission-success {
     align-items: flex-start;
-    background: #fff;
-    border: 1px solid #8bd57e;
+    background: var(--surface-primary, #fff);
+    border: 1px solid rgba(26, 157, 0, 0.35);
     border-radius: var(--sicms-radius);
     box-shadow: var(--sicms-shadow);
     display: grid;

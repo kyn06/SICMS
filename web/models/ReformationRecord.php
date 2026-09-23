@@ -44,7 +44,7 @@ class ReformationRecord extends Model {
         return $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
     }
 
-    public static function add($complaintId, $coordinatorAccountId, $progressStatus, $remarks, array $files) {
+    public static function add($complaintId, $coordinatorAccountId, $activityName, $progressStatus, $remarks, array $files) {
         self::$conn->begin_transaction();
 
         try {
@@ -60,7 +60,8 @@ class ReformationRecord extends Model {
                 throw new Exception('Error preparing statement: ' . self::$conn->error);
             }
 
-            $stmt->bind_param('iisssss', $complaintId, $coordinatorAccountId, $remarks, $progressDate, $progressStatus, $remarks, $createdAt);
+            $activity = trim((string) $activityName) !== '' ? $activityName : 'Reformation Activity';
+            $stmt->bind_param('iisssss', $complaintId, $coordinatorAccountId, $activity, $progressDate, $progressStatus, $remarks, $createdAt);
 
             if (!$stmt->execute()) {
                 throw new Exception('Error executing statement: ' . self::$conn->error);

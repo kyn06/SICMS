@@ -417,11 +417,19 @@ class CaseController {
                 exit;
             }
 
-            if ($this->roleKey() === 'reformation-coordinator'
-                && (int) ($case['assigned_reformation_coordinator_account_id'] ?? 0) !== (int) $this->user['account_id']) {
-                $_SESSION['case_errors'] = ['You can only manage cases assigned to you for reformation.'];
-                header('Location: show.php?id=' . $complaintId);
-                exit;
+            if ($this->roleKey() === 'reformation-coordinator') {
+                $reformationActions = ['reformation_activity', 'reformation_report_upload', 'reformation_completed'];
+                if (!in_array($action, $reformationActions, true)) {
+                    $_SESSION['case_errors'] = ['Reformation coordinators can only manage the reformation process for their assigned cases.'];
+                    header('Location: show.php?id=' . $complaintId);
+                    exit;
+                }
+
+                if ((int) ($case['assigned_reformation_coordinator_account_id'] ?? 0) !== (int) $this->user['account_id']) {
+                    $_SESSION['case_errors'] = ['You can only manage cases assigned to you for reformation.'];
+                    header('Location: show.php?id=' . $complaintId);
+                    exit;
+                }
             }
 
             if (in_array($action, ['reject', 'return', 'assign', 'classify', 'escalate'], true) && $isClosed) {
@@ -751,9 +759,16 @@ class CaseController {
                 AuditLog::record($this->user, 'Reformation Assignment', 'Assigned reformation coordinator for ' . $caseLabel . '.');
                 $_SESSION['case_message'] = 'Reformation coordinator assigned.';
             } elseif ($action === 'reformation_activity') {
+                $activityName = trim((string) ($_POST['activity_name'] ?? ''));
                 $progressStatus = trim((string) ($_POST['progress_status'] ?? ''));
                 $remarks = trim((string) ($_POST['remarks'] ?? ''));
-                $allowedProgressStatuses = ['Ongoing', 'Completed', 'Needs Improvement', 'For Follow-up'];
+                $allowedProgressStatuses = ['Pending', 'Ongoing', 'Completed'];
+
+                if ($activityName === '') {
+                    $_SESSION['case_errors'] = ['Please provide the reformation activity name.'];
+                    header('Location: show.php?id=' . $complaintId);
+                    exit;
+                }
 
                 if (!in_array($progressStatus, $allowedProgressStatuses, true)) {
                     $_SESSION['case_errors'] = ['Please select a valid progress status.'];
@@ -777,7 +792,7 @@ class CaseController {
                 }
 
                 $savedFiles = $hasAttachments ? FileUploadService::saveToEvidence($_FILES['progress_attachments']) : [];
-                ReformationRecord::add($complaintId, $actorAccountId, $progressStatus, $remarks, $savedFiles);
+                ReformationRecord::add($complaintId, $actorAccountId, $activityName, $progressStatus, $remarks, $savedFiles);
                 Notification::createForHeads(
                     'reformation_progress_updated',
                     'Reformation Progress Updated',
@@ -786,9 +801,51 @@ class CaseController {
                 );
                 AuditLog::record($this->user, 'Reformation Progress', 'Added a reformation progress update for ' . $caseLabel . '.');
                 $_SESSION['case_message'] = 'Reformation progress update added.';
+            } elseif ($action === 'reformation_report_upload') {
+                $reportTitle = trim((string) ($_POST['report_title'] ?? 'Reformation Report'));
+                $reportFile = $_FILES['reformation_report_file'] ?? [];
+
+                if (empty($reportFile['name']) || (is_array($reportFile['name']) && $reportFile['name'][0] === '')) {
+                    $_SESSION['case_errors'] = ['Please select a reformation report file to upload.'];
+                    header('Location: show.php?id=' . $complaintId);
+                    exit;
+                }
+
+                $attachmentErrors = FileUploadService::validateFiles($reportFile);
+                if (!empty($attachmentErrors)) {
+                    $_SESSION['case_errors'] = ['Unable to upload the reformation report: ' . implode(' ', $attachmentErrors)];
+                    header('Location: show.php?id=' . $complaintId);
+                    exit;
+                }
+
+                $savedFiles = FileUploadService::saveToEvidence($reportFile);
+                $fileData = $savedFiles[0] ?? null;
+                if (!$fileData) {
+                    $_SESSION['case_errors'] = ['The reformation report could not be saved.'];
+                    header('Location: show.php?id=' . $complaintId);
+                    exit;
+                }
+
+                ReformationReport::add($complaintId, $actorAccountId, $reportTitle, $fileData);
+                AuditLog::record($this->user, 'Reformation Report Uploaded', 'Uploaded a reformation report for ' . $caseLabel . '.');
+                $_SESSION['case_message'] = 'Reformation report uploaded successfully.';
             } elseif ($action === 'reformation_completed') {
                 if ($caseStatus !== 'Reformation in Progress') {
                     $_SESSION['case_errors'] = ['Reformation can only be completed once the case is in progress.'];
+                    header('Location: show.php?id=' . $complaintId);
+                    exit;
+                }
+
+                $existingReports = ReformationReport::forCase($complaintId);
+                if (empty($existingReports)) {
+                    $_SESSION['case_errors'] = ['A reformation report must be uploaded before the case can be marked as completed.'];
+                    header('Location: show.php?id=' . $complaintId);
+                    exit;
+                }
+
+                $existingActivities = ReformationRecord::forCase($complaintId);
+                if (empty($existingActivities)) {
+                    $_SESSION['case_errors'] = ['At least one reformation activity must be recorded before completion.'];
                     header('Location: show.php?id=' . $complaintId);
                     exit;
                 }
@@ -856,7 +913,7 @@ class CaseController {
                 $activationUrl = $this->siteUrl('web/views/auth/activate.php?token=' . $token);
                 $invitationSent = Mailer::send(
                     $email,
-                    'Activate Your SICMS Respondent Account',
+                    'Activate Your DARIS Respondent Account',
                     Mailer::invitationEmailBody($firstName . ' ' . $lastName, $activationUrl, $caseLabel)
                 );
                 AuditLog::record($this->user, 'Respondent Account Created', 'Created respondent account ' . $email . ' for ' . $respondent['full_name'] . ' on ' . $caseLabel . '.');
@@ -928,7 +985,7 @@ class CaseController {
                 $activationUrl = $this->siteUrl('web/views/auth/activate.php?token=' . $token);
                 $invitationSent = Mailer::send(
                     $respondent['account_email'],
-                    'Your SICMS Respondent Account Activation Link',
+                    'Your DARIS Respondent Account Activation Link',
                     Mailer::invitationEmailBody(
                         trim(($respondent['account_first_name'] ?? '') . ' ' . ($respondent['account_last_name'] ?? '')),
                         $activationUrl,

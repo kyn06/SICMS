@@ -1,6 +1,7 @@
 .audit-page {
     display: grid;
     gap: 22px;
+    grid-template-columns: minmax(0, 1fr);
 }
 
 .audit-summary {
@@ -11,8 +12,8 @@
 
 .audit-summary-card {
     align-items: center;
-    background: #fff;
-    border: 1px solid var(--sicms-line);
+    background: var(--surface-primary, #fff);
+    border: 1px solid var(--border-primary, var(--sicms-line));
     border-radius: var(--sicms-radius);
     box-shadow: var(--sicms-shadow);
     display: flex;
@@ -22,7 +23,7 @@
 }
 
 .audit-summary-card span {
-    color: var(--sicms-muted);
+    color: var(--text-muted, var(--sicms-muted));
     display: block;
     font-size: 12px;
     font-weight: 700;
@@ -30,7 +31,7 @@
 }
 
 .audit-summary-card strong {
-    color: var(--sicms-green-900);
+    color: var(--text-secondary, var(--sicms-green-900));
     font-size: 27px;
     line-height: 1;
 }
@@ -101,9 +102,9 @@
 }
 
 .audit-page-indicator {
-    background: var(--sicms-green-100);
+    background: var(--surface-accent, var(--sicms-green-100));
     border-radius: 999px;
-    color: var(--sicms-green-900);
+    color: var(--text-secondary, var(--sicms-green-900));
     font-size: 11px;
     font-weight: 800;
     padding: 7px 10px;
@@ -163,13 +164,13 @@
 }
 
 .audit-role {
-    background: #eef1ee;
-    color: #435241;
+    background: var(--surface-accent, #eef1ee);
+    color: var(--text-secondary, #435241);
 }
 
 .audit-action {
-    background: #eaf1f8;
-    color: #315d7d;
+    background: var(--surface-soft, #eaf1f8);
+    color: var(--info, #315d7d);
 }
 
 .audit-description {
@@ -178,9 +179,9 @@
 }
 
 .audit-ip {
-    background: #f1f4f0;
+    background: var(--surface-soft, #f1f4f0);
     border-radius: 5px;
-    color: #435241;
+    color: var(--text-secondary, #435241);
     font-size: 11px;
     padding: 4px 6px;
     white-space: nowrap;

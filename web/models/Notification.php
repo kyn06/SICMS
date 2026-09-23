@@ -153,7 +153,7 @@ class Notification extends Model {
 
             $name = trim(($account['first_name'] ?? '') . ' ' . ($account['last_name'] ?? ''));
             $greeting = $name !== '' ? 'Dear ' . $name : 'Hello';
-            $body = Mailer::noticeEmailBody($greeting, $message, $actionUrl, 'Open SICMS');
+            $body = Mailer::noticeEmailBody($greeting, $message, $actionUrl, 'Open DARIS');
             return Mailer::send($account['email'], $title, $body);
         } catch (Throwable $exception) {
             return false;

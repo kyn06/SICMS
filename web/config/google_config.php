@@ -8,8 +8,8 @@
 //      OAuth consent screen.
 //   3. Create credentials -> OAuth client ID -> Web application.
 //   4. Under "Authorized redirect URIs" add the exact URL of google_signin.php, e.g.:
-//        http://localhost/SICMS/web/views/auth/google_signin.php
-//        https://your-domain/SICMS/web/views/auth/google_signin.php
+//        http://localhost/DARIS/web/views/auth/google_signin.php
+//        https://your-domain/DARIS/web/views/auth/google_signin.php
 //   5. Copy the client ID and client secret below.
 
 return [

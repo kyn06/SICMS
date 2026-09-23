@@ -35,7 +35,8 @@ try {
     </div>
 
     <div class="sidebar-profile">
-        <div class="avatar" aria-hidden="true"><?php if (!empty($user['profile_pic'])): ?><img src="<?= h(app_url('web/views/settings/profile_pic.php?id=' . (int) $user['account_id'])) ?>" alt=""><?php else: ?><?= h($initials) ?><?php endif; ?></div>
+        <div class="avatar" aria-hidden="true"><?php $avatarUrl = profile_pic_url($user); ?>
+        <?php if ($avatarUrl): ?><img src="<?= h($avatarUrl) ?>" alt=""><?php else: ?><?= h($initials) ?><?php endif; ?></div>
         <div>
             <div class="profile-name"><?= h($displayName) ?></div>
             <div class="profile-role"><?= h($roleLabel) ?></div>
@@ -78,7 +79,7 @@ try {
     <div class="cookie-banner-inner">
         <div class="cookie-banner-text">
             <div class="cookie-banner-title"><i class="bi bi-cookie"></i> Cookie Consent</div>
-            <p>SICMS uses cookies to ensure the system works properly. These include:</p>
+            <p>DARIS uses cookies to ensure the system works properly. These include:</p>
             <ul>
                 <li><strong>Session cookies</strong> &mdash; Keep you logged in and maintain your session state.</li>
                 <li><strong>CSRF tokens</strong> &mdash; Protect forms from cross-site request forgery attacks.</li>

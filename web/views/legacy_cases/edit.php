@@ -54,7 +54,7 @@ $complainantType = ov($old, 'complainant_type', $case['complainant_type'] ?? 'St
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Edit Migrated Case | SICMS</title>
+    <title>Edit Migrated Case | DARIS</title>
     <link rel="stylesheet" href="../layout/style.css">
     <link rel="stylesheet" href="../layout/sidebar.css">
     <link rel="stylesheet" href="../layout/cases.css">

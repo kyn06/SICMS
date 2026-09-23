@@ -67,60 +67,60 @@ $hasFinalInfo = in_array($caseStatus, $finalStatuses, true)
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?= h($case['case_number'] ?? 'Case Details') ?> | SICMS</title>
+    <title><?= h($case['case_number'] ?? 'Case Details') ?> | DARIS</title>
     <link rel="stylesheet" href="../layout/style.css">
     <link rel="stylesheet" href="../layout/system.css?v=5">
     <link rel="stylesheet" href="../layout/sidebar.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <style>
-        body { align-items: stretch; display: block; justify-content: flex-start; padding: 0; }
+        body { align-items: stretch; background: var(--bg-page, #f5f7f4); color: var(--text-primary, #172017); display: block; justify-content: flex-start; padding: 0; }
         .case-wrap { max-width: 100%; margin: 0 auto; padding: 24px; }
-        .case-head { align-items: center; background: #123c1b; border-radius: 10px; color: #fff; display: flex; flex-wrap: wrap; gap: 14px; justify-content: space-between; padding: 18px 22px; }
+        .case-head { align-items: center; background: var(--bg-sidebar, #123c1b); border-radius: 10px; color: #fff; display: flex; flex-wrap: wrap; gap: 14px; justify-content: space-between; padding: 18px 22px; }
         .case-head h1 { font-size: 22px; margin: 0; }
-        .case-head .meta { color: #cfe6ca; font-size: 13px; margin-top: 3px; }
-        .panel { background: #fff; border: 1px solid #dce5da; border-radius: 8px; box-shadow: 0 4px 14px rgba(18,60,27,.06); margin-top: 18px; padding: 18px 20px; }
-        .panel h2 { align-items: center; border-bottom: 1px solid #edf3ec; color: #123c1b; display: flex; font-size: 15px; gap: 8px; margin: 0 0 14px; padding-bottom: 10px; }
+        .case-head .meta { color: rgba(255,255,255,0.8); font-size: 13px; margin-top: 3px; }
+        .panel { background: var(--surface-primary, #fff); border: 1px solid var(--border-primary, #dce5da); border-radius: 8px; box-shadow: var(--sicms-shadow, 0 4px 14px rgba(18,60,27,.06)); margin-top: 18px; padding: 18px 20px; }
+        .panel h2 { align-items: center; border-bottom: 1px solid var(--divider, #edf3ec); color: var(--text-secondary, #123c1b); display: flex; font-size: 15px; gap: 8px; margin: 0 0 14px; padding-bottom: 10px; }
         .details-grid { display: grid; gap: 10px 18px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
-        .label { color: #637060; font-size: 11px; font-weight: 800; letter-spacing: .4px; text-transform: uppercase; }
-        .value { color: #263225; font-size: 14px; margin-top: 2px; }
+        .label { color: var(--text-muted, #637060); font-size: 11px; font-weight: 800; letter-spacing: .4px; text-transform: uppercase; }
+        .value { color: var(--text-primary, #263225); font-size: 14px; margin-top: 2px; }
         .full { grid-column: 1 / -1; }
         .status-pill { border-radius: 999px; display: inline-flex; font-size: 11px; font-weight: 800; padding: 6px 9px; white-space: nowrap; }
-        .status-under-investigation { background: #e7f0ff; color: #275ca8; }
-        .status-returned-for-revision { background: #fff5d8; color: #825e00; }
-        .status-resolved { background: #e5f6e3; color: #157000; }
-        .status-reformation-in-progress { background: #fff4d6; color: #8a5a00; }
-        .status-reformation-completed { background: #e1f6ef; color: #087f5b; }
-        .status-escalated { background: #fdeee3; color: #c2410c; }
-        .status-rejected { background: #fff0ef; color: #a92c23; }
-        .status-archived { background: #edf0ed; color: #59635a; }
-        .status-counter-statement-required { background: #fff4d6; color: #8a5a00; }
-        .cs-required-banner { align-items: center; background: #fffdf5; border: 1px solid #ead9a5; border-left: 4px solid #b57600; border-radius: 8px; display: flex; flex-wrap: wrap; gap: 10px 16px; justify-content: space-between; margin-top: 16px; padding: 14px 16px; }
-        .cs-required-banner p { color: #6a614c; font-size: 13px; margin: 6px 0 0; }
-        .statement-box { background: #f8fbf7; border: 1px solid #dce7d9; border-radius: 8px; padding: 14px 16px; }
-        .next-action { align-items:center; background:#f4faf2; border:1px solid #cfe2cb; border-radius:8px; display:flex; gap:12px; justify-content:space-between; margin:16px 0; padding:12px 14px; }
-        .next-action p { color:#3f4c3e; font-size:13px; margin:3px 0 0; }
-        .statement-evidence { border-top:1px solid #e6ede4; margin-top:16px; padding-top:14px; }
-        .statement-evidence h3 { color:#284127; font-size:13px; margin:0 0 8px; }
-        .statement-locked { background: #f6f8f5; border: 1px solid #e2eae0; border-radius: 8px; color: #3f4c3e; padding: 14px 16px; }
+        .status-under-investigation { background: var(--status-info-bg, #e7f0ff); color: var(--status-info-text, #275ca8); }
+        .status-returned-for-revision { background: var(--status-warning-bg, #fff5d8); color: var(--status-warning-text, #825e00); }
+        .status-resolved { background: var(--status-success-bg, #e5f6e3); color: var(--status-success-text, #157000); }
+        .status-reformation-in-progress { background: var(--status-warning-bg, #fff4d6); color: var(--status-warning-text, #8a5a00); }
+        .status-reformation-completed { background: var(--status-success-bg, #e1f6ef); color: var(--status-success-text, #087f5b); }
+        .status-escalated { background: var(--status-warning-bg, #fdeee3); color: var(--status-warning-text, #c2410c); }
+        .status-rejected { background: var(--status-danger-bg, #fff0ef); color: var(--status-danger-text, #a92c23); }
+        .status-archived { background: var(--status-muted-bg, #edf0ed); color: var(--status-muted-text, #59635a); }
+        .status-counter-statement-required { background: var(--status-warning-bg, #fff4d6); color: var(--status-warning-text, #8a5a00); }
+        .cs-required-banner { align-items: center; background: var(--surface-soft, #fffdf5); border: 1px solid var(--status-warning-border, #ead9a5); border-left: 4px solid var(--status-warning-border, #b57600); border-radius: 8px; display: flex; flex-wrap: wrap; gap: 10px 16px; justify-content: space-between; margin-top: 16px; padding: 14px 16px; }
+        .cs-required-banner p { color: var(--text-muted, #6a614c); font-size: 13px; margin: 6px 0 0; }
+        .statement-box { background: var(--surface-secondary, #f8fbf7); border: 1px solid var(--border-primary, #dce7d9); border-radius: 8px; padding: 14px 16px; }
+        .next-action { align-items:center; background: var(--surface-accent, #f4faf2); border:1px solid var(--border-primary, #cfe2cb); border-radius:8px; display:flex; gap:12px; justify-content:space-between; margin:16px 0; padding:12px 14px; }
+        .next-action p { color: var(--text-primary, #3f4c3e); font-size:13px; margin:3px 0 0; }
+        .statement-evidence { border-top:1px solid var(--divider, #e6ede4); margin-top:16px; padding-top:14px; }
+        .statement-evidence h3 { color: var(--text-secondary, #284127); font-size:13px; margin:0 0 8px; }
+        .statement-locked { background: var(--surface-secondary, #f6f8f5); border: 1px solid var(--border-primary, #e2eae0); border-radius: 8px; color: var(--text-primary, #3f4c3e); padding: 14px 16px; }
         .statement-locked .statement-text { white-space: pre-wrap; }
         .action-form { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
         .form-group { display: flex; flex-direction: column; gap: 4px; }
-        .form-group label { color: #5c6a59; font-size: 12px; }
+        .form-group label { color: var(--text-muted, #5c6a59); font-size: 12px; }
         textarea { min-height: 170px; resize: vertical; }
-        .hearing-item { border-left: 4px solid #1a9d00; padding: 4px 12px; margin-bottom: 10px; }
-        .hearing-item.cancelled { border-left-color: #c0392b; }
-        .hearing-item.completed { border-left-color: #59635a; }
-        .timeline-item { border-left: 2px solid #cfe0cb; margin-left: 8px; padding: 0 0 14px 18px; position: relative; }
-        .timeline-item::before { background: #1a9d00; border-radius: 50%; content: ""; height: 10px; left: -6px; position: absolute; top: 4px; width: 10px; }
-        .timeline-action { color: #172017; font-size: 13px; font-weight: 700; }
-        .timeline-time { color: #84917f; font-size: 11px; }
+        .hearing-item { border-left: 4px solid var(--accent, #1a9d00); padding: 4px 12px; margin-bottom: 10px; }
+        .hearing-item.cancelled { border-left-color: var(--danger, #c0392b); }
+        .hearing-item.completed { border-left-color: var(--text-muted, #59635a); }
+        .timeline-item { border-left: 2px solid var(--divider, #cfe0cb); margin-left: 8px; padding: 0 0 14px 18px; position: relative; }
+        .timeline-item::before { background: var(--accent, #1a9d00); border-radius: 50%; content: ""; height: 10px; left: -6px; position: absolute; top: 4px; width: 10px; }
+        .timeline-action { color: var(--text-primary, #172017); font-size: 13px; font-weight: 700; }
+        .timeline-time { color: var(--text-muted, #84917f); font-size: 11px; }
         .attach-row { align-items: center; display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
-        .btn-remove { background: #fff0ef; color: #a92c23; }
-        .btn-remove:hover { background: #fde3e0; }
-        .notice { background: #fffdf5; border: 1px solid #ead9a5; border-left: 4px solid #b57600; border-radius: 8px; color: #6a614c; font-size: 13px; padding: 12px 14px; }
-        .statement-confirmed { align-items: flex-start; background: #eaf7e8; border: 1px solid #bfe3ba; border-left: 4px solid #1a9d00; border-radius: 8px; display: flex; gap: 10px; margin-bottom: 14px; padding: 12px 14px; }
-        .statement-confirmed i { color: #157000; font-size: 18px; margin-top: 1px; }
+        .btn-remove { background: var(--status-danger-bg, #fff0ef); color: var(--status-danger-text, #a92c23); }
+        .btn-remove:hover { background: rgba(167, 34, 34, 0.12); }
+        .notice { background: var(--surface-soft, #fffdf5); border: 1px solid var(--status-warning-border, #ead9a5); border-left: 4px solid var(--status-warning-border, #b57600); border-radius: 8px; color: var(--text-muted, #6a614c); font-size: 13px; padding: 12px 14px; }
+        .statement-confirmed { align-items: flex-start; background: var(--status-success-bg, #eaf7e8); border: 1px solid rgba(26, 157, 0, 0.25); border-left: 4px solid var(--accent, #1a9d00); border-radius: 8px; display: flex; gap: 10px; margin-bottom: 14px; padding: 12px 14px; }
+        .statement-confirmed i { color: var(--status-success-text, #157000); font-size: 18px; margin-top: 1px; }
     </style>
 </head>
 <body>

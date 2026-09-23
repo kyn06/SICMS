@@ -47,7 +47,7 @@ $oldTime = $oldIncident ? date('H:i', $oldIncident) : '';
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Revise Complaint | SICMS</title>
+    <title>Revise Complaint | DARIS</title>
     <link rel="stylesheet" href="../layout/style.css">
 </head>
 

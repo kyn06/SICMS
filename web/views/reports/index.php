@@ -60,50 +60,50 @@ function applied_filter_labels(array $filters, array $options) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Reports | SICMS</title>
+    <title>Reports | DARIS</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="../layout/style.css">
     <link rel="stylesheet" href="../layout/sidebar.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <style>
-        body { align-items: stretch; background: #f5f7f4; display: block; justify-content: flex-start; padding: 0; }
-        .header { align-items: center; background: #123c1b; color: #fff; display: flex; justify-content: space-between; gap: 16px; padding: 22px 30px; }
+        body { align-items: stretch; background: var(--bg-page, #f5f7f4); color: var(--text-primary, #172017); display: block; justify-content: flex-start; padding: 0; }
+        .header { align-items: center; background: var(--bg-sidebar, #123c1b); color: #fff; display: flex; justify-content: space-between; gap: 16px; padding: 22px 30px; }
         .header h1 { font-size: 24px; margin-bottom: 4px; }
-        .header p { color: #dbe9d9; font-size: 13px; }
-        .header a { background: #fff; border-radius: 8px; color: #123c1b; padding: 10px 14px; text-decoration: none; }
+        .header p { color: rgba(255,255,255,0.75); font-size: 13px; }
+        .header a { background: var(--surface-primary, #fff); border-radius: 8px; color: var(--text-secondary, #123c1b); padding: 10px 14px; text-decoration: none; }
         .wrap { max-width: 1320px; margin: 0 auto; padding: 28px; }
         .report-section { margin-bottom: 28px; }
         .section-heading { align-items: end; display: flex; justify-content: space-between; margin-bottom: 14px; }
-        .section-heading h2 { color: #123c1b; font-size: 18px; margin: 0; }
-        .section-heading p { color: #637060; font-size: 12px; margin: 3px 0 0; }
+        .section-heading h2 { color: var(--text-primary, #123c1b); font-size: 18px; margin: 0; }
+        .section-heading p { color: var(--text-muted, #637060); font-size: 12px; margin: 3px 0 0; }
         .cards { display: grid; gap: 12px; grid-template-columns: repeat(7, minmax(0, 1fr)); }
-        .card, .panel, .filters { background: #fff; border: 1px solid #dce5da; border-radius: 8px; box-shadow: 0 3px 12px rgba(18, 60, 27, 0.06); }
+        .card, .panel, .filters { background: var(--surface-primary, #fff); border: 1px solid var(--border-primary, #dce5da); border-radius: 8px; box-shadow: var(--sicms-shadow, 0 3px 12px rgba(18, 60, 27, 0.06)); }
         .card { min-height: 108px; padding: 16px; }
-        .card span { color: #637060; display: block; font-size: 12px; line-height: 1.35; margin-bottom: 12px; min-height: 32px; }
-        .card strong { color: #123c1b; font-size: 28px; line-height: 1; }
+        .card span { color: var(--text-muted, #637060); display: block; font-size: 12px; line-height: 1.35; margin-bottom: 12px; min-height: 32px; }
+        .card strong { color: var(--text-primary, #123c1b); font-size: 28px; line-height: 1; }
         .filters { margin-bottom: 28px; padding: 20px; }
         .filter-groups { display: grid; gap: 16px; }
-        .filter-group { border: 0; border-top: 1px solid #e4ece2; margin: 0; padding: 16px 0 0; }
+        .filter-group { border: 0; border-top: 1px solid var(--divider, #e4ece2); margin: 0; padding: 16px 0 0; }
         .filter-group:first-child { border-top: 0; padding-top: 0; }
-        .filter-group legend { color: #123c1b; font-size: 13px; font-weight: 700; padding: 0 10px 0 0; }
+        .filter-group legend { color: var(--text-primary, #123c1b); font-size: 13px; font-weight: 700; padding: 0 10px 0 0; }
         .filter-grid { display: grid; gap: 14px; grid-template-columns: repeat(4, minmax(0, 1fr)); }
         .filter-grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .field { display: flex; flex-direction: column; gap: 6px; }
-        label { color: #536052; font-size: 13px; }
-        input, select { border: 1px solid #b9c7b7; border-radius: 8px; font: inherit; padding: 10px 12px; }
-        .actions { align-items: center; border-top: 1px solid #e4ece2; display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; margin-top: 18px; padding-top: 18px; }
+        label { color: var(--text-secondary, #536052); font-size: 13px; }
+        input, select { background: var(--input-bg, #fff); border: 1px solid var(--input-border, #b9c7b7); border-radius: 8px; color: var(--text-primary, #172017); font: inherit; padding: 10px 12px; }
+        .actions { align-items: center; border-top: 1px solid var(--divider, #e4ece2); display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; margin-top: 18px; padding-top: 18px; }
         .btn { align-items: center; border: 0; border-radius: 8px; cursor: pointer; display: inline-flex; font: inherit; gap: 7px; min-height: 40px; padding: 10px 14px; text-decoration: none; }
-        .btn-primary { background: #1A9D00; color: #fff; }
-        .btn-secondary { background: #eef5ed; color: #123c1b; }
+        .btn-primary { background: var(--accent, #1A9D00); color: #fff; }
+        .btn-secondary { background: var(--surface-accent, #eef5ed); color: var(--text-secondary, #123c1b); }
         .charts { display: grid; gap: 18px; grid-template-columns: repeat(2, minmax(0, 1fr)); margin-bottom: 28px; }
         .panel { padding: 18px; }
-        .panel h2 { color: #123c1b; font-size: 17px; margin-bottom: 12px; }
+        .panel h2 { color: var(--text-primary, #123c1b); font-size: 17px; margin-bottom: 12px; }
         .chart-box { height: 300px; position: relative; }
         .table-wrap { overflow-x: auto; }
         table { border-collapse: collapse; min-width: 980px; width: 100%; }
-        th, td { border-bottom: 1px solid #edf4eb; padding: 11px 10px; text-align: left; }
-        th { color: #536052; font-size: 12px; text-transform: uppercase; }
-        td { color: #172017; font-size: 13px; }
+        th, td { border-bottom: 1px solid var(--divider, #edf4eb); padding: 11px 10px; text-align: left; }
+        th { background: var(--surface-soft, #f4f8f3); color: var(--text-secondary, #536052); font-size: 12px; text-transform: uppercase; }
+        td { color: var(--text-primary, #172017); font-size: 13px; }
         @media (max-width: 1100px) {
             .cards { grid-template-columns: repeat(4, minmax(0, 1fr)); }
             .filter-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -525,7 +525,7 @@ function applied_filter_labels(array $filters, array $options) {
             margin-bottom: 16px;
         }
     </style>
-    <link rel="stylesheet" href="../layout/system.css?v=3">
+    <link rel="stylesheet" href="../layout/system.css?v=4">
 </head>
 
 <body>
@@ -538,7 +538,7 @@ function applied_filter_labels(array $filters, array $options) {
         <section class="print-report-header">
             <div class="print-brand">
                 <img src="<?= h(app_url('public/assets/clsulogo.png')) ?>" alt="SICMS logo">
-                <div><strong>Student Information and Case Management System</strong><h1>SICMS Reports and Dashboard Analytics</h1></div>
+                <div><strong>Discipline and Reformation Information System</strong><h1>DARIS Reports and Dashboard Analytics</h1></div>
             </div>
             <p>Generated <?= h(date('F d, Y h:i A')) ?> by <?= h(trim($user['first_name'] . ' ' . $user['last_name'])) ?></p>
             <p class="print-filters">Applied filters: <?= h(implode('; ', applied_filter_labels($filters, $options)) ?: 'All records') ?></p>

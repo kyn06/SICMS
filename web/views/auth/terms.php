@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Terms of Service - SICMS</title>
+    <title>Terms of Service - DARIS</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link rel="stylesheet" href="../layout/style.css">
     <style>
@@ -97,10 +97,10 @@
         <p class="legal-updated">Last updated: August 19, 2026</p>
 
         <h2>1. Acceptance of Terms</h2>
-        <p>By accessing or using the Student Complaint Management System (SICMS), you agree to be bound by these Terms of Service. If you do not agree to these terms, you may not use the system.</p>
+        <p>By accessing or using the Discipline and Reformation Information System (DARIS), you agree to be bound by these Terms of Service. If you do not agree to these terms, you may not use the system.</p>
 
         <h2>2. Purpose of the System</h2>
-        <p>SICMS is an online platform operated by the Office of Student Affairs - Student Discipline and Reformation Unit (SDRU) of CLSU. It is designed to facilitate the filing, tracking, and resolution of student complaints and disciplinary matters.</p>
+        <p>DARIS is an online platform operated by the Office of Student Affairs - Student Discipline and Reformation Unit (SDRU) of CLSU. It is designed to facilitate the filing, tracking, and resolution of student complaints and disciplinary matters.</p>
 
         <h2>3. Eligibility</h2>
         <p>The system is available exclusively to currently enrolled CLSU students, authorized SDRU personnel, and designated administrators. Creating an account requires a valid CLSU email address.</p>
@@ -125,7 +125,7 @@
 
         <h2>6. Complaint Filing and Processing</h2>
         <ul>
-            <li>All complaints filed through SICMS are subject to review and evaluation by authorized SDRU personnel.</li>
+            <li>All complaints filed through DARIS are subject to review and evaluation by authorized SDRU personnel.</li>
             <li>Filing a complaint does not guarantee that action will be taken or that a hearing will be scheduled.</li>
             <li>Users will be notified of case updates through the system's notification features.</li>
             <li>Users must attend scheduled hearings and respond to requests for information in a timely manner.</li>
@@ -145,16 +145,16 @@
         </ul>
 
         <h2>9. Intellectual Property</h2>
-        <p>All content, design, and functionality of SICMS are the property of CLSU and are protected by applicable intellectual property laws. You may not reproduce, distribute, or create derivative works from any part of the system without prior written consent.</p>
+        <p>All content, design, and functionality of DARIS are the property of CLSU and are protected by applicable intellectual property laws. You may not reproduce, distribute, or create derivative works from any part of the system without prior written consent.</p>
 
         <h2>10. Limitation of Liability</h2>
-        <p>CLSU and SDRU shall not be held liable for any indirect, incidental, or consequential damages arising from the use of or inability to use SICMS. The system is provided "as is" without warranties of any kind.</p>
+        <p>CLSU and SDRU shall not be held liable for any indirect, incidental, or consequential damages arising from the use of or inability to use DARIS. The system is provided "as is" without warranties of any kind.</p>
 
         <h2>11. Modifications to Terms</h2>
-        <p>SDRU reserves the right to modify these Terms of Service at any time. Users will be notified of significant changes through the system. Continued use of SICMS after changes constitutes acceptance of the modified terms.</p>
+        <p>SDRU reserves the right to modify these Terms of Service at any time. Users will be notified of significant changes through the system. Continued use of DARIS after changes constitutes acceptance of the modified terms.</p>
 
         <h2>12. Contact Information</h2>
-        <p>For questions or concerns about these Terms of Service, please contact the Student Discipline and Reformation Unit through the messaging feature in SICMS or visit the SDRU office during business hours.</p>
+        <p>For questions or concerns about these Terms of Service, please contact the Student Discipline and Reformation Unit through the messaging feature in DARIS or visit the SDRU office during business hours.</p>
     </div>
 
     <div class="legal-footer">
