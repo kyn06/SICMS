@@ -60,7 +60,7 @@ function respondents_label(array $case) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Case Management | SICMS</title>
+    <title>Case Management | DARIS</title>
     <link rel="stylesheet" href="../layout/style.css">
     <link rel="stylesheet" href="../layout/sidebar.css">
     <link rel="stylesheet" href="../layout/cases.css">
@@ -83,8 +83,8 @@ function respondents_label(array $case) {
 
     .case-search-box {
         align-items: center;
-        background: #fff;
-        border: 1px solid #bfd0bc;
+        background: var(--surface-primary, #fff);
+        border: 1px solid var(--border-primary, #bfd0bc);
         border-radius: 6px;
         display: inline-flex;
         flex: 0 1 auto;
@@ -95,7 +95,7 @@ function respondents_label(array $case) {
     }
 
     .case-search-box i {
-        color: #5f6f5c;
+        color: var(--text-muted, #5f6f5c);
         font-size: 14px;
     }
 
@@ -111,10 +111,10 @@ function respondents_label(array $case) {
 
     .filters-toggle-btn {
         align-items: center;
-        background: #fff;
-        border: 1px solid #bfd0bc;
+        background: var(--surface-primary, #fff);
+        border: 1px solid var(--border-primary, #bfd0bc);
         border-radius: 6px;
-        color: var(--text);
+        color: var(--text-primary, #172017);
         cursor: pointer;
         display: inline-flex;
         font: inherit;
@@ -126,15 +126,15 @@ function respondents_label(array $case) {
     }
 
     .filters-toggle-btn:hover {
-        border-color: var(--sicms-green-600);
-        color: var(--sicms-green-700);
+        border-color: var(--accent, #1A9D00);
+        color: var(--text-secondary, #123c1b);
     }
 
     .filters-count {
         align-items: center;
-        background: #e6f3ea;
+        background: rgba(26, 157, 0, 0.08);
         border-radius: 999px;
-        color: #1a8c2b;
+        color: var(--accent, #1a8c2b);
         display: inline-flex;
         font-size: 11px;
         justify-content: center;
@@ -159,10 +159,10 @@ function respondents_label(array $case) {
     }
 
     .filters-popover {
-        background: #fff;
+        background: var(--surface-primary, #fff);
         border: 1px solid rgba(191, 208, 188, .75);
         border-radius: 14px;
-        box-shadow: 0 18px 45px rgba(15, 40, 21, .22);
+        box-shadow: var(--sicms-shadow, 0 18px 45px rgba(15, 40, 21, .22));
         display: none;
         left: auto;
         padding: 12px 14px;

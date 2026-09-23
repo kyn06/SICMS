@@ -46,7 +46,7 @@ function account_role_label($role) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>User Management | SICMS</title>
+    <title>User Management | DARIS</title>
     <link rel="stylesheet" href="../layout/style.css">
     <link rel="stylesheet" href="../layout/accounts.css?v=2">
     <link rel="stylesheet" href="../layout/sidebar.css">
@@ -365,7 +365,7 @@ function account_role_label($role) {
             const ask = await Swal.fire({
                 icon: 'warning',
                 title: enable ? 'Enable this account?' : 'Disable this account?',
-                text: enable ? `${name} will regain access to SICMS.` : `${name} will no longer be able to sign in.`,
+                text: enable ? `${name} will regain access to DARIS.` : `${name} will no longer be able to sign in.`,
                 showCancelButton: true,
                 confirmButtonText: enable ? 'Yes, enable' : 'Yes, disable',
                 cancelButtonText: 'Cancel',

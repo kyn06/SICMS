@@ -75,7 +75,7 @@ function preview_text($text) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Messages | SICMS</title>
+    <title>Messages | DARIS</title>
     <link rel="stylesheet" href="../layout/style.css">
     <link rel="stylesheet" href="../layout/sidebar.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
@@ -89,8 +89,8 @@ function preview_text($text) {
         .new-conversation-btn:hover, .new-conversation-btn.open { background: #dfe8dc; color: #1A9D00; }
         .candidate-popover-overlay { align-items: center; background: rgba(10, 28, 14, 0.55); display: flex; inset: 0; justify-content: center; position: fixed; z-index: 90; }
         .candidate-popover { background: #fff; border: 1px solid #dce5da; border-radius: 12px; box-shadow: 0 18px 48px rgba(0, 0, 0, 0.25); display: flex; flex-direction: column; max-height: min(75vh, 480px); max-width: calc(100vw - 32px); overflow: hidden; width: 380px; z-index: 95; }
-        .conversation-filter-group { display: grid; gap: 6px; grid-template-columns: repeat(3, 1fr); margin-top: 10px; }
-        .conversation-filter-btn { background: #eef2ec; border: 1px solid #dce5da; border-radius: 8px; color: #123c1b; cursor: pointer; font: inherit; font-size: 12px; font-weight: 700; padding: 8px 0; text-align: center; transition: background 0.15s ease, color 0.15s ease; }
+        .conversation-filter-group { display: grid; gap: 6px; grid-template-columns: repeat(4, 1fr); margin-top: 10px; }
+        .conversation-filter-btn { background: #eef2ec; border: 1px solid #dce5da; border-radius: 8px; color: #123c1b; cursor: pointer; font: inherit; font-size: 11px; font-weight: 700; padding: 8px 0; text-align: center; transition: background 0.15s ease, color 0.15s ease; }
         .conversation-filter-btn:hover { background: #dfe8dc; }
         .conversation-filter-btn.active { background: #123c1b; border-color: #123c1b; color: #fff; }
         .popover-header { align-items: center; border-bottom: 1px solid #edf4eb; color: #123c1b; display: flex; font-size: 13px; justify-content: space-between; padding: 13px 14px; }
@@ -171,14 +171,14 @@ function preview_text($text) {
         .recipient-note.recipient-error { color: #b3261e; white-space: normal; }
         .attachment-name { color: #6f7a6c; font-size: 12px; grid-column: 2 / 3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .modal-overlay { align-items: center; background: rgba(10, 28, 14, 0.55); display: flex; inset: 0; justify-content: center; position: fixed; z-index: 100; }
-        .modal-box { background: #fff; border-radius: 12px; box-shadow: 0 18px 48px rgba(0, 0, 0, 0.25); max-width: 400px; padding: 22px 24px; width: calc(100% - 40px); }
-        .modal-box h3 { color: #123c1b; font-size: 17px; margin: 0 0 8px; }
-        .modal-box p { color: #536052; font-size: 13px; line-height: 1.5; margin: 0 0 18px; }
+        .modal-box { background: var(--surface-primary, #fff); border-radius: 12px; box-shadow: 0 18px 48px rgba(0, 0, 0, 0.25); max-width: 400px; padding: 22px 24px; width: calc(100% - 40px); }
+        .modal-box h3 { color: var(--text-primary, #123c1b); font-size: 17px; margin: 0 0 8px; }
+        .modal-box p { color: var(--text-muted, #536052); font-size: 13px; line-height: 1.5; margin: 0 0 18px; }
         .modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
         .modal-actions button { border: 0; border-radius: 8px; cursor: pointer; font: inherit; font-size: 13px; font-weight: 700; padding: 9px 16px; }
-        .modal-cancel { background: #eef2ec; color: #172017; }
-        .modal-cancel:hover { background: #dfe8dc; }
-        .modal-confirm { background: #b3261e; color: #fff; }
+        .modal-cancel { background: var(--surface-accent, #eef2ec); color: var(--text-primary, #172017); }
+        .modal-cancel:hover { background: var(--surface-soft, #dfe8dc); }
+        .modal-confirm { background: var(--danger, #b3261e); color: #fff; }
         .modal-confirm:hover { background: #99201a; }
         .hidden { display: none; }
         @media (max-width: 1400px) {
@@ -214,6 +214,7 @@ function preview_text($text) {
                 <div class="conversation-filter-group" id="conversationFilterGroup">
                     <button class="conversation-filter-btn active" id="filterAll" type="button" data-filter="all">All</button>
                     <button class="conversation-filter-btn" id="filterComplainant" type="button" data-filter="complainant">Complainant</button>
+                    <button class="conversation-filter-btn" id="filterRespondent" type="button" data-filter="respondent">Respondent</button>
                     <button class="conversation-filter-btn" id="filterStaffs" type="button" data-filter="staffs">Staffs</button>
                 </div>
             <?php endif; ?>
@@ -357,6 +358,7 @@ function preview_text($text) {
         const deleteConfirm = document.getElementById('deleteConfirm');
         const newConversationBtn = document.getElementById('newConversationBtn');
         const candidatePopover = document.getElementById('candidatePopover');
+        const candidatePopoverOverlay = document.getElementById('candidatePopoverOverlay');
         const candidateClose = document.getElementById('candidateClose');
         const candidateSearch = document.getElementById('candidateSearch');
         const candidateList = document.getElementById('candidateList');
@@ -546,7 +548,9 @@ function preview_text($text) {
             }
 
             if (!selectedCases || !selectedCases.length) {
-                infoBody.innerHTML = '<div class="info-note empty"><i class="bi bi-inbox"></i>This complainant has no case yet.</div>';
+                const counterpartRole = String(selectedRecipient?.role || '').toLowerCase().replaceAll('_', '-').replaceAll(' ', '-');
+                const counterpartLabel = counterpartRole === 'respondent' ? 'respondent' : 'complainant';
+                infoBody.innerHTML = `<div class="info-note empty"><i class="bi bi-inbox"></i>This ${counterpartLabel} has no case yet.</div>`;
                 return;
             }
 
@@ -673,13 +677,16 @@ function preview_text($text) {
             let visible = 0;
 
             document.querySelectorAll('.conversation-card').forEach(card => {
-                const role = String(card.dataset.role || '').toLowerCase();
+                const role = String(card.dataset.role || '').toLowerCase().replaceAll('_', '-').replaceAll(' ', '-');
                 const isStudent = role === 'student';
+                const isRespondent = role === 'respondent';
                 const matchesType = conversationFilter === 'complainant'
                     ? isStudent
-                    : conversationFilter === 'staffs'
-                        ? !isStudent
-                        : true;
+                    : conversationFilter === 'respondent'
+                        ? isRespondent
+                        : conversationFilter === 'staffs'
+                            ? !isStudent && !isRespondent
+                            : true;
                 const hidden = !matchesType || (term !== '' && !card.dataset.search.includes(term));
                 card.classList.toggle('hidden', hidden);
                 if (!hidden) visible++;

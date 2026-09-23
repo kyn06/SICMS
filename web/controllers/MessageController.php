@@ -73,7 +73,9 @@ class MessageController {
         return [
             'recipient' => $counterpart,
             'messages' => Message::forPair((int) $this->user['account_id'], $counterpartId),
-            'cases' => Message::casesForComplainant($counterpartId),
+            'cases' => Message::isRespondentRole($counterpart['role'])
+                ? Message::casesForRespondent($counterpartId)
+                : Message::casesForComplainant($counterpartId),
             'isStaffPeer' => Message::isStaffRole($counterpart['role']),
         ];
     }

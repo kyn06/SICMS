@@ -9,6 +9,6 @@ return [
     'username' => 'nakamotoyutarawrr@gmail.com',
     'password' => 'hrsk zrxx xyjz zhfr',
     'from_email' => 'nakamotoyutarawrr@gmail.com',
-    'from_name' => 'SICMS - Student Integrity Case Management System',
-    'app_url' => 'http://localhost/sicms',
+    'from_name' => 'DARIS - Discipline and Reformation Information System',
+    'app_url' => 'http://localhost/daris',
 ];

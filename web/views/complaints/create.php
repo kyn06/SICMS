@@ -307,13 +307,14 @@ $witnessItem = function ($index = null, $old = []) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Submit Complaint | SICMS</title>
+    <title>Submit Complaint | DARIS</title>
     <link rel="stylesheet" href="../layout/style.css">
     <style>
         body {
             align-items: stretch;
             justify-content: flex-start;
-            background: #f5f7f4;
+            background: var(--bg-page, #f5f7f4);
+            color: var(--text-primary, #172017);
             padding: 0;
         }
 
@@ -323,7 +324,7 @@ $witnessItem = function ($index = null, $old = []) {
         }
 
         .complaint-header {
-            background: #123c1b;
+            background: var(--bg-sidebar, #123c1b);
             color: #fff;
             padding: 22px 30px;
             display: flex;
@@ -339,7 +340,7 @@ $witnessItem = function ($index = null, $old = []) {
 
         .complaint-header p {
             font-size: 13px;
-            color: #dbe9d9;
+            color: rgba(255,255,255,0.8);
         }
 
         .header-actions {
@@ -361,8 +362,8 @@ $witnessItem = function ($index = null, $old = []) {
 
         .header-actions a,
         .btn-secondary {
-            color: #123c1b;
-            background: #fff;
+            color: var(--text-secondary, #123c1b);
+            background: var(--surface-primary, #fff);
             padding: 10px 14px;
         }
 
@@ -380,15 +381,15 @@ $witnessItem = function ($index = null, $old = []) {
         }
 
         .alert-error {
-            border: 1px solid #dc3545;
-            background: #fff5f5;
-            color: #b42318;
+            border: 1px solid rgba(180, 35, 24, 0.5);
+            background: var(--status-danger-bg, #fff5f5);
+            color: var(--status-danger-text, #b42318);
         }
 
         .alert-success {
-            border: 1px solid #1A9D00;
-            background: #f0fdf0;
-            color: #137500;
+            border: 1px solid rgba(26, 157, 0, 0.35);
+            background: rgba(26, 157, 0, 0.08);
+            color: var(--status-success-text, #137500);
         }
 
         .complaint-form {
@@ -399,15 +400,15 @@ $witnessItem = function ($index = null, $old = []) {
         }
 
         .form-section {
-            background: #fff;
-            border: 1px solid #dce5da;
+            background: var(--surface-primary, #fff);
+            border: 1px solid var(--border-primary, #dce5da);
             border-radius: 8px;
             padding: 20px;
         }
 
         .form-section h2 {
             font-size: 18px;
-            color: #172017;
+            color: var(--text-primary, #172017);
             margin-bottom: 16px;
         }
 
@@ -434,7 +435,7 @@ $witnessItem = function ($index = null, $old = []) {
 
         label {
             font-size: 13px;
-            color: #536052;
+            color: var(--text-muted, #536052);
             font-weight: 500;
         }
 
@@ -442,13 +443,13 @@ $witnessItem = function ($index = null, $old = []) {
         select,
         textarea {
             width: 100%;
-            border: 1px solid #b9c7b7;
+            border: 1px solid var(--input-border, #b9c7b7);
             border-radius: 8px;
             padding: 11px 12px;
             font-family: inherit;
             font-size: 14px;
-            color: #172017;
-            background: #fff;
+            color: var(--text-primary, #172017);
+            background: var(--input-bg, #fff);
         }
 
         textarea {
@@ -464,7 +465,7 @@ $witnessItem = function ($index = null, $old = []) {
 
         .unknown-toggle {
             align-items: center;
-            color: #4a5544;
+            color: var(--text-muted, #4a5544);
             cursor: pointer;
             display: flex;
             font-size: 13px;
@@ -473,7 +474,7 @@ $witnessItem = function ($index = null, $old = []) {
         }
 
         .unknown-toggle input {
-            accent-color: #1f6f43;
+            accent-color: var(--accent, #1f6f43);
             height: 16px;
             width: 16px;
         }
@@ -483,25 +484,25 @@ $witnessItem = function ($index = null, $old = []) {
         }
 
         .required-note {
-            color: #8a6d3b;
+            color: var(--warning, #8a6d3b);
             font-size: 12px;
         }
 
         .unknown-notice {
-            background: #f7faf6;
-            border: 1px dashed #b9c7b7;
+            background: var(--surface-secondary, #f7faf6);
+            border: 1px dashed var(--input-border, #b9c7b7);
             border-radius: 8px;
-            color: #536052;
+            color: var(--text-muted, #536052);
             font-size: 13px;
             margin: 10px 0 2px;
             padding: 10px 12px;
         }
 
         .dynamic-item {
-            border: 1px solid #dce5da;
+            border: 1px solid var(--border-primary, #dce5da);
             border-radius: 8px;
             padding: 14px;
-            background: #fbfdfb;
+            background: var(--surface-secondary, #fbfdfb);
         }
 
         .dynamic-actions,
@@ -513,19 +514,19 @@ $witnessItem = function ($index = null, $old = []) {
         }
 
         .btn-add {
-            background: #e9f5e7;
-            color: #123c1b;
+            background: rgba(26, 157, 0, 0.08);
+            color: var(--text-secondary, #123c1b);
             padding: 10px 14px;
         }
 
         .btn-remove {
-            background: #fff5f5;
-            color: #b42318;
+            background: var(--status-danger-bg, #fff5f5);
+            color: var(--status-danger-text, #b42318);
             padding: 9px 12px;
         }
 
         .btn-submit {
-            background: #1A9D00;
+            background: var(--accent, #1A9D00);
             color: #fff;
             border: 0;
             border-radius: 8px;
@@ -537,7 +538,7 @@ $witnessItem = function ($index = null, $old = []) {
         }
 
         .file-note {
-            color: #536052;
+            color: var(--text-muted, #536052);
             font-size: 12px;
             margin-top: 6px;
         }
@@ -555,7 +556,7 @@ $witnessItem = function ($index = null, $old = []) {
         }
 
         .radio-item input {
-            accent-color: #1f6f43;
+            accent-color: var(--accent, #1f6f43);
             height: 16px;
             width: 16px;
         }

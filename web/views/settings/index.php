@@ -93,10 +93,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($dataUrl === '') {
             $profilePicError = 'No cropped image was received.';
         } else {
-            $mimeMatch = preg_match('/^data:image\/(jpeg|png);base64,(.*)$/s', $dataUrl, $matches);
+            $mimeMatch = preg_match('/^data:image\/(jpeg|png|webp);base64,(.*)$/s', $dataUrl, $matches);
 
             if (!$mimeMatch) {
-                $profilePicError = 'Please upload a JPG or PNG image.';
+                $profilePicError = 'Please upload a JPG, PNG, or WebP image.';
             } else {
                 $imageType = $matches[1];
                 $imageBytes = base64_decode($matches[2], true);
@@ -107,10 +107,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $profilePicError = 'The image exceeds the 5MB limit.';
                 } else {
                     $info = @getimagesizefromstring($imageBytes);
-                    $validTypes = [IMAGETYPE_JPEG, IMAGETYPE_PNG];
+                    $validTypes = [IMAGETYPE_JPEG, IMAGETYPE_PNG, IMAGETYPE_WEBP];
 
                     if ($info === false || !in_array($info[2], $validTypes, true)) {
-                        $profilePicError = 'Please upload a valid JPG or PNG image.';
+                        $profilePicError = 'Please upload a valid JPG, PNG, or WebP image.';
                     } else {
                         $uploadDir = dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . 'storage' . DIRECTORY_SEPARATOR . 'profile_pics';
 
@@ -118,7 +118,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             mkdir($uploadDir, 0755, true);
                         }
 
-                        $storedFilename = 'pic_' . (int) $user['account_id'] . '_' . date('YmdHis') . '.' . ($imageType === 'png' ? 'png' : 'jpg');
+                        $storedFilename = 'pic_' . (int) $user['account_id'] . '_' . date('YmdHis') . '.' . ($imageType === 'png' ? 'png' : ($imageType === 'webp' ? 'webp' : 'jpg'));
                         $destination = $uploadDir . DIRECTORY_SEPARATOR . $storedFilename;
 
                         if (file_put_contents($destination, $imageBytes) === false) {
@@ -405,7 +405,7 @@ $loginSessions = LoginSession::forAccount((int) $user['account_id'], session_id(
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Settings - SICMS</title>
+    <title>Settings - DARIS</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.css">
     <link rel="stylesheet" href="../layout/style.css">
@@ -448,7 +448,7 @@ $loginSessions = LoginSession::forAccount((int) $user['account_id'], session_id(
                         <div class="settings-avatar-section">
                             <div class="settings-avatar" id="settings-avatar">
                                 <?php if (!empty($user['profile_pic'])): ?>
-                                    <img src="<?= h(app_url('web/views/settings/profile_pic.php?id=' . (int) $user['account_id'])) ?>" alt="Profile photo">
+                                    <img src="<?= h(profile_pic_url($user)) ?>" alt="Profile photo">
                                 <?php else: ?>
                                     <?= h(strtoupper(substr($user['first_name'] ?? 'U', 0, 1) . substr($user['last_name'] ?? '', 0, 1))) ?>
                                 <?php endif; ?>
@@ -470,7 +470,7 @@ $loginSessions = LoginSession::forAccount((int) $user['account_id'], session_id(
                             <button class="btn btn-remove" type="submit" style="background:#eef1ee;color:#3f4c3e"><i class="bi bi-trash"></i> Remove Photo</button>
                         </form>
                         <?php endif; ?>
-                        <input type="file" id="settings-profile-pic-input" accept="image/jpeg,image/png" style="display:none;">
+                        <input type="file" id="settings-profile-pic-input" accept="image/jpeg,image/png,image/webp" style="display:none;">
 
                         <div id="profile-pic-crop-modal" class="crop-modal" style="display:none;">
                             <div class="crop-modal-card">
@@ -877,6 +877,7 @@ $loginSessions = LoginSession::forAccount((int) $user['account_id'], session_id(
                 reader.onload = function (event) {
                     cropImage.src = event.target.result;
                     cropModal.style.display = 'flex';
+                    document.body.classList.add('crop-modal-open');
 
                     document.body.style.overflow = 'hidden';
 
@@ -893,13 +894,21 @@ $loginSessions = LoginSession::forAccount((int) $user['account_id'], session_id(
                 reader.readAsDataURL(file);
             }
 
+            function closeCrop() {
+                cropModal.style.display = 'none';
+                document.body.classList.remove('crop-modal-open');
+                document.body.style.overflow = '';
+                fileInput.value = '';
+                if (cropper) { cropper.destroy(); cropper = null; }
+            }
+
             fileInput.addEventListener('change', function () {
                 if (!fileInput.files || fileInput.files.length === 0) return;
 
                 var file = fileInput.files[0];
 
-                if (!/^image\/(jpeg|png)$/.test(file.type)) {
-                    Swal.fire({ icon: 'error', title: 'Invalid file', text: 'Please choose a JPG or PNG image.' });
+                if (!/^image\/(jpeg|png|webp)$/.test(file.type)) {
+                    Swal.fire({ icon: 'error', title: 'Invalid file', text: 'Please choose a JPG, PNG, or WebP image.' });
                     fileInput.value = '';
                     return;
                 }
@@ -908,20 +917,18 @@ $loginSessions = LoginSession::forAccount((int) $user['account_id'], session_id(
             });
 
             document.querySelectorAll('[data-crop-cancel]').forEach(function (button) {
-                button.addEventListener('click', function () {
-                    cropModal.style.display = 'none';
-                    document.body.style.overflow = '';
-                    fileInput.value = '';
-                    if (cropper) { cropper.destroy(); cropper = null; }
-                });
+                button.addEventListener('click', closeCrop);
             });
 
             cropModal.addEventListener('click', function (event) {
                 if (event.target === cropModal) {
-                    cropModal.style.display = 'none';
-                    document.body.style.overflow = '';
-                    fileInput.value = '';
-                    if (cropper) { cropper.destroy(); cropper = null; }
+                    closeCrop();
+                }
+            });
+
+            document.addEventListener('keydown', function (event) {
+                if (event.key === 'Escape' && cropModal.style.display === 'flex') {
+                    closeCrop();
                 }
             });
 

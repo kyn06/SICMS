@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Privacy Policy - SICMS</title>
+    <title>Privacy Policy - DARIS</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link rel="stylesheet" href="../layout/style.css">
     <style>
@@ -97,10 +97,10 @@
         <p class="legal-updated">Last updated: August 19, 2026</p>
 
         <h2>1. Introduction</h2>
-        <p>The Student Discipline and Reformation Unit (SDRU) of CLSU is committed to protecting the privacy of users of the Student Complaint Management System (SICMS). This Privacy Policy explains how we collect, use, store, and protect your personal information.</p>
+        <p>The Student Discipline and Reformation Unit (SDRU) of CLSU is committed to protecting the privacy of users of the Discipline and Reformation Information System (DARIS). This Privacy Policy explains how we collect, use, store, and protect your personal information.</p>
 
         <h2>2. Information We Collect</h2>
-        <p>When you use SICMS, we collect the following information:</p>
+        <p>When you use DARIS, we collect the following information:</p>
         <ul>
             <li><strong>Account Information:</strong> Full name, email address, role, and account creation date.</li>
             <li><strong>Complaint Data:</strong> Details submitted in complaint forms, including descriptions, evidence, and related communications.</li>
@@ -142,7 +142,7 @@
         <p>Account and complaint data are retained for the duration of the user's association with CLSU and for a period required by institutional records retention policies. Audit logs are maintained for security and compliance purposes.</p>
 
         <h2>7. Your Rights</h2>
-        <p>As a user of SICMS, you have the right to:</p>
+        <p>As a user of DARIS, you have the right to:</p>
         <ul>
             <li>Access the personal information associated with your account.</li>
             <li>Request corrections to inaccurate information.</li>
@@ -151,16 +151,16 @@
         </ul>
 
         <h2>8. Cookies and Session Data</h2>
-        <p>SICMS uses strictly necessary cookies to maintain your logged-in state and protect against cross-site request forgery. A cookie consent banner is displayed on your first visit to inform you of cookie usage and to record your preference. Your consent choice is stored in a cookie that expires after 12 months.</p>
+        <p>DARIS uses strictly necessary cookies to maintain your logged-in state and protect against cross-site request forgery. A cookie consent banner is displayed on your first visit to inform you of cookie usage and to record your preference. Your consent choice is stored in a cookie that expires after 12 months.</p>
 
         <h2>9. Children's Privacy</h2>
-        <p>SICMS is designed for use by college students who are 18 years of age or older. We do not knowingly collect personal information from individuals under the age of 18.</p>
+        <p>DARIS is designed for use by college students who are 18 years of age or older. We do not knowingly collect personal information from individuals under the age of 18.</p>
 
         <h2>10. Changes to This Policy</h2>
-        <p>We may update this Privacy Policy from time to time. Significant changes will be communicated through the system. Your continued use of SICMS after changes are posted constitutes acceptance of the updated policy.</p>
+        <p>We may update this Privacy Policy from time to time. Significant changes will be communicated through the system. Your continued use of DARIS after changes are posted constitutes acceptance of the updated policy.</p>
 
         <h2>11. Contact Information</h2>
-        <p>For questions, concerns, or requests regarding your personal data or this Privacy Policy, please contact the Student Discipline and Reformation Unit through the messaging feature in SICMS or visit the SDRU office during business hours.</p>
+        <p>For questions, concerns, or requests regarding your personal data or this Privacy Policy, please contact the Student Discipline and Reformation Unit through the messaging feature in DARIS or visit the SDRU office during business hours.</p>
     </div>
 
     <div class="legal-footer">

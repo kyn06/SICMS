@@ -25,28 +25,28 @@ function field_error_html($fieldErrors, $field) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Schedule Hearing | SICMS</title>
+    <title>Schedule Hearing | DARIS</title>
     <link rel="stylesheet" href="../layout/style.css">
     <link rel="stylesheet" href="../layout/sidebar.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <style>
-        body { align-items: stretch; justify-content: flex-start; background: #f5f7f4; padding: 0; }
-        .header { background: #123c1b; color: #fff; display: flex; justify-content: space-between; padding: 22px 30px; }
+        body { align-items: stretch; justify-content: flex-start; background: var(--bg-page, #f5f7f4); color: var(--text-primary, #172017); padding: 0; }
+        .header { background: var(--bg-sidebar, #123c1b); color: #fff; display: flex; justify-content: space-between; padding: 22px 30px; }
         .header h1 { font-size: 24px; }
-        .header a { background: #fff; border-radius: 8px; color: #123c1b; padding: 10px 14px; text-decoration: none; }
+        .header a { background: var(--surface-primary, #fff); border-radius: 8px; color: var(--text-secondary, #123c1b); padding: 10px 14px; text-decoration: none; }
         .wrap { max-width: 820px; margin: 0 auto; padding: 24px; width: 100%; }
-        .panel { background: #fff; border: 1px solid #dce5da; border-radius: 8px; padding: 20px; }
-        .alert { background: #fff5f5; border: 1px solid #dc3545; border-radius: 8px; color: #b42318; font-size: 14px; margin-bottom: 18px; padding: 12px 14px; }
+        .panel { background: var(--surface-primary, #fff); border: 1px solid var(--border-primary, #dce5da); border-radius: 8px; padding: 20px; }
+        .alert { background: var(--status-danger-bg, #fff5f5); border: 1px solid rgba(180,35,24,.5); border-radius: 8px; color: var(--status-danger-text, #b42318); font-size: 14px; margin-bottom: 18px; padding: 12px 14px; }
         .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
         .field { display: flex; flex-direction: column; gap: 6px; }
         .field.full { grid-column: 1 / -1; }
-        label { color: #536052; font-size: 13px; font-weight: 500; }
-        input, select, textarea { border: 1px solid #b9c7b7; border-radius: 8px; font-family: inherit; font-size: 14px; padding: 10px 12px; width: 100%; }
+        label { color: var(--text-muted, #536052); font-size: 13px; font-weight: 500; }
+        input, select, textarea { border: 1px solid var(--input-border, #b9c7b7); border-radius: 8px; font-family: inherit; font-size: 14px; padding: 10px 12px; width: 100%; background: var(--input-bg, #fff); color: var(--text-primary, #172017); }
         textarea { min-height: 110px; resize: vertical; }
         .actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; }
         .btn { border: 0; border-radius: 8px; cursor: pointer; font-family: inherit; font-size: 14px; padding: 11px 16px; text-decoration: none; }
-        .btn-secondary { background: #e9f5e7; color: #123c1b; }
-        .btn-primary { background: #1A9D00; color: #fff; }
+        .btn-secondary { background: rgba(26, 157, 0, 0.08); color: var(--text-secondary, #123c1b); }
+        .btn-primary { background: var(--accent, #1A9D00); color: #fff; }
         @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } .header { flex-direction: column; gap: 14px; } }
     </style>
     <link rel="stylesheet" href="../layout/system.css?v=2">

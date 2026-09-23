@@ -1,6 +1,6 @@
-# SICMS — Student Information and Case Management System
+# DARIS — Discipline and Reformation Information System
 
-SICMS is a web-based case management system built for the Office of Student Affairs — **Student Discipline and Reformation Unit (SDRU)** of Central Luzon State University (CLSU). It digitizes the end-to-end handling of student complaints and disciplinary matters: filing, verification, revision, coordinator assignment, hearings, resolution, and archiving.
+DARIS is a web-based case management system built for the Office of Student Affairs — **Student Discipline and Reformation Unit (SDRU)** of Central Luzon State University (CLSU). It digitizes the end-to-end handling of student complaints and disciplinary matters: filing, verification, revision, coordinator assignment, hearings, resolution, and archiving.
 
 ## Key Features
 
@@ -30,7 +30,7 @@ SICMS is a web-based case management system built for the Office of Student Affa
 ## Tech Stack
 
 - **PHP 8+** (no framework) — custom MVC-style structure
-- **MySQL / MariaDB** — schema in [`sicms.sql`](sicms.sql)
+- **MySQL / MariaDB** — schema in [`sicms.sql`](sicms.sql) and database name `daris`
 - **FPDF** — bundled PDF generation ([`web/vendor/fpdf`](web/vendor/fpdf))
 - **Bootstrap Icons** + custom CSS
 - **XAMPP (Apache)** — target deployment environment
@@ -38,10 +38,10 @@ SICMS is a web-based case management system built for the Office of Student Affa
 ## Project Structure
 
 ```
-SICMS/
+DARIS/
 ├── index.php              # Entry point (dashboard redirect)
 ├── routes.php             # Named routes + URL helper functions
-├── sicms.sql              # Complete database schema + seed data
+├── sicms.sql              # Complete database schema + seed data (database: daris)
 ├── LICENSE                # Apache License 2.0
 ├── public/assets/         # Static assets (logos, images)
 ├── storage/               # Protected uploads (.htaccess restricted)
@@ -85,12 +85,12 @@ SICMS/
      mysql -u root -h 127.0.0.1 -P 3307 < sicms.sql
      ```
 
-   > **Note:** The app connects to MySQL on host `127.0.0.1`, **port `3306`**, user `root`, password `1234`. If your MySQL uses a different port or password, update the credentials in [`web/config/Database.php`](web/config/Database.php).
+   > **Note:** The app connects to MySQL on host `127.0.0.1`, **port `3307`**, user `root`, password empty. If your MySQL uses a different port or password, update the credentials in [`web/config/Database.php`](web/config/Database.php).
 
 4. **Open the system** at:
 
    ```
-   http://localhost/SICMS/
+   http://localhost/daris/
    ```
 
 5. **Log in** using a seeded account below, or register as a student.

@@ -47,37 +47,42 @@ function user_initials($name) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Audit Logs | SICMS</title>
+    <title>Audit Logs | DARIS</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="../layout/style.css">
     <link rel="stylesheet" href="../layout/sidebar.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <style>
-        body { align-items: stretch; background: #f5f7f4; display: block; justify-content: flex-start; padding: 0; }
-        .header { align-items: center; background: #123c1b; color: #fff; display: flex; justify-content: space-between; gap: 16px; padding: 22px 30px; }
+        body { align-items: stretch; background: var(--bg-page, #f5f7f4); display: block; justify-content: flex-start; padding: 0; color: var(--text-primary, #172017); }
+        .header { align-items: center; background: var(--bg-sidebar, #123c1b); color: #fff; display: flex; justify-content: space-between; gap: 16px; padding: 22px 30px; }
         .header h1 { font-size: 24px; margin-bottom: 4px; }
-        .header p { color: #dbe9d9; font-size: 13px; }
-        .header a { background: #fff; border-radius: 8px; color: #123c1b; padding: 10px 14px; text-decoration: none; }
+        .header p { color: rgba(255,255,255,0.8); font-size: 13px; }
+        .header a { background: var(--surface-primary, #fff); border-radius: 8px; color: var(--text-secondary, #123c1b); padding: 10px 14px; text-decoration: none; }
         .wrap { max-width: 1280px; margin: 0 auto; padding: 24px; }
-        .panel { background: #fff; border: 1px solid #dce5da; border-radius: 8px; margin-bottom: 18px; padding: 16px; }
+        .panel { background: var(--surface-primary, #fff); border: 1px solid var(--border-primary, #dce5da); border-radius: 8px; margin-bottom: 18px; padding: 16px; }
         .filter-grid { display: grid; gap: 12px; grid-template-columns: repeat(4, minmax(0, 1fr)); }
         .field { display: flex; flex-direction: column; gap: 6px; }
-        label { color: #536052; font-size: 13px; }
-        input, select { border: 1px solid #b9c7b7; border-radius: 8px; font: inherit; padding: 10px 12px; }
+        label { color: var(--text-muted, #536052); font-size: 13px; }
+        input, select { border: 1px solid var(--input-border, #b9c7b7); border-radius: 8px; font: inherit; padding: 10px 12px; background: var(--input-bg, #fff); color: var(--text-primary, #172017); }
         .actions, .pagination { display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; margin-top: 14px; }
         .btn { border: 0; border-radius: 8px; cursor: pointer; font: inherit; padding: 10px 14px; text-decoration: none; }
-        .btn-primary { background: #1A9D00; color: #fff; }
-        .btn-secondary { background: #eef5ed; color: #123c1b; }
-        .btn-page { background: #fff; border: 1px solid #dce5da; color: #123c1b; }
-        .btn-page.active { background: #123c1b; color: #fff; }
+        .btn-primary { background: var(--accent, #1A9D00); color: #fff; }
+        .btn-secondary { background: rgba(26, 157, 0, 0.08); color: var(--text-secondary, #123c1b); }
+        .btn-page { background: var(--surface-primary, #fff); border: 1px solid var(--border-primary, #dce5da); color: var(--text-primary, #123c1b); }
+        .btn-page.active { background: var(--bg-sidebar, #123c1b); color: #fff; }
         .table-wrap { overflow-x: auto; }
         table { border-collapse: collapse; min-width: 1120px; width: 100%; }
-        th, td { border-bottom: 1px solid #edf4eb; padding: 11px 10px; text-align: left; vertical-align: top; }
-        th { color: #536052; font-size: 12px; text-transform: uppercase; }
-        td { color: #172017; font-size: 13px; line-height: 1.45; }
-        .muted { color: #6b766a; font-size: 12px; }
-        @media (max-width: 900px) {
+        th, td { border-bottom: 1px solid var(--divider, #edf4eb); padding: 11px 10px; text-align: left; vertical-align: top; }
+        th { color: var(--text-muted, #536052); font-size: 12px; text-transform: uppercase; }
+        td { color: var(--text-primary, #172017); font-size: 13px; line-height: 1.45; }
+        .muted { color: var(--text-muted, #6b766a); font-size: 12px; }
+        @media (max-width: 1120px) {
+            .filter-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            .filter-grid .field.search-field { grid-column: span 2; }
+        }
+        @media (max-width: 560px) {
             .filter-grid { grid-template-columns: 1fr; }
+            .filter-grid .field.search-field { grid-column: auto; }
             .header { align-items: flex-start; flex-direction: column; }
         }
 
@@ -96,10 +101,10 @@ function user_initials($name) {
 
         .filters-toggle-btn {
             align-items: center;
-            background: #fff;
-            border: 1px solid #bfd0bc;
+            background: var(--surface-primary, #fff);
+            border: 1px solid var(--border-primary, #bfd0bc);
             border-radius: 6px;
-            color: #172017;
+            color: var(--text-primary, #172017);
             cursor: pointer;
             display: inline-flex;
             font: inherit;
@@ -111,15 +116,15 @@ function user_initials($name) {
         }
 
         .filters-toggle-btn:hover {
-            border-color: #1A9D00;
-            color: #167a22;
+            border-color: var(--accent, #1A9D00);
+            color: var(--accent, #167a22);
         }
 
         .filters-count {
             align-items: center;
-            background: #e6f3ea;
+            background: rgba(26, 157, 0, 0.08);
             border-radius: 999px;
-            color: #1a8c2b;
+            color: var(--accent, #1a8c2b);
             display: inline-flex;
             font-size: 11px;
             height: 20px;
@@ -130,8 +135,8 @@ function user_initials($name) {
 
         #auditFilters.is-active .filters-toggle-btn,
         #auditFilters.is-active .filters-toggle-btn:hover {
-            background: #1A9D00;
-            border-color: #1A9D00;
+            background: var(--accent, #1A9D00);
+            border-color: var(--accent, #1A9D00);
             color: #fff;
         }
 
@@ -140,10 +145,10 @@ function user_initials($name) {
         }
 
         .filters-popover {
-            background: #fff;
+            background: var(--surface-primary, #fff);
             border: 1px solid rgba(191, 208, 188, .75);
             border-radius: 14px;
-            box-shadow: 0 18px 45px rgba(15, 40, 21, .22);
+            box-shadow: var(--sicms-shadow, 0 18px 45px rgba(15, 40, 21, .22));
             display: none;
             left: 0;
             padding: 16px 18px;
@@ -164,7 +169,7 @@ function user_initials($name) {
         }
 
         .filters-popover .actions {
-            border-top: 1px solid #e4ece2;
+            border-top: 1px solid var(--divider, #e4ece2);
             margin-top: 16px;
         }
 
@@ -192,8 +197,8 @@ function user_initials($name) {
             }
         }
     </style>
-    <link rel="stylesheet" href="../layout/system.css?v=2">
-    <link rel="stylesheet" href="../layout/audit-logs.css">
+    <link rel="stylesheet" href="../layout/system.css?v=4">
+    <link rel="stylesheet" href="../layout/audit-logs.css?v=2">
 </head>
 
 <body>

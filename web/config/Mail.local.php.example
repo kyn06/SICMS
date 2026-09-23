@@ -9,6 +9,6 @@ return [
     'username' => 'YOUR_GMAIL@gmail.com',
     'password' => 'YOUR_GOOGLE_APP_PASSWORD',
     'from_email' => 'YOUR_GMAIL@gmail.com',
-    'from_name' => 'SICMS - Student Integrity Case Management System',
-    'app_url' => 'http://localhost/sicms',
+    'from_name' => 'DARIS - Discipline and Reformation Information System',
+    'app_url' => 'http://localhost/daris',
 ];

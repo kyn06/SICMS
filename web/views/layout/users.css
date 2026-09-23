@@ -15,8 +15,8 @@
 
 .user-summary-card {
     align-items: center;
-    background: #fff;
-    border: 1px solid var(--sicms-line);
+    background: var(--surface-primary, #fff);
+    border: 1px solid var(--border-primary, var(--sicms-line));
     border-radius: var(--sicms-radius);
     box-shadow: var(--sicms-shadow);
     display: flex;
@@ -26,7 +26,7 @@
 }
 
 .user-summary-card span {
-    color: var(--sicms-muted);
+    color: var(--text-muted, var(--sicms-muted));
     display: block;
     font-size: 12px;
     font-weight: 700;
@@ -34,7 +34,7 @@
 }
 
 .user-summary-card strong {
-    color: var(--sicms-green-900);
+    color: var(--text-secondary, var(--sicms-green-900));
     display: block;
     font-size: 28px;
     line-height: 1;
@@ -108,8 +108,8 @@
 
 .heading-search {
     align-items: center;
-    background: #fff;
-    border: 1px solid #bfd0bc;
+    background: var(--surface-primary, #fff);
+    border: 1px solid var(--border-primary, #bfd0bc);
     border-radius: 6px;
     display: inline-flex;
     flex: 0 1 auto;
@@ -121,7 +121,7 @@
 }
 
 .heading-search i {
-    color: #5f6f5c;
+    color: var(--text-muted, #5f6f5c);
     font-size: 14px;
 }
 
@@ -131,7 +131,7 @@
     background: transparent !important;
     border: none !important;
     box-shadow: none !important;
-    color: var(--sicms-text) !important;
+    color: var(--text-primary, var(--sicms-text)) !important;
     font-size: 13.5px !important;
     min-height: 0 !important;
     outline: none !important;
@@ -151,8 +151,8 @@
 }
 
 .user-filter-form {
-    background: #f8fbf7;
-    border: 1px solid var(--sicms-line);
+    background: var(--surface-soft, #f8fbf7);
+    border: 1px solid var(--border-primary, var(--sicms-line));
     border-radius: var(--sicms-radius);
     margin-bottom: 20px;
     padding: 16px;
@@ -193,9 +193,9 @@
 }
 
 .role-badge {
-    background: #eef1ee;
+    background: var(--surface-accent, #eef1ee);
     border-radius: 999px;
-    color: #435241;
+    color: var(--text-secondary, #435241);
     display: inline-flex;
     font-size: 11px;
     font-weight: 700;

@@ -41,7 +41,7 @@ if (!function_exists('person_name')) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Migrated Case Details | SICMS</title>
+    <title>Migrated Case Details | DARIS</title>
     <link rel="stylesheet" href="../layout/style.css">
     <link rel="stylesheet" href="../layout/sidebar.css">
     <link rel="stylesheet" href="../layout/cases.css">
@@ -66,15 +66,15 @@ if (!function_exists('person_name')) {
         }
 
         .panel {
-            background: #fff;
-            border: 1px solid #dce5da;
+            background: var(--surface-primary, #fff);
+            border: 1px solid var(--border-primary, #dce5da);
             border-radius: 8px;
             padding: 18px;
             margin-bottom: 18px;
         }
 
         .panel h2 {
-            color: #172017;
+            color: var(--text-primary, #172017);
             font-size: 18px;
             margin-bottom: 14px;
         }
@@ -86,7 +86,7 @@ if (!function_exists('person_name')) {
         }
 
         .detail {
-            border-bottom: 1px solid #edf4eb;
+            border-bottom: 1px solid var(--divider, #edf4eb);
             padding-bottom: 10px;
         }
 
@@ -95,21 +95,21 @@ if (!function_exists('person_name')) {
         }
 
         .label {
-            color: #536052;
+            color: var(--text-muted, #536052);
             font-size: 12px;
             margin-bottom: 4px;
         }
 
         .value {
-            color: #172017;
+            color: var(--text-primary, #172017);
             font-size: 14px;
             line-height: 1.5;
         }
 
         .status {
-            background: #edf4eb;
+            background: var(--surface-accent, #edf4eb);
             border-radius: 999px;
-            color: #123c1b;
+            color: var(--text-secondary, #123c1b);
             display: inline-block;
             font-size: 12px;
             padding: 5px 10px;
@@ -123,15 +123,15 @@ if (!function_exists('person_name')) {
         }
 
         .alert-success {
-            background: #f0fdf0;
-            border: 1px solid #1A9D00;
-            color: #137500;
+            background: rgba(26, 157, 0, 0.08);
+            border: 1px solid rgba(26, 157, 0, 0.35);
+            color: var(--status-success-text, #137500);
         }
 
         .alert-error {
-            background: #fff5f5;
-            border: 1px solid #dc3545;
-            color: #b42318;
+            background: var(--status-danger-bg, #fff5f5);
+            border: 1px solid rgba(180, 35, 24, 0.5);
+            color: var(--status-danger-text, #b42318);
         }
 
         .action-form {
@@ -144,12 +144,14 @@ if (!function_exists('person_name')) {
         select,
         textarea,
         input {
-            border: 1px solid #b9c7b7;
+            border: 1px solid var(--input-border, #b9c7b7);
             border-radius: 8px;
             font-family: inherit;
             font-size: 14px;
             padding: 10px 12px;
             width: 100%;
+            background: var(--input-bg, #fff);
+            color: var(--text-primary, #172017);
         }
 
         textarea {
@@ -170,9 +172,9 @@ if (!function_exists('person_name')) {
             text-decoration: none;
         }
 
-        .btn-primary { background: #123c1b; }
-        .btn-secondary { background: #e9efe6; color: #123c1b; }
-        .btn-danger { background: #b42318; }
+        .btn-primary { background: var(--bg-sidebar, #123c1b); }
+        .btn-secondary { background: rgba(26, 157, 0, 0.08); color: var(--text-secondary, #123c1b); }
+        .btn-danger { background: var(--status-danger-text, #b42318); }
         .list {
             display: flex;
             flex-direction: column;
@@ -180,13 +182,13 @@ if (!function_exists('person_name')) {
         }
 
         .list-item {
-            border: 1px solid #edf4eb;
+            border: 1px solid var(--divider, #edf4eb);
             border-radius: 8px;
             padding: 12px;
         }
 
         .timeline-item {
-            border-left: 3px solid #1A9D00;
+            border-left: 3px solid var(--accent, #1A9D00);
             padding: 0 0 16px 12px;
         }
 
@@ -200,7 +202,7 @@ if (!function_exists('person_name')) {
         }
 
         .muted {
-            color: #536052;
+            color: var(--text-muted, #536052);
             font-size: 13px;
         }
 

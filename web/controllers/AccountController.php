@@ -9,7 +9,7 @@ class AccountController {
     private $database;
     private $db;
     private $user;
-    private $allowedRoles = ['head-of-sdru', 'sdru-head', 'sdru-staff', 'sdr-staff'];
+    private $allowedRoles = ['head-of-sdru', 'sdru-head'];
     private $creatableRoles = [
         'coordinator' => 'Discipline Coordinator',
         'reformation-coordinator' => 'Reformation Coordinator',

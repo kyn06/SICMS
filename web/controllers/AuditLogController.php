@@ -100,8 +100,8 @@ class AuditLogController {
         $pdf->recordCount(count($rows));
 
         header('Content-Type: application/pdf');
-        header('Content-Disposition: attachment; filename="sicms-audit-logs-' . date('Y-m-d') . '.pdf"');
-        $pdf->Output('D', 'sicms-audit-logs-' . date('Y-m-d') . '.pdf');
+        header('Content-Disposition: attachment; filename="daris-audit-logs-' . date('Y-m-d') . '.pdf"');
+        $pdf->Output('D', 'daris-audit-logs-' . date('Y-m-d') . '.pdf');
         exit;
     }
 }

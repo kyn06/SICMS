@@ -7,8 +7,8 @@
 }
 
 .messenger-shell {
-    background: #fff;
-    border: 1px solid var(--sicms-line);
+    background: var(--surface-primary);
+    border: 1px solid var(--border-primary);
     border-radius: var(--sicms-radius);
     box-shadow: none;
     grid-template-columns: 340px minmax(0, 1fr) !important;
@@ -40,7 +40,7 @@
 }
 
 .conversation-sidebar {
-    background: #fff;
+    background: var(--surface-primary);
     min-height: 0;
     overflow: hidden;
 }
@@ -63,8 +63,8 @@
 
 .conversation-search {
     align-items: center;
-    background: #f7faf6;
-    border: 1px solid var(--sicms-line);
+    background: var(--surface-soft, #f7faf6);
+    border: 1px solid var(--border-primary, var(--sicms-line));
     border-radius: var(--sicms-radius);
     display: flex;
     gap: 8px;
@@ -120,12 +120,12 @@
 }
 
 .conversation-card:hover {
-    background: #f5f9f4 !important;
+    background: var(--hover-bg, #f5f9f4) !important;
 }
 
 .conversation-card.active {
-    background: var(--sicms-green-100) !important;
-    border-left-color: var(--sicms-green-600) !important;
+    background: var(--surface-accent, var(--sicms-green-100)) !important;
+    border-left-color: var(--accent, var(--sicms-green-600)) !important;
 }
 
 .conversation-card .avatar {
@@ -143,7 +143,7 @@
 }
 
 .chat {
-    background: #f6f8f5 !important;
+    background: var(--surface-secondary) !important;
     grid-template-rows: auto 1fr auto !important;
     min-height: 0;
     overflow: hidden;
@@ -178,16 +178,16 @@
 }
 
 .message-bubble {
-    background: #fff !important;
-    border: 1px solid var(--sicms-line);
+    background: var(--surface-elevated, var(--surface-primary)) !important;
+    border: 1px solid var(--border-primary, var(--sicms-line));
     border-radius: 16px 16px 16px 5px !important;
-    box-shadow: 0 2px 8px rgba(18, 60, 27, 0.05);
+    box-shadow: var(--sicms-shadow, 0 2px 8px rgba(18, 60, 27, 0.05));
     padding: 10px 13px !important;
 }
 
 .message-row.outgoing .message-bubble {
-    background: var(--sicms-green-100) !important;
-    border-color: #cbe4c7;
+    background: var(--surface-accent, var(--sicms-green-100)) !important;
+    border-color: var(--border-primary, #cbe4c7);
     border-radius: 16px 16px 5px 16px !important;
 }
 
@@ -241,7 +241,8 @@
 }
 
 .message-input {
-    background: #f8faf7 !important;
+    background: var(--input-bg, var(--surface-secondary)) !important;
+    border: 1px solid var(--input-border, var(--border-primary)) !important;
     border-radius: var(--sicms-radius) !important;
     max-height: 120px;
     min-height: 46px !important;

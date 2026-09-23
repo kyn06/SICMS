@@ -221,7 +221,7 @@ class Message extends Model {
             }
 
             $respondentPool = self::isAssignmentRole($user['role'])
-                ? self::respondentAccountsForStaff($accountId)
+                ? self::respondentAccountsForStaff($accountId, $user['role'])
                 : self::allActiveRespondentAccounts();
 
             foreach ($respondentPool as $respondent) {
@@ -594,14 +594,15 @@ class Message extends Model {
      * Internals
      * ----------------------------------------------------------------- */
 
-    private static function respondentAccountsForStaff($staffId) {
+    private static function respondentAccountsForStaff($staffId, $staffRole) {
         try {
             $staffId = (int) $staffId;
+            $column = self::assignmentColumn($staffRole);
             $sql = "SELECT DISTINCT acct.account_id, acct.first_name, acct.last_name, acct.email, acct.role
                     FROM complaint_respondents r
                     INNER JOIN complaints c ON c.complaint_id = r.complaint_id
                     INNER JOIN accounts acct ON acct.account_id = r.account_id
-                    WHERE c.assigned_coordinator_account_id = ?
+                    WHERE c.$column = ?
                       AND COALESCE(c.case_source, 'Online Submission') <> 'Legacy'
                       AND acct.status = 'active'
                     ORDER BY acct.first_name, acct.last_name";
@@ -732,11 +733,12 @@ class Message extends Model {
     private static function defaultStaffForRespondent($accountId) {
         try {
             $accountId = (int) $accountId;
-            $sql = "SELECT c.complaint_id, c.assigned_coordinator_account_id
+            $sql = "SELECT c.complaint_id, c.assigned_coordinator_account_id, c.assigned_reformation_coordinator_account_id
                     FROM complaint_respondents r
                     INNER JOIN complaints c ON c.complaint_id = r.complaint_id
                     WHERE r.account_id = ?
-                      AND c.assigned_coordinator_account_id IS NOT NULL
+                      AND (c.assigned_coordinator_account_id IS NOT NULL
+                           OR c.assigned_reformation_coordinator_account_id IS NOT NULL)
                       AND COALESCE(c.case_source, 'Online Submission') <> 'Legacy'
                     ORDER BY c.complaint_id DESC
                     LIMIT 1";
@@ -751,6 +753,14 @@ class Message extends Model {
 
                 if ($coordinator && ($coordinator['status'] ?? '') === 'active') {
                     return [$coordinator];
+                }
+            }
+
+            if ($case && !empty($case['assigned_reformation_coordinator_account_id'])) {
+                $refCoordinator = self::findAccount((int) $case['assigned_reformation_coordinator_account_id']);
+
+                if ($refCoordinator && ($refCoordinator['status'] ?? '') === 'active') {
+                    return [$refCoordinator];
                 }
             }
 

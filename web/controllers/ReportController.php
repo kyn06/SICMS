@@ -213,7 +213,7 @@ class ReportController {
     }
 
     private function exportExcel(array $filters, array $data) {
-        $filename = 'sicms-report-' . date('Y-m-d') . '.xls';
+        $filename = 'daris-report-' . date('Y-m-d') . '.xls';
         header('Content-Type: application/vnd.ms-excel; charset=utf-8');
         header('Content-Disposition: attachment; filename="' . $filename . '"');
 
@@ -267,7 +267,7 @@ class ReportController {
             }
         }
 
-        $pdf->Output('D', 'sicms-report-' . date('Y-m-d') . '.pdf');
+        $pdf->Output('D', 'daris-report-' . date('Y-m-d') . '.pdf');
         exit;
     }
 
@@ -287,7 +287,7 @@ class ReportController {
 
     private function exportExcelYearly(array $filters, array $data) {
         $yearly = $data['yearly'];
-        $filename = 'sicms-yearly-report-' . date('Y-m-d') . '.xls';
+        $filename = 'daris-yearly-report-' . date('Y-m-d') . '.xls';
         header('Content-Type: application/vnd.ms-excel; charset=utf-8');
         header('Content-Disposition: attachment; filename="' . $filename . '"');
 
@@ -432,7 +432,7 @@ class ReportController {
             $pdf->renderStatsTable(['Metric', 'Value'], $pdf->columnWidths(2), $comparisonRows);
         }
 
-        $pdf->Output('D', 'sicms-yearly-report-' . date('Y-m-d') . '.pdf');
+        $pdf->Output('D', 'daris-yearly-report-' . date('Y-m-d') . '.pdf');
         exit;
     }
 

@@ -27,7 +27,7 @@ class Mailer {
     }
 
     /**
-     * Build an absolute URL from the single configured SICMS application root.
+     * Build an absolute URL from the single configured DARIS application root.
      * Email links must not infer a base path from the currently executing view.
      */
     public static function applicationUrl($path = '') {
@@ -37,7 +37,7 @@ class Mailer {
         }
 
         $config = self::config();
-        $baseUrl = rtrim((string) ($config['app_url'] ?? 'http://localhost/sicms'), '/');
+        $baseUrl = rtrim((string) ($config['app_url'] ?? 'http://localhost/daris'), '/');
         return $path === '' ? $baseUrl : $baseUrl . '/' . ltrim($path, '/');
     }
 
@@ -57,17 +57,17 @@ class Mailer {
         $port = (int) ($config['port'] ?? 587);
         $encryption = strtolower(trim((string) ($config['encryption'] ?? 'tls')));
         $fromEmail = trim((string) ($config['from_email'] ?? $username));
-        $fromName = trim((string) ($config['from_name'] ?? 'SICMS'));
+        $fromName = trim((string) ($config['from_name'] ?? 'DARIS'));
 
         if ($username === '' || $password === '' || $fromEmail === '') {
-            self::log($to, $subject, false, 'SMTP is not configured. Set SICMS_MAIL_USERNAME, SICMS_MAIL_PASSWORD, and SICMS_MAIL_FROM, or create web/config/Mail.local.php.');
+            self::log($to, $subject, false, 'SMTP is not configured. Set DARIS_MAIL_USERNAME, DARIS_MAIL_PASSWORD, and DARIS_MAIL_FROM, or create web/config/Mail.local.php.');
             return false;
         }
 
-        $appName = 'SICMS Student Integrity Case Management System';
+        $appName = 'DARIS - Discipline and Reformation Information System';
         $body = '<!DOCTYPE html><html><body style="margin:0;padding:24px;font-family:Verdana,Arial,sans-serif;background:#f5f7f4;color:#172017">'
             . '<div style="max-width:560px;margin:0 auto;background:#fff;border:1px solid #dce5da;border-radius:12px;padding:24px">'
-            . '<div style="font-size:18px;font-weight:bold;color:#167a22;margin-bottom:14px">SICMS</div>'
+            . '<div style="font-size:18px;font-weight:bold;color:#167a22;margin-bottom:14px">DARIS</div>'
             . $htmlBody
             . '<hr style="border:none;border-top:1px solid #edf3ec;margin:20px 0">'
             . '<div style="color:#71806e;font-size:12px">This is an automated message from ' . htmlspecialchars($appName, ENT_QUOTES, 'UTF-8') . '.</div>'
@@ -113,7 +113,7 @@ class Mailer {
                 'MIME-Version: 1.0',
                 'Content-Type: text/html; charset=UTF-8',
                 'Content-Transfer-Encoding: 8bit',
-                'X-Mailer: SICMS',
+                'X-Mailer: DARIS',
             ];
 
             $message = implode("\r\n", $headers) . "\r\n\r\n" . $body;
@@ -182,7 +182,7 @@ class Mailer {
 
     public static function invitationEmailBody($fullName, $activationUrl, $caseNumber) {
         return '<p>Dear ' . htmlspecialchars($fullName, ENT_QUOTES, 'UTF-8') . ',</p>'
-            . '<p>A respondent account has been created for you in SICMS in connection with case '
+            . '<p>A respondent account has been created for you in DARIS in connection with case '
             . '<strong>' . htmlspecialchars($caseNumber, ENT_QUOTES, 'UTF-8') . '</strong>.</p>'
             . '<p>To activate your account and set your password, click the button below:</p>'
             . '<p><a href="' . htmlspecialchars($activationUrl, ENT_QUOTES, 'UTF-8') . '" style="background:#1a9d00;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;display:inline-block">Activate My Account</a></p>'
@@ -197,17 +197,17 @@ class Mailer {
             . ($actionUrl
                 ? '<p><a href="' . htmlspecialchars($actionUrl, ENT_QUOTES, 'UTF-8') . '" style="background:#1a9d00;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;display:inline-block">' . htmlspecialchars($actionLabel, ENT_QUOTES, 'UTF-8') . '</a></p>'
                 : '')
-            . '<p style="color:#71806e;font-size:13px">Please log in to SICMS to view the update. Do not reply to this email.</p>';
+            . '<p style="color:#71806e;font-size:13px">Please log in to DARIS to view the update. Do not reply to this email.</p>';
     }
 
     /* External notice sent when a respondent is named on a case but no matching
-     * SICMS account exists yet. The account is NOT auto-created; this merely
+     * DARIS account exists yet. The account is NOT auto-created; this merely
      * informs them that they are a respondent. */
     public static function respondentNoticeEmailBody($fullName, $caseNumber) {
         return '<p>Dear ' . htmlspecialchars($fullName, ENT_QUOTES, 'UTF-8') . ',</p>'
             . '<p>You have been named as a <strong>respondent</strong> on case '
-            . '<strong>' . htmlspecialchars($caseNumber, ENT_QUOTES, 'UTF-8') . '</strong> in the SICMS Student Integrity Case Management System.</p>'
+            . '<strong>' . htmlspecialchars($caseNumber, ENT_QUOTES, 'UTF-8') . '</strong> in the Discipline and Reformation Information System (DARIS).</p>'
             . '<p>Please watch your email for further instructions from the SDRU office regarding this case. You may be asked to file a counter-statement, provide additional information, or attend a hearing.</p>'
-            . '<p style="color:#71806e;font-size:13px">This is an automated message from SICMS. Do not reply to this email.</p>';
+            . '<p style="color:#71806e;font-size:13px">This is an automated message from DARIS — Discipline and Reformation Information System. Do not reply to this email.</p>';
     }
 }

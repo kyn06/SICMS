@@ -39,12 +39,12 @@ class UserGoogleMailer {
      *   ['sent' => false, 'reason' => 'api']            -> Google rejected
      *   ['sent' => true,  'id' => '...']
      */
-    public function sendFromUser($accountId, $to, $subject, $htmlBody, $fromName = 'SICMS') {
+    public function sendFromUser($accountId, $to, $subject, $htmlBody, $fromName = 'DARIS') {
         $accountId = (int) $accountId;
         $to        = trim((string) $to);
         $subject   = trim((string) $subject);
         $htmlBody  = (string) $htmlBody;
-        $fromName  = trim((string) $fromName) ?: 'SICMS';
+        $fromName  = trim((string) $fromName) ?: 'DARIS';
 
         if ($accountId <= 0 || $to === '' || $subject === '') {
             return ['sent' => false, 'reason' => 'invalid'];

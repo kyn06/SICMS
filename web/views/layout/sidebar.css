@@ -8,7 +8,7 @@
 .sidebar {
     background:
         linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent 220px),
-        linear-gradient(180deg, #0b2f16 0%, #123c1b 58%, #0a2712 100%);
+        var(--bg-sidebar);
     color: #fff;
     display: flex;
     flex-direction: column;
@@ -192,13 +192,14 @@
 .app-topbar-container {
     position: relative;
     margin: 25px 25px 0px 25px;
-    border: 0.1px solid #dce7d9;
+    border: 1px solid var(--border-primary, #dce7d9);
     border-radius: 8px;
+    background: var(--surface-primary);
 }
 
 .app-topbar {
     align-items: center;
-    background: #fff;
+    background: var(--surface-primary, #fff);
     display: flex;
     gap: 10px;
     justify-content: space-between;
@@ -212,14 +213,14 @@
 }
 
 .app-topbar-title h1 {
-    color: #162016;
+    color: var(--text-primary, #162016);
     font-size: 22px;
     font-weight: 800;
     margin: 0;
 }
 
 .app-topbar-title p {
-    color: #62705f;
+    color: var(--text-muted, #62705f);
     font-size: 12px;
     font-weight: 700;
     margin: 3px 0 0;
@@ -232,22 +233,22 @@
 }
 
 .theme-toggle {
-    background: #f8fbf7;
-    border: 1px solid #dce7d9;
-    color: #536052;
+    background: var(--surface-soft, #f8fbf7);
+    border: 1px solid var(--border-primary, #dce7d9);
+    color: var(--text-secondary, #536052);
     cursor: pointer;
 }
 
 .theme-toggle:hover {
-    background: #eaf7e8;
-    color: #123c1b;
+    background: var(--surface-accent, #eaf7e8);
+    color: var(--text-primary, #123c1b);
 }
 
 .topbar-date {
-    background: #f8fbf7;
-    border: 1px solid #dce7d9;
+    background: var(--surface-soft, #f8fbf7);
+    border: 1px solid var(--border-primary, #dce7d9);
     border-radius: 8px;
-    color: #536052;
+    color: var(--text-secondary, #536052);
     font-size: 13px;
     padding: 9px 14px;
 }

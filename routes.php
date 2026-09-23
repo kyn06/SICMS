@@ -77,3 +77,21 @@ function app_current_route() {
 
     return null;
 }
+
+function profile_pic_url($account, $basePath = 'web/views/settings/profile_pic.php') {
+    $accountId = (int) ($account['account_id'] ?? 0);
+    if ($accountId <= 0 || empty($account['profile_pic'])) {
+        return null;
+    }
+
+    $url = app_url($basePath . '?id=' . $accountId);
+    $relative = str_replace('\\', '/', (string) $account['profile_pic']);
+
+    if (str_starts_with($relative, 'storage/profile_pics/')) {
+        $fullPath = __DIR__ . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relative);
+        $version = is_file($fullPath) ? (string) filemtime($fullPath) : '0';
+        $url .= '&v=' . $version;
+    }
+
+    return $url;
+}
