@@ -436,7 +436,7 @@ if (!function_exists('person_name')) {
                                             <option value="supporting">Supporting</option>
                                             <option value="resolution">Resolution</option>
                                         </select>
-                                        <button class="btn btn-primary" type="submit">Upload Document</button>
+                                        <button class="btn btn-primary" type="submit" data-sicms-processing-label="Uploading Document..." data-sicms-processing-modal="true">Upload Document</button>
                                     </form>
                                 <?php endif; ?>
                             </div>
@@ -497,7 +497,7 @@ if (!function_exists('person_name')) {
                                         <?php endforeach; ?>
                                     </select>
                                     <textarea name="remarks" placeholder="Remarks for this status change"></textarea>
-                                    <button class="btn btn-primary" type="submit">Update Status</button>
+                                    <button class="btn btn-primary" type="submit" data-confirm-title="Update Migrated Case Status?" data-confirm="This will change the recorded workflow status of the migrated case." data-confirm-button="Yes, Update Status" data-sicms-processing-label="Updating Status..." data-sicms-processing-modal="true">Update Status</button>
                                 </form>
 
                                 <form class="action-form" method="POST" action="show.php?id=<?= (int) $case['complaint_id'] ?>">
@@ -508,7 +508,7 @@ if (!function_exists('person_name')) {
                                     <input name="action_taken" placeholder="Action taken">
                                     <input type="date" name="resolution_date" value="<?= h($case['resolution_date']) ?>">
                                     <textarea name="remarks_notes" placeholder="Remarks / notes"><?= h($case['remarks_notes']) ?></textarea>
-                                    <button class="btn btn-primary" type="submit">Save Outcome</button>
+                                    <button class="btn btn-primary" type="submit" data-sicms-processing-label="Saving Legacy Case..." data-sicms-processing-modal="true">Save Outcome</button>
                                 </form>
                             <?php endif; ?>
                         </section>

@@ -2,6 +2,8 @@
 
 class Mailer {
     private static $config;
+    private static $requestDeadline;
+    private static $messageDeadline;
 
     private static function config() {
         if (self::$config !== null) {
@@ -58,11 +60,24 @@ class Mailer {
         $encryption = strtolower(trim((string) ($config['encryption'] ?? 'tls')));
         $fromEmail = trim((string) ($config['from_email'] ?? $username));
         $fromName = trim((string) ($config['from_name'] ?? 'DARIS'));
+        $timeout = max(1, min(15, (int) ($config['timeout_seconds'] ?? 4)));
+        $requestBudget = max($timeout, min(30, (int) ($config['request_budget_seconds'] ?? 8)));
 
         if ($username === '' || $password === '' || $fromEmail === '') {
             self::log($to, $subject, false, 'SMTP is not configured. Set DARIS_MAIL_USERNAME, DARIS_MAIL_PASSWORD, and DARIS_MAIL_FROM, or create web/config/Mail.local.php.');
             return false;
         }
+
+        if (self::$requestDeadline === null) {
+            self::$requestDeadline = microtime(true) + $requestBudget;
+        }
+        $remainingBudget = self::$requestDeadline - microtime(true);
+        if ($remainingBudget <= 0.1) {
+            self::log($to, $subject, false, 'Email skipped because the request mail time budget was exhausted.');
+            return false;
+        }
+        $messageTimeout = max(0.1, min((float) $timeout, $remainingBudget));
+        self::$messageDeadline = microtime(true) + $messageTimeout;
 
         $appName = 'DARIS - Discipline and Reformation Information System';
         $body = '<!DOCTYPE html><html><body style="margin:0;padding:24px;font-family:Verdana,Arial,sans-serif;background:#f5f7f4;color:#172017">'
@@ -78,11 +93,11 @@ class Mailer {
             $target = ($encryption === 'ssl' ? 'ssl://' : '') . $host;
             $errno = 0;
             $errstr = '';
-            $socket = @stream_socket_client($target . ':' . $port, $errno, $errstr, 15, STREAM_CLIENT_CONNECT);
+            $socket = @stream_socket_client($target . ':' . $port, $errno, $errstr, $messageTimeout, STREAM_CLIENT_CONNECT);
             if (!$socket) {
                 throw new RuntimeException('SMTP connection failed: ' . ($errstr ?: 'error ' . $errno));
             }
-            stream_set_timeout($socket, 15);
+            stream_set_timeout($socket, max(1, (int) ceil($messageTimeout)));
 
             self::expect($socket, [220]);
             self::command($socket, 'EHLO localhost', [250]);
@@ -125,6 +140,7 @@ class Mailer {
             fclose($socket);
 
             self::log($to, $subject, true, null);
+            self::$messageDeadline = null;
             return true;
         } catch (Throwable $exception) {
             if (is_resource($socket)) {
@@ -132,18 +148,33 @@ class Mailer {
                 @fclose($socket);
             }
             self::log($to, $subject, false, $exception->getMessage());
+            self::$messageDeadline = null;
             return false;
         }
     }
 
     private static function command($socket, $command, array $expectedCodes) {
+        self::assertWithinDeadline();
         fwrite($socket, $command . "\r\n");
         self::expect($socket, $expectedCodes);
     }
 
     private static function expect($socket, array $expectedCodes) {
         $response = '';
-        while (($line = fgets($socket, 515)) !== false) {
+        while (true) {
+            self::assertWithinDeadline();
+            $remaining = max(0.001, self::$messageDeadline - microtime(true));
+            $seconds = (int) floor($remaining);
+            $microseconds = (int) (($remaining - $seconds) * 1000000);
+            stream_set_timeout($socket, $seconds, $microseconds);
+            $line = fgets($socket, 515);
+            if ($line === false) {
+                $metadata = stream_get_meta_data($socket);
+                if (!empty($metadata['timed_out'])) {
+                    throw new RuntimeException('SMTP response timed out.');
+                }
+                break;
+            }
             $response .= $line;
             if (strlen($line) < 4 || $line[3] === ' ') {
                 break;
@@ -155,6 +186,12 @@ class Mailer {
             throw new RuntimeException('SMTP server rejected the request (' . $code . '): ' . trim($response));
         }
         return $response;
+    }
+
+    private static function assertWithinDeadline() {
+        if (self::$messageDeadline !== null && microtime(true) >= self::$messageDeadline) {
+            throw new RuntimeException('SMTP operation timed out.');
+        }
     }
 
     private static function log($to, $subject, $delivered, $error = null) {

@@ -12,11 +12,19 @@ $errors = $viewData['errors'];
 $fieldErrors = $viewData['fieldErrors'] ?? [];
 $old = $viewData['old'];
 $success = $viewData['success'];
+$submissionToken = $viewData['submissionToken'];
+$complaintDraft = $viewData['complaintDraft'] ?? null;
+$restoringDraft = !empty($viewData['restoringDraft']);
 $oldIncident = !empty($old['incident_datetime']) ? strtotime($old['incident_datetime']) : false;
 $successCaseNumber = $success && preg_match('/Case Number:\s*([^\s]+)/', $success, $caseMatch) ? $caseMatch[1] : '';
 $complainantProgram = Courses::split($old['complainant_course_year'] ?? '');
-$complainantCourse = $old['complainant_course'] ?? $complainantProgram['course'] ?? ($user['course'] ?? '');
-$complainantSection = $old['complainant_section'] ?? $complainantProgram['section'] ?? ($user['section'] ?? '');
+$complainantCourseSource = trim((string) ($old['complainant_course'] ?? ''));
+if ($complainantCourseSource === '') $complainantCourseSource = trim((string) ($complainantProgram['course'] ?? ''));
+if ($complainantCourseSource === '') $complainantCourseSource = trim((string) ($user['course'] ?? ''));
+$complainantCourse = Courses::canonical($complainantCourseSource);
+$complainantSection = trim((string) ($old['complainant_section'] ?? ''));
+if ($complainantSection === '') $complainantSection = trim((string) ($complainantProgram['section'] ?? ''));
+if ($complainantSection === '') $complainantSection = trim((string) ($user['section'] ?? ''));
 $complainantType = $old['complainant_type'] ?? 'Student';
 $complainantName = $complainantType === 'Student' ? trim($user['first_name'] . ' ' . $user['last_name']) : ($old['complainant_name'] ?? '');
 $complainantGender = $old['complainant_gender'] ?? ($complainantType === 'Student' ? trim($user['gender'] ?? '') : '');
@@ -74,7 +82,7 @@ function selected_if($value, $option) {
 
 $respondentItem = function ($index = null, $old = []) {
     $program = Courses::split(is_int($index) ? ($old['respondent_course_year'][$index] ?? '') : '');
-    $course = is_int($index) ? ($old['respondent_course'][$index] ?? $program['course']) : '';
+    $course = Courses::canonical(is_int($index) ? ($old['respondent_course'][$index] ?? $program['course']) : '');
     $section = is_int($index) ? ($old['respondent_section'][$index] ?? $program['section']) : '';
     $courseYear = Courses::combine($course, $section);
     $value = function ($key) use ($index, $old) {
@@ -127,11 +135,8 @@ $respondentItem = function ($index = null, $old = []) {
             </div>
             <div class="field" data-respondent-types="Student" <?= type_field_hidden('Student', $respondentType) ?>>
                 <label>Course/Program <span class="optional">if applicable</span></label>
-                <select name="respondent_course[]" aria-label="Respondent course" <?= type_field_disabled('Student', $respondentType) ?>>
-                    <option value="">Select Course</option>
-                    <?php foreach (Courses::all() as $courseOption): ?>
-                        <option value="<?= h($courseOption) ?>" <?= selected_if($course, $courseOption) ?>><?= h($courseOption) ?></option>
-                    <?php endforeach; ?>
+                <select name="respondent_course[]" aria-label="Respondent course" disabled>
+                    <option value="">Select a college first</option>
                 </select>
             </div>
             <div class="field" data-respondent-types="Student" <?= type_field_hidden('Student', $respondentType) ?>>
@@ -194,6 +199,8 @@ $witnessItem = function ($index = null, $old = []) {
         return is_int($index) ? ($old['witness_' . $key][$index] ?? '') : '';
     };
     $witnessType = $value('type') ?: 'Student';
+    $witnessCollege = (string) $value('college');
+    $witnessCourse = Courses::canonical($value('course'));
 
     ob_start();
     ?>
@@ -240,10 +247,10 @@ $witnessItem = function ($index = null, $old = []) {
             </div>
             <div class="field" data-witness-types="Student" <?= type_field_hidden('Student', $witnessType) ?>>
                 <label>Course/Program <span class="optional">if applicable</span></label>
-                <select name="witness_course[]" aria-label="Witness course" <?= type_field_disabled('Student', $witnessType) ?>>
-                    <option value="">Select Course</option>
-                    <?php foreach (Courses::all() as $courseOption): ?>
-                        <option value="<?= h($courseOption) ?>" <?= selected_if($value('course'), $courseOption) ?>><?= h($courseOption) ?></option>
+                <select name="witness_course[]" aria-label="Witness course" <?= type_field_disabled('Student', $witnessType) ?> <?= $witnessCollege === '' ? 'disabled' : '' ?>>
+                    <option value=""><?= $witnessCollege === '' ? 'Select a college first' : 'Select Course/Program' ?></option>
+                    <?php foreach (Courses::forCollege($witnessCollege) as $courseOption): ?>
+                        <option value="<?= h($courseOption) ?>" <?= selected_if($witnessCourse, $courseOption) ?>><?= h($courseOption) ?></option>
                     <?php endforeach; ?>
                 </select>
             </div>
@@ -571,25 +578,32 @@ $witnessItem = function ($index = null, $old = []) {
                 grid-template-columns: 1fr;
             }
         }
+        .draft-toolbar { align-items:center; background:var(--surface-secondary, #f7faf6); border:1px solid var(--border-primary, #dce7d9); border-radius:8px; display:flex; flex-wrap:wrap; gap:10px; justify-content:space-between; margin-bottom:14px; padding:10px 12px; }
+        .draft-status { color:var(--text-muted, #617060); font-size:12px; }
+        .draft-status.is-error { color:var(--status-danger-text, #a92c23); }
+        .draft-evidence-note { color:var(--text-muted, #657064); font-size:12px; margin:7px 0 0; }
     </style>
     <link rel="stylesheet" href="../layout/system.css?v=2">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <link rel="stylesheet" href="../layout/sidebar.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-    <link rel="stylesheet" href="../layout/complaint-form.css">
+    <link rel="stylesheet" href="../layout/complaint-form.css?v=4">
 
     <style>
-        .submission-modal-backdrop { position: fixed; inset: 0; z-index: 9999; display: none; align-items: center; justify-content: center; padding: 20px; background: rgba(10,25,14,.48); backdrop-filter: blur(3px); }
+        .submission-modal-backdrop { position: fixed; inset: 0; z-index: 9999; display: none; align-items: center; justify-content: center; padding: 20px; background: rgba(3,9,5,.72); backdrop-filter: blur(3px); }
         .submission-modal-backdrop.show { display: flex; }
-        .submission-modal { position: relative; width: min(460px,100%); background: #fff; border-radius: 18px; padding: 34px 30px 28px; text-align: center; box-shadow: 0 24px 70px rgba(0,0,0,.22); animation: submissionPop .18s ease-out; }
+        .submission-modal { position: relative; width: min(460px,100%); background: var(--surface-elevated); border: 1px solid var(--border-primary); border-radius: 18px; color: var(--text-primary); padding: 34px 30px 28px; text-align: center; box-shadow: 0 24px 70px rgba(0,0,0,.28); animation: submissionPop .18s ease-out; }
         @keyframes submissionPop { from { opacity: 0; transform: translateY(10px) scale(.97); } to { opacity: 1; transform: none; } }
-        .submission-modal-close { position: absolute; top: 10px; right: 14px; border: 0; background: transparent; font-size: 28px; color: #71806e; cursor: pointer; }
-        .submission-modal-icon { width: 64px; height: 64px; margin: 0 auto 16px; border-radius: 50%; display: grid; place-items: center; background: #e8f5e8; color: #2f7d32; font-size: 30px; }
-        .submission-modal.error .submission-modal-icon { background: #fdeaea; color: #b42318; }
-        .submission-modal h2 { margin: 0 0 9px; color: #173d20; font-size: 22px; }
-        .submission-modal p { margin: 0 auto; max-width: 380px; color: #59645a; line-height: 1.6; font-size: 14px; white-space: pre-line; }
-        .submission-case-number { margin: 18px auto 0; width: fit-content; padding: 9px 14px; border-radius: 9px; background: #f1f6f0; color: #173d20; font-weight: 700; }
+        .submission-modal-close { position: absolute; top: 10px; right: 14px; border: 0; border-radius: 8px; background: transparent; font-size: 28px; color: var(--text-muted); cursor: pointer; }
+        .submission-modal-close:hover, .submission-modal-close:focus-visible { background: var(--surface-accent); color: var(--danger); outline: 2px solid var(--accent); outline-offset: 2px; }
+        .submission-modal-icon { width: 64px; height: 64px; margin: 0 auto 16px; border-radius: 50%; display: grid; place-items: center; background: var(--status-success-bg, var(--surface-accent)); color: var(--status-success-text, var(--success)); font-size: 30px; }
+        .submission-modal.error .submission-modal-icon { background: var(--status-danger-bg, color-mix(in srgb, var(--danger) 12%, var(--surface-primary))); color: var(--status-danger-text, var(--danger)); }
+        .submission-modal h2 { margin: 0 0 9px; color: var(--text-primary); font-size: 22px; }
+        .submission-modal p { margin: 0 auto; max-width: 380px; color: var(--text-muted); line-height: 1.6; font-size: 14px; white-space: pre-line; }
+        .submission-case-number { margin: 18px auto 0; width: fit-content; padding: 9px 14px; border: 1px solid var(--border-primary); border-radius: 9px; background: var(--surface-soft); color: var(--text-primary); font-weight: 700; }
         .submission-modal-actions { display: flex; gap: 10px; justify-content: center; margin-top: 22px; flex-wrap: wrap; }
         .submission-modal-actions .btn { min-width: 120px; }
+        html[data-theme="dark"] .submission-modal p { color: var(--text-muted) !important; }
     </style>
 </head>
 
@@ -602,11 +616,12 @@ $witnessItem = function ($index = null, $old = []) {
                 <button type="button" class="submission-modal-close" id="submissionModalClose" aria-label="Close">&times;</button>
                 <div class="submission-modal-icon" id="submissionModalIcon"><i class="bi bi-check-lg"></i></div>
                 <h2 id="submissionModalTitle">Complaint Submitted Successfully</h2>
-                <p id="submissionModalMessage">Your complaint has been received by the Student Discipline and Reformation Unit (SDRU).</p>
+                <p id="submissionModalMessage">Your complaint has been successfully submitted to SDRU. You can track its status through Complaint Cases.</p>
                 <div class="submission-case-number" id="submissionCaseNumber" hidden></div>
                 <div class="submission-modal-actions">
                     <button type="button" class="btn btn-primary" id="submissionModalOkay">Okay</button>
-                    <a class="btn btn-secondary" id="submissionTrack" href="my_cases.php" hidden>Track My Complaint</a>
+                    <a class="btn btn-primary" id="submissionTrack" href="my_cases.php" hidden>Track My Cases</a>
+                    <a class="btn btn-secondary" id="submissionDashboard" href="../../../index.php" hidden>Back to Dashboard</a>
                 </div>
             </div>
         </div>
@@ -625,12 +640,17 @@ $witnessItem = function ($index = null, $old = []) {
             <?php if ($success): ?>
                 <section class="submission-success" aria-live="polite">
                     <i class="bi bi-check2-circle" aria-hidden="true"></i>
-                    <div><h2>Complaint Submitted Successfully</h2><p>Your complaint has been received by the Student Discipline and Reformation Unit (SDRU).</p><div class="success-meta"><span>Case Number <strong><?= h($successCaseNumber) ?></strong></span><span>Current Status <strong>Under Investigation</strong></span></div><a class="btn btn-primary" href="my_cases.php"><i class="bi bi-folder-check"></i> Track My Complaint</a></div>
+                    <div><h2>Complaint Submitted Successfully</h2><p>Your complaint has been successfully submitted to SDRU. You can track its status through Complaint Cases.</p><div class="success-meta"><span>Case Number <strong><?= h($successCaseNumber) ?></strong></span><span>Current Status <strong>Under Investigation</strong></span></div><a class="btn btn-primary" href="my_cases.php"><i class="bi bi-folder-check"></i> Track My Cases</a></div>
                 </section>
             <?php endif; ?>
 
-            <form class="complaint-form" id="complaintForm" action="create.php" method="POST" enctype="multipart/form-data" data-sicms-validate novalidate>
+            <form class="complaint-form" id="complaintForm" action="create.php" method="POST" enctype="multipart/form-data" data-sicms-validate data-no-ajax="true" novalidate>
                 <?= Security::csrfField() ?>
+                <input type="hidden" name="submission_token" value="<?= h($submissionToken) ?>">
+                <div class="draft-toolbar">
+                    <span class="draft-status" id="complaintDraftStatus" role="status" aria-live="polite"><?= $restoringDraft ? 'Draft restored. Changes will save automatically.' : 'Draft not saved yet.' ?></span>
+                    <button type="button" class="btn btn-secondary" id="saveComplaintDraft"><i class="bi bi-save"></i> Save as Draft</button>
+                </div>
                 <section class="form-section" id="complainantSection">
                     <div class="complaint-section-heading"><span><i class="bi bi-person-badge"></i></span><div><h2>Complainant Information</h2><p id="complainantHelp">Student or private-individual details</p></div></div>
                     <div class="form-grid">
@@ -690,10 +710,10 @@ $witnessItem = function ($index = null, $old = []) {
                             <?= field_error_html($fieldErrors, 'complainant_college') ?>
                         </div>
                         <div class="field" data-complainant-types="Student" <?= type_field_hidden('Student', $complainantType) ?>>
-                            <label for="complainant_course">Course <span class="required">*</span></label>
-                            <select id="complainant_course" name="complainant_course" required <?= type_field_disabled('Student', $complainantType) ?>>
-                                <option value="">Select Course</option>
-                                <?php foreach (Courses::all() as $course): ?>
+                            <label for="complainant_course">Course/Program <span class="required">*</span></label>
+                            <select id="complainant_course" name="complainant_course" required <?= type_field_disabled('Student', $complainantType) ?> <?= $complainantCollege === '' ? 'disabled' : '' ?>>
+                                <option value=""><?= $complainantCollege === '' ? 'Select a college first' : 'Select Course/Program' ?></option>
+                                <?php foreach (Courses::forCollege($complainantCollege) as $course): ?>
                                     <option value="<?= h($course) ?>" <?= $complainantCourse === $course ? 'selected' : '' ?>><?= h($course) ?></option>
                                 <?php endforeach; ?>
                             </select>
@@ -790,7 +810,7 @@ $witnessItem = function ($index = null, $old = []) {
                         <?php for ($index = 0; $index < $respondentCount; $index++): ?>
                             <?php
                                 $respondentProgram = Courses::split($old['respondent_course_year'][$index] ?? '');
-                                $respondentCourse = $old['respondent_course'][$index] ?? $respondentProgram['course'];
+                                $respondentCourse = Courses::canonical($old['respondent_course'][$index] ?? $respondentProgram['course']);
                                 $respondentSection = $old['respondent_section'][$index] ?? $respondentProgram['section'];
                                 $respondentType = trim((string) ($old['respondent_type'][$index] ?? ''));
                                 if (!in_array($respondentType, ['Student', 'Employee', 'Private Individual', 'Other'], true)) $respondentType = 'Student';
@@ -838,9 +858,10 @@ $witnessItem = function ($index = null, $old = []) {
                                     </div>
                                     <div class="field" data-respondent-types="Student" <?= type_field_hidden('Student', $respondentType) ?>>
                                         <label>Course/Program <span class="optional">if applicable</span></label>
-                                        <select name="respondent_course[]" aria-label="Respondent course" <?= type_field_disabled('Student', $respondentType) ?>>
-                                            <option value="">Select Course</option>
-                                            <?php foreach (Courses::all() as $course): ?>
+                                        <?php $respondentCollege = (string) ($old['respondent_college'][$index] ?? ''); ?>
+                                        <select name="respondent_course[]" aria-label="Respondent course" <?= type_field_disabled('Student', $respondentType) ?> <?= $respondentCollege === '' ? 'disabled' : '' ?>>
+                                            <option value=""><?= $respondentCollege === '' ? 'Select a college first' : 'Select Course/Program' ?></option>
+                                            <?php foreach (Courses::forCollege($respondentCollege) as $course): ?>
                                                 <option value="<?= h($course) ?>" <?= $respondentCourse === $course ? 'selected' : '' ?>><?= h($course) ?></option>
                                             <?php endforeach; ?>
                                         </select>
@@ -931,30 +952,34 @@ $witnessItem = function ($index = null, $old = []) {
                     <div class="field">
                         <label>Do you have supporting evidence to submit?</label>
                         <div class="radio-group">
-                            <label class="radio-item"><input type="radio" name="has_evidence" value="yes" required> Yes</label>
-                            <label class="radio-item"><input type="radio" name="has_evidence" value="no"> No</label>
+                            <label class="radio-item"><input type="radio" name="has_evidence" value="yes" required <?= ($old['has_evidence'] ?? '') === 'yes' ? 'checked' : '' ?>> Yes</label>
+                            <label class="radio-item"><input type="radio" name="has_evidence" value="no" <?= ($old['has_evidence'] ?? '') === 'no' ? 'checked' : '' ?>> No</label>
                         </div>
                     </div>
                     <div class="field" id="evidenceUploadField" hidden>
                         <label for="evidence">Upload Files</label>
                         <input id="evidence" type="file" name="evidence[]" accept=".pdf,.jpg,.jpeg,.png,.docx" multiple required data-sicms-size-mb="5" data-sicms-accept-ext=".pdf,.jpg,.jpeg,.png,.docx">
                         <p class="file-note">Accepted formats: PDF, JPG, PNG, DOCX. Maximum size: 5MB per file.</p>
+                        <p class="draft-evidence-note"><i class="bi bi-info-circle"></i> Selected files are not included in auto-save. Please attach them again before submitting.</p>
                         <div class="field-error" id="evidenceError" role="alert"></div>
                         <div class="evidence-list" id="evidenceList"></div>
                     </div>
                 </section>
 
+                <div class="complaint-validation-notice" id="complaintValidationNotice" role="alert" hidden>Please complete the required fields before reviewing your complaint.</div>
                 <div class="form-actions">
-                    <div class="submission-progress hidden" id="submissionProgress"><span></span> Submitting complaint...</div>
-                    <button type="submit" class="btn-submit" id="reviewButton"><i class="bi bi-clipboard-check"></i> Review Complaint</button>
+                    <div class="submission-progress hidden" id="submissionProgress"><span></span> Submitting Complaint...</div>
+                    <button type="submit" class="btn-submit" id="reviewButton"><i class="bi bi-send-check"></i> Submit Complaint</button>
                     <a class="btn-secondary" href="../../../index.php"><i class="bi bi-x"></i> Cancel</a>
                 </div>
             </form>
 
-            <dialog class="review-dialog" id="reviewDialog" aria-labelledby="reviewTitle">
-                <div class="review-dialog-header"><div><h2 id="reviewTitle">Review Complaint</h2><p>Confirm the information before submission.</p></div><button type="button" class="dialog-close" id="closeReview" aria-label="Close review"><i class="bi bi-x-lg"></i></button></div>
+            <dialog class="review-dialog review-complaint-modal" id="reviewDialog" aria-labelledby="reviewTitle">
+                <div class="review-dialog-header"><div><h2 id="reviewTitle">Review Complaint</h2><p>Carefully verify each section before submitting your complaint to SDRU.</p></div><button type="button" class="dialog-close" id="closeReview" aria-label="Close review"><i class="bi bi-x-lg"></i></button></div>
                 <div class="review-content" id="reviewContent"></div>
-                <label class="certification"><input id="certification" type="checkbox"> <span>I certify that all information provided is true and accurate.</span></label>
+                <div class="review-confirmation">
+                    <label class="certification"><input id="certification" type="checkbox"> <span>I have reviewed my complaint and confirm that the information and evidence provided are complete and accurate.</span></label>
+                </div>
                 <div class="review-actions"><button class="btn btn-primary" id="confirmSubmit" type="button" disabled><i class="bi bi-send-check"></i> Submit Complaint</button><button class="btn btn-secondary" id="editComplaint" type="button">Continue Editing</button></div>
             </dialog>
         </main>
@@ -984,12 +1009,89 @@ $witnessItem = function ($index = null, $old = []) {
         const certification = document.getElementById('certification');
         const confirmSubmit = document.getElementById('confirmSubmit');
         const reviewButton = document.getElementById('reviewButton');
+        const complaintValidationNotice = document.getElementById('complaintValidationNotice');
+        const complaintDraftStatus = document.getElementById('complaintDraftStatus');
+        const saveComplaintDraftButton = document.getElementById('saveComplaintDraft');
+        let complaintDraftVersion = <?= (int) ($complaintDraft['version'] ?? 0) ?>;
+        let complaintDraftDirty = false;
+        let complaintDraftSaving = false;
+        let complaintDraftPending = false;
+        let complaintDraftTimer = null;
+        let complaintFinalizing = false;
+
+        function complaintDraftPayload() {
+            const payload = {};
+            Array.from(complaintForm.elements).forEach(control => {
+                if (!control.name || control.type === 'file' || ['csrf_token', 'submission_token'].includes(control.name) || control.id === 'certification') return;
+                if ((control.type === 'checkbox' || control.type === 'radio') && !control.checked) return;
+                const isArray = control.name.endsWith('[]');
+                const key = isArray ? control.name.slice(0, -2) : control.name;
+                if (isArray) {
+                    if (!Array.isArray(payload[key])) payload[key] = [];
+                    payload[key].push(control.value);
+                } else {
+                    payload[key] = control.value;
+                }
+            });
+            return payload;
+        }
+
+        function setComplaintDraftStatus(message, isError = false) {
+            complaintDraftStatus.textContent = message;
+            complaintDraftStatus.classList.toggle('is-error', isError);
+        }
+
+        async function saveComplaintDraft(manual = false) {
+            clearTimeout(complaintDraftTimer);
+            if (complaintFinalizing || (!complaintDraftDirty && !manual)) return;
+            if (complaintDraftSaving) { complaintDraftPending = true; return; }
+            complaintDraftSaving = true;
+            saveComplaintDraftButton.disabled = true;
+            setComplaintDraftStatus('Saving draft…');
+            const body = new FormData();
+            body.set('csrf_token', complaintForm.elements.csrf_token.value);
+            body.set('submission_token', complaintForm.elements.submission_token.value);
+            body.set('draft_action', 'save');
+            body.set('version', String(complaintDraftVersion));
+            body.set('payload', JSON.stringify(complaintDraftPayload()));
+            try {
+                const response = await fetch('draft.php', { method: 'POST', body, headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } });
+                const result = await response.json();
+                if (!response.ok || !result.success) throw new Error(result.message || 'Draft could not be saved.');
+                complaintDraftVersion = result.version;
+                complaintDraftDirty = false;
+                setComplaintDraftStatus('Draft saved ' + new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) + '.');
+            } catch (error) {
+                setComplaintDraftStatus(error.message || 'Draft could not be saved. Your changes remain on this page.', true);
+            } finally {
+                complaintDraftSaving = false;
+                saveComplaintDraftButton.disabled = false;
+                if (complaintDraftPending) { complaintDraftPending = false; complaintDraftDirty = true; saveComplaintDraft(); }
+            }
+        }
+
+        function queueComplaintDraft() {
+            if (complaintFinalizing) return;
+            complaintDraftDirty = true;
+            if (complaintDraftSaving) complaintDraftPending = true;
+            setComplaintDraftStatus('Unsaved changes');
+            clearTimeout(complaintDraftTimer);
+            complaintDraftTimer = setTimeout(() => saveComplaintDraft(false), 4000);
+        }
+
+        complaintForm.addEventListener('input', queueComplaintDraft);
+        complaintForm.addEventListener('change', queueComplaintDraft);
+        saveComplaintDraftButton.addEventListener('click', () => { complaintDraftDirty = true; saveComplaintDraft(true); });
+        window.addEventListener('beforeunload', event => {
+            if (!complaintFinalizing && (complaintDraftDirty || complaintDraftSaving)) { event.preventDefault(); event.returnValue = ''; }
+        });
         const submissionProgress = document.getElementById('submissionProgress');
         const complainantTypeInput = document.getElementById('complainant_type');
         const complainantNameInput = document.getElementById('complainant_name');
         const complainantGenderInput = document.getElementById('complainant_gender');
         const complainantEmailInput = document.getElementById('complainant_email');
         const complainantContactInput = document.getElementById('complainant_contact');
+        const programsByCollege = <?= json_encode(Courses::byCollege(), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
         const studentAccountName = <?= json_encode(trim($user['first_name'] . ' ' . $user['last_name'])) ?>;
         const studentAccountEmail = <?= json_encode($user['email']) ?>;
         const studentAccountGender = <?= json_encode(trim($user['gender'] ?? '')) ?>;
@@ -1120,6 +1222,46 @@ $witnessItem = function ($index = null, $old = []) {
                     control.required = visible && requiredNames.includes(control.name);
                 });
             });
+            syncRespondentPrograms(item, true);
+        }
+
+        function populatePrograms(collegeSelect, courseSelect, preserveSelection = false) {
+            if (!collegeSelect || !courseSelect) return;
+            const previous = preserveSelection ? courseSelect.value : '';
+            const programs = programsByCollege[collegeSelect.value] || [];
+            courseSelect.replaceChildren(new Option(
+                programs.length ? 'Select Course/Program' : 'Select a college first',
+                ''
+            ));
+            programs.forEach(program => courseSelect.add(new Option(program, program)));
+            courseSelect.disabled = collegeSelect.disabled || programs.length === 0;
+            if (previous && programs.includes(previous)) courseSelect.value = previous;
+        }
+
+        function syncRespondentPrograms(item, preserveSelection = false) {
+            populatePrograms(
+                item?.querySelector('[name="respondent_college[]"]'),
+                item?.querySelector('[name="respondent_course[]"]'),
+                preserveSelection
+            );
+            if (!preserveSelection) {
+                const section = item?.querySelector('[name="respondent_section[]"]');
+                const combined = item?.querySelector('[name="respondent_course_year[]"]');
+                if (section) section.value = '';
+                if (combined) combined.value = '';
+            }
+        }
+
+        function syncComplainantPrograms(preserveSelection = false) {
+            populatePrograms(
+                document.getElementById('complainant_college'),
+                document.getElementById('complainant_course'),
+                preserveSelection
+            );
+            if (!preserveSelection) {
+                document.getElementById('complainant_section').value = '';
+                document.getElementById('complainant_course_year').value = '';
+            }
         }
 
         function updateWitnessFields(item) {
@@ -1142,6 +1284,19 @@ $witnessItem = function ($index = null, $old = []) {
                     control.required = visible && requiredNames.includes(control.name);
                 });
             });
+            syncWitnessPrograms(item, true);
+        }
+
+        function syncWitnessPrograms(item, preserveSelection = false) {
+            populatePrograms(
+                item?.querySelector('[name="witness_college[]"]'),
+                item?.querySelector('[name="witness_course[]"]'),
+                preserveSelection
+            );
+            if (!preserveSelection) {
+                const section = item?.querySelector('[name="witness_section[]"]');
+                if (section) section.value = '';
+            }
         }
 
         function composeIncidentDatetime() {
@@ -1212,6 +1367,7 @@ $witnessItem = function ($index = null, $old = []) {
             }
             activeComplainantType = selectedType;
             document.getElementById('complainantHelp').textContent = isStudent ? 'Authenticated student information' : selectedType === 'Employee' ? 'Employee and department information' : 'Personal contact information';
+            if (isStudent) syncComplainantPrograms(true);
             composeCourseSections();
         }
 
@@ -1318,11 +1474,6 @@ $witnessItem = function ($index = null, $old = []) {
         function buildReview() {
             composeCourseSections();
             reviewContent.replaceChildren();
-            addReviewGroup('Complaint Information', [
-                ['Incident', `${valueOf('incident_date')} ${valueOf('incident_time')}`],
-                ['Location', valueOf('incident_location')],
-                ['Description', valueOf('complaint_details')],
-            ]);
             addReviewGroup('Complainant Information', [
                 ['Complainant Type', valueOf('complainant_type')],
                 ['Full Name', valueOf('complainant_name')],
@@ -1347,21 +1498,36 @@ $witnessItem = function ($index = null, $old = []) {
                 ['Email', valueOf('complainant_email')],
                 ['Contact', valueOf('complainant_contact')],
             ]);
+            addReviewGroup('Incident and Complaint Details', [
+                ['Incident Date and Time', `${valueOf('incident_date')} ${valueOf('incident_time')}`],
+                ['Incident Location', valueOf('incident_location')],
+                ['Complaint Statement', valueOf('complaint_details')],
+            ]);
             const respondentNames = Array.from(document.querySelectorAll('.respondent-item')).map(item => {
                 const input = item.querySelector('[name="respondent_name[]"]');
                 const name = input.value.trim();
                 if (!name) return '';
                 const type = item.querySelector('[name="respondent_type[]"]').value;
                 const typeLabel = type || 'Student';
-                const detail = type === 'Student'
-                    ? item.querySelector('[name="respondent_student_no[]"]').value.trim()
+                const details = type === 'Student'
+                    ? [
+                        item.querySelector('[name="respondent_student_no[]"]').value.trim(),
+                        item.querySelector('[name="respondent_college[]"]')?.value.trim(),
+                        item.querySelector('[name="respondent_course[]"]')?.value.trim(),
+                        item.querySelector('[name="respondent_section[]"]')?.value.trim(),
+                    ]
                     : type === 'Employee'
-                        ? item.querySelector('[name="respondent_employee_no[]"]').value.trim()
+                        ? [
+                            item.querySelector('[name="respondent_employee_no[]"]').value.trim(),
+                            item.querySelector('[name="respondent_department[]"]')?.value.trim(),
+                            item.querySelector('[name="respondent_position[]"]')?.value.trim(),
+                        ]
                         : type === 'Other'
-                            ? item.querySelector('[name="respondent_affiliation[]"]').value.trim()
-                            : '';
+                            ? [item.querySelector('[name="respondent_affiliation[]"]').value.trim()]
+                            : [];
                 const contact = item.querySelector('[name="respondent_contact[]"]').value.trim();
-                const parts = [typeLabel, detail, contact].filter(Boolean);
+                const email = item.querySelector('[name="respondent_email[]"]')?.value.trim();
+                const parts = [typeLabel, ...details, contact, email].filter(Boolean);
                 return name + (parts.length ? ` (${parts.join(', ')})` : '');
             }).filter(Boolean);
             const witnessNames = Array.from(document.querySelectorAll('.witness-item')).map(item => {
@@ -1369,23 +1535,52 @@ $witnessItem = function ($index = null, $old = []) {
                 if (!name) return '';
                 const type = item.querySelector('[name="witness_type[]"]').value;
                 const typeLabel = type || 'Student';
-                const detail = type === 'Student'
-                    ? item.querySelector('[name="witness_student_no[]"]').value.trim()
+                const details = type === 'Student'
+                    ? [
+                        item.querySelector('[name="witness_student_no[]"]').value.trim(),
+                        item.querySelector('[name="witness_college[]"]')?.value.trim(),
+                        item.querySelector('[name="witness_course[]"]')?.value.trim(),
+                        item.querySelector('[name="witness_section[]"]')?.value.trim(),
+                    ]
                     : type === 'Employee'
-                        ? item.querySelector('[name="witness_employee_no[]"]').value.trim()
+                        ? [
+                            item.querySelector('[name="witness_employee_no[]"]').value.trim(),
+                            item.querySelector('[name="witness_department[]"]')?.value.trim(),
+                            item.querySelector('[name="witness_position[]"]')?.value.trim(),
+                        ]
                         : type === 'Other'
-                            ? item.querySelector('[name="witness_affiliation[]"]').value.trim()
-                            : '';
+                            ? [item.querySelector('[name="witness_affiliation[]"]').value.trim()]
+                            : [];
                 const contact = item.querySelector('[name="witness_contact[]"]').value.trim();
-                const parts = [typeLabel, detail, contact].filter(Boolean);
+                const email = item.querySelector('[name="witness_email[]"]')?.value.trim();
+                const parts = [typeLabel, ...details, contact, email].filter(Boolean);
                 return name + (parts.length ? ` (${parts.join(', ')})` : '');
             }).filter(Boolean);
+            const submittedStatements = [
+                ...Array.from(document.querySelectorAll('.respondent-item')).map(item => {
+                    const name = item.querySelector('[name="respondent_name[]"]')?.value.trim();
+                    const details = item.querySelector('[name="respondent_details[]"]')?.value.trim();
+                    return name && details ? `${name}: ${details}` : '';
+                }),
+                ...Array.from(document.querySelectorAll('.witness-item')).map(item => {
+                    const name = item.querySelector('[name="witness_name[]"]')?.value.trim();
+                    const statement = item.querySelector('[name="witness_statement[]"]')?.value.trim();
+                    return name && statement ? `${name}: ${statement}` : '';
+                }),
+            ].filter(Boolean);
             const respondentUnknown = document.querySelector('input[name="respondent_unknown"]')?.checked;
             const witnessNone = document.querySelector('input[name="witness_none"]')?.checked;
-            addReviewGroup('People and Evidence', [
-                ['Respondents', respondentUnknown ? "I don't know the respondent" : (respondentNames.join(', ') || 'None provided')],
-                ['Witnesses', witnessNone ? 'No witness' : (witnessNames.join(', ') || 'None provided')],
-                ['Evidence', hasEvidence() ? (Array.from(evidenceInput.files).map(file => file.name).join(', ') || 'Yes (no files selected)') : 'No'],
+            addReviewGroup('Respondent Information', [
+                ['Respondents', respondentUnknown ? "I don't know the respondent" : (respondentNames.join('\n') || 'None provided')],
+            ]);
+            addReviewGroup('Witness Information', [
+                ['Witnesses', witnessNone ? 'No witness provided' : (witnessNames.join('\n') || 'None provided')],
+            ]);
+            addReviewGroup('Statements and Other Information', [
+                ['Additional Details / Statements', submittedStatements.join('\n') || 'None provided'],
+            ]);
+            addReviewGroup('Evidence and Attachments', [
+                ['Supporting Evidence', hasEvidence() ? (Array.from(evidenceInput.files).map(file => file.name).join('\n') || 'Evidence indicated, but no files selected') : 'No evidence attached'],
             ]);
         }
 
@@ -1393,6 +1588,7 @@ $witnessItem = function ($index = null, $old = []) {
         incidentDate.addEventListener('change', composeIncidentDatetime);
         incidentTime.addEventListener('change', composeIncidentDatetime);
         complainantTypeInput.addEventListener('change', () => updateComplainantFields(false));
+        document.getElementById('complainant_college').addEventListener('change', () => syncComplainantPrograms(false));
         complaintForm.addEventListener('change', event => {
             if (event.target.matches('[name="complainant_course"], [name="complainant_section"], [name="respondent_course[]"], [name="respondent_section[]"]')) {
                 composeCourseSections();
@@ -1401,12 +1597,19 @@ $witnessItem = function ($index = null, $old = []) {
         document.getElementById('respondent-list').addEventListener('change', event => {
             if (event.target.matches('[name="respondent_type[]"]')) {
                 updateRespondentFields(event.target.closest('.respondent-item'));
+            } else if (event.target.matches('[name="respondent_college[]"]')) {
+                syncRespondentPrograms(event.target.closest('.respondent-item'), false);
             }
         });
         document.querySelectorAll('.respondent-item').forEach(updateRespondentFields);
         document.getElementById('witness-list').addEventListener('change', event => {
             if (event.target.matches('[name="witness_type[]"]')) {
                 updateWitnessFields(event.target.closest('.witness-item'));
+            } else if (event.target.matches('[name="witness_college[]"]')) {
+                syncWitnessPrograms(event.target.closest('.witness-item'), false);
+            } else if (event.target.matches('[name="witness_course[]"]')) {
+                const section = event.target.closest('.witness-item')?.querySelector('[name="witness_section[]"]');
+                if (section) section.value = '';
             }
         });
         document.querySelectorAll('.witness-item').forEach(updateWitnessFields);
@@ -1415,7 +1618,9 @@ $witnessItem = function ($index = null, $old = []) {
             radio.addEventListener('change', updateEvidenceField);
         });
         updateEvidenceField();
-        certification.addEventListener('change', () => { confirmSubmit.disabled = !certification.checked; });
+        certification.addEventListener('change', () => {
+            confirmSubmit.disabled = !certification.checked;
+        });
         document.getElementById('closeReview').addEventListener('click', () => reviewDialog.close());
         document.getElementById('editComplaint').addEventListener('click', () => reviewDialog.close());
 
@@ -1425,12 +1630,15 @@ $witnessItem = function ($index = null, $old = []) {
             validateEvidence();
             if (window.SICMSValidation && !SICMSValidation.run(complaintForm)) {
                 event.preventDefault();
+                complaintValidationNotice.hidden = false;
                 return;
             }
             if (!complaintForm.checkValidity()) {
                 event.preventDefault();
+                complaintValidationNotice.hidden = false;
                 return;
             }
+            complaintValidationNotice.hidden = true;
             if (!confirmed) {
                 event.preventDefault();
                 certification.checked = false;
@@ -1439,15 +1647,22 @@ $witnessItem = function ($index = null, $old = []) {
                 reviewDialog.showModal();
                 return;
             }
+            complaintFinalizing = true;
+            clearTimeout(complaintDraftTimer);
             reviewButton.disabled = true;
             confirmSubmit.disabled = true;
             submissionProgress.classList.remove('hidden');
         });
 
+        complaintForm.addEventListener('input', () => {
+            complaintValidationNotice.hidden = true;
+        });
+
         confirmSubmit.addEventListener('click', () => {
-            if (!certification.checked) return;
+            if (!certification.checked || confirmSubmit.disabled) return;
+            confirmSubmit.disabled = true;
+            confirmSubmit.innerHTML = '<span class="sicms-processing-spinner" aria-hidden="true"></span> Submitting Complaint...';
             confirmed = true;
-            reviewDialog.close();
             complaintForm.requestSubmit(reviewButton);
         });
 
@@ -1466,6 +1681,7 @@ $witnessItem = function ($index = null, $old = []) {
         const submissionModalOkay = document.getElementById('submissionModalOkay');
         const submissionModalClose = document.getElementById('submissionModalClose');
         const submissionTrack = document.getElementById('submissionTrack');
+        const submissionDashboard = document.getElementById('submissionDashboard');
 
         function closeSubmissionModal() {
             submissionModalBackdrop?.classList.remove('show');
@@ -1481,6 +1697,7 @@ $witnessItem = function ($index = null, $old = []) {
             submissionCaseNumber.hidden = !caseNumber;
             submissionCaseNumber.textContent = caseNumber ? 'Case Number: ' + caseNumber : '';
             submissionTrack.hidden = type !== 'success';
+            submissionDashboard.hidden = type !== 'success';
             submissionModalBackdrop.classList.add('show');
             submissionModalBackdrop.setAttribute('aria-hidden', 'false');
         }
@@ -1495,9 +1712,51 @@ $witnessItem = function ($index = null, $old = []) {
         });
 
         <?php if ($success): ?>
-        showSubmissionModal('success', 'Complaint Submitted Successfully', 'Your complaint has been received by the Student Discipline and Reformation Unit (SDRU).', <?= json_encode($successCaseNumber) ?>);
+        showSubmissionModal('success', 'Complaint Submitted Successfully', 'Your complaint has been successfully submitted to SDRU. You can track its status through Complaint Cases.', <?= json_encode($successCaseNumber) ?>);
         <?php elseif (!empty($errors)): ?>
         showSubmissionModal('error', 'Unable to Submit Complaint', <?= json_encode(implode("\n", $errors)) ?>);
+        <?php endif; ?>
+
+        <?php if ($complaintDraft && !$restoringDraft && !$success): ?>
+        window.addEventListener('DOMContentLoaded', async () => {
+            if (!window.Swal) return;
+            const choice = await Swal.fire({
+                icon: 'info',
+                title: 'Continue your saved complaint?',
+                text: 'A draft from <?= h(date('M d, Y h:i A', strtotime($complaintDraft['updated_at']))) ?> is available. Uploaded evidence is not stored with drafts.',
+                showCancelButton: true,
+                confirmButtonText: 'Continue Draft',
+                cancelButtonText: 'Start New',
+                reverseButtons: true,
+                allowOutsideClick: false,
+                backdrop: false
+            });
+            if (choice.isConfirmed) {
+                location.replace('create.php?draft=continue');
+                return;
+            }
+            const discard = await Swal.fire({
+                icon: 'warning',
+                title: 'Discard saved draft?',
+                text: 'This cannot be undone.',
+                showCancelButton: true,
+                confirmButtonText: 'Discard Draft',
+                cancelButtonText: 'Keep Draft',
+                reverseButtons: true,
+                backdrop: false
+            });
+            if (!discard.isConfirmed) return;
+            const body = new FormData();
+            body.set('csrf_token', complaintForm.elements.csrf_token.value);
+            body.set('draft_action', 'discard');
+            const response = await fetch('draft.php', { method: 'POST', body, headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } });
+            if (response.ok) {
+                complaintDraftVersion = 0;
+                setComplaintDraftStatus('Draft discarded. Starting a new complaint.');
+            } else {
+                setComplaintDraftStatus('The saved draft could not be discarded. Please refresh and try again.', true);
+            }
+        });
         <?php endif; ?>
 
     </script>

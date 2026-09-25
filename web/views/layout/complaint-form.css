@@ -166,6 +166,17 @@
     padding: 16px;
 }
 
+.complaint-validation-notice {
+    background: var(--status-danger-bg, color-mix(in srgb, var(--danger) 10%, var(--surface-primary)));
+    border: 1px solid var(--danger);
+    border-radius: var(--sicms-radius);
+    color: var(--status-danger-text, var(--danger));
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 12px;
+    padding: 11px 14px;
+}
+
 .form-actions .btn-submit,
 .form-actions .btn-secondary {
     align-items: center;
@@ -250,42 +261,49 @@
 }
 
 .review-dialog {
-    background: #fff;
-    border: 1px solid var(--sicms-line);
+    background-color: var(--surface-elevated);
+    border: 1px solid var(--border-primary);
     border-radius: var(--sicms-radius);
     box-shadow: 0 24px 60px rgba(18, 60, 27, 0.18);
-    color: var(--sicms-text);
+    color: var(--text-primary);
     max-height: 88vh;
-    max-width: 760px;
+    max-width: 820px;
     padding: 0;
     width: calc(100% - 28px);
 }
 
 .review-dialog::backdrop {
-    background: rgba(10, 28, 14, 0.55);
+    background: rgba(3, 9, 5, 0.82);
+    backdrop-filter: blur(2px);
+}
+
+.review-dialog .dialog-close {
+    color: var(--danger);
 }
 
 .review-dialog-header {
+    background: var(--surface-primary);
     align-items: flex-start;
-    border-bottom: 1px solid var(--sicms-line);
+    border-bottom: 1px solid var(--divider);
     display: flex;
     justify-content: space-between;
     padding: 18px 20px;
 }
 
 .review-dialog-header h2 {
-    color: var(--sicms-green-900);
-    font-size: 19px;
+    color: var(--text-primary);
+    font-size: 20px;
     margin: 0 0 3px;
 }
 
 .review-dialog-header p {
-    color: var(--sicms-muted);
-    font-size: 12px;
+    color: var(--text-muted);
+    font-size: 13px;
     margin: 0;
 }
 
 .review-content {
+    background: var(--surface-secondary);
     display: grid;
     gap: 14px;
     max-height: 52vh;
@@ -294,15 +312,18 @@
 }
 
 .review-content section {
-    border: 1px solid var(--sicms-line);
+    background: var(--surface-primary);
+    border: 1px solid var(--border-primary);
     border-radius: var(--sicms-radius);
     overflow: hidden;
 }
 
 .review-content h3 {
-    background: #f4f8f3;
-    color: var(--sicms-green-900);
-    font-size: 12px;
+    background: var(--surface-soft);
+    border-bottom: 1px solid var(--divider);
+    color: var(--green-700);
+    font-size: 13px;
+    font-weight: 700;
     margin: 0;
     padding: 9px 11px;
 }
@@ -315,45 +336,121 @@
 }
 
 .review-row+.review-row {
-    border-top: 1px solid #edf2eb;
+    border-top: 1px solid var(--divider);
 }
 
 .review-row span {
-    color: var(--sicms-muted);
-    font-size: 11px;
+    color: var(--text-muted);
+    font-size: 12px;
+    font-weight: 600;
 }
 
 .review-row strong {
-    font-size: 11px;
+    color: var(--text-primary);
+    font-size: 12px;
+    line-height: 1.55;
     overflow-wrap: anywhere;
     white-space: pre-wrap;
 }
 
 .certification {
     align-items: flex-start;
-    background: #f8fbf7;
-    border-top: 1px solid var(--sicms-line);
+    background: transparent;
     display: flex;
     gap: 9px;
-    padding: 15px 20px;
+    padding: 0;
 }
 
 .certification input {
     flex: 0 0 auto;
     margin-top: 2px;
     width: auto;
+    accent-color: var(--accent, #1a9d00);
 }
 
 .certification span {
-    color: var(--sicms-text);
-    font-size: 12px;
+    color: var(--text-primary);
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.45;
+}
+
+.review-confirmation {
+    background: var(--surface-soft);
+    border-block: 1px solid var(--divider);
+    padding: 15px 20px 10px;
 }
 
 .review-actions {
+    background: var(--surface-primary);
     display: flex;
     gap: 10px;
     justify-content: flex-end;
     padding: 0 20px 18px;
+}
+
+#confirmSubmit {
+    transition: background-color .18s ease, border-color .18s ease, opacity .18s ease, transform .18s ease;
+}
+
+#confirmSubmit:disabled {
+    background: color-mix(in srgb, var(--accent) 16%, var(--surface-primary)) !important;
+    border-color: var(--border-primary) !important;
+    color: var(--text-muted) !important;
+    cursor: not-allowed;
+    opacity: 1;
+}
+
+#confirmSubmit:not(:disabled) {
+    background: var(--sicms-green-700) !important;
+    color: var(--text-on-accent) !important;
+}
+
+.review-dialog .review-dialog-header p {
+    color: var(--text-muted) !important;
+}
+
+.review-content {
+    scrollbar-color: var(--input-border) var(--surface-secondary);
+}
+
+.review-dialog #confirmSubmit:disabled {
+    background: color-mix(in srgb, var(--accent) 20%, var(--surface-primary)) !important;
+    border-color: var(--border-primary) !important;
+    color: var(--text-muted) !important;
+    cursor: not-allowed;
+    opacity: 1;
+}
+
+.review-dialog #confirmSubmit:not(:disabled) {
+    background: var(--sicms-green-700) !important;
+    border-color: var(--accent-hover) !important;
+    color: var(--text-on-accent) !important;
+}
+
+.review-dialog .review-actions #editComplaint {
+    background: var(--surface-accent) !important;
+    border-color: var(--border-primary) !important;
+    color: var(--text-primary) !important;
+}
+
+.review-dialog .review-actions #editComplaint:hover {
+    background: var(--hover-bg) !important;
+    border-color: var(--input-border) !important;
+}
+
+.review-dialog .dialog-close:hover,
+.review-dialog .dialog-close:focus-visible {
+    background: var(--surface-accent);
+    color: var(--danger);
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+.review-dialog button:focus-visible,
+.review-dialog input:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
 }
 
 @media (max-width: 1900px) {

@@ -1,5 +1,7 @@
+Options -Indexes
 RewriteEngine On
 
 # Compatibility for activation links sent before email URLs were generated
 # from the configured SICMS application root.
 RewriteRule ^web/web/(.*)$ /SICMS/web/$1 [R=302,L,NE]
+RewriteRule ^storage/ - [F,L,NC]

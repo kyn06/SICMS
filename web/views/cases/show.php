@@ -31,6 +31,7 @@ $classificationOptions = $viewData['classificationOptions'];
 $respondentAccounts = $viewData['respondentAccounts'] ?? [];
 $counterStatements = $viewData['counterStatements'] ?? [];
 $pendingApproval = $viewData['pendingApproval'] ?? null;
+$pendingApprovalForRequester = $viewData['pendingApprovalForRequester'] ?? null;
 $caseStatus = $case['status'] ?? '';
 $statusMeta = [
     'Under Investigation' => ['slug' => 'under-investigation', 'icon' => 'bi-search'],
@@ -59,6 +60,28 @@ $canManageRespondentAccounts = $isHeadViewer
     || ($viewerRoleKey === 'reformation-coordinator' && (int) ($case['assigned_reformation_coordinator_account_id'] ?? 0) === (int) ($user['account_id'] ?? 0));
 $canDecideCounterStatement = $isHeadViewer
     || ($viewerRoleKey === 'coordinator' && (int) ($case['assigned_coordinator_account_id'] ?? 0) === (int) ($user['account_id'] ?? 0));
+$hasCaseClassification = trim((string) ($case['case_classification'] ?? '')) !== ''
+    && strcasecmp(trim((string) $case['case_classification']), 'Unclassified') !== 0;
+$caseRefreshTargets = '#caseStatusBanner,#case-overview,#complaint-details,#case-actions,#case-timeline,#case-approval-slot,#case-outcome-slot,#reformation-records-slot,#respondents';
+if (!$isReformationCoordinator) {
+    $caseRefreshTargets .= ',#case-updates,#updateModalOverlay';
+}
+if ($canManageRespondentAccounts) {
+    $caseRefreshTargets .= ',#forward-respondent,#forwardModalOverlay';
+}
+$released = !empty($case['respondent_released_at']);
+$visibility = CaseRecord::respondentVisibility($complaintId);
+$visibilityLabels = [
+    'complaint_details' => 'Complaint Details (narrative)',
+    'incident' => 'Incident date, time, and location',
+    'hearings' => 'Scheduled hearings',
+    'final_information' => 'Final information (outcome / action taken / remarks)',
+];
+$linkedForwardAccounts = array_values(array_filter(
+    $respondentAccounts,
+    fn($account) => !empty($account['linked_account_id']) && ($account['account_status'] ?? '') === 'active'
+));
+$hasLinkedAccounts = !empty($linkedForwardAccounts);
 
 $controller->clearFlash();
 
@@ -72,6 +95,8 @@ $revisionFieldLabels = [
 function h($value) {
     return htmlspecialchars((string) $value);
 }
+
+$jsonEncodeFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
 
 function person_name($first, $last) {
     $name = trim(($first ?? '') . ' ' . ($last ?? ''));
@@ -322,6 +347,10 @@ function person_name($first, $last) {
         display: grid;
         grid-template-columns: 2fr 1fr;
         gap: 18px;
+    }
+
+    .case-slot {
+        display: contents;
     }
 
     .panel {
@@ -1136,26 +1165,38 @@ function person_name($first, $last) {
                     </div>
                 </div>
 
-                <?php if ($pendingApproval && $pendingApproval['status'] === 'Pending'): ?>
-                <section class="panel approval-panel" id="case-approval-panel">
-                    <div class="approval-heading">
-                        <span class="approval-heading-icon"><i class="bi bi-shield-check"></i></span>
-                        <h2>Approve This Action?</h2>
-                    </div>
-                    <p class="approval-intro">A coordinator requested <strong><?= h($pendingApproval['action_label']) ?></strong>. Review the submitted details before deciding.</p>
-                    <div class="approval-summary"><?= h(CaseApproval::description($pendingApproval)) ?></div>
-                    <form class="action-form approval-form" method="POST" action="show.php?id=<?= (int) $case['complaint_id'] ?>">
-                        <?= Security::csrfField() ?>
-                        <textarea name="review_remarks" placeholder="Optional review note"></textarea>
-                        <div class="approval-actions">
-                            <input type="hidden" name="approval_id" value="<?= (int) $pendingApproval['approval_id'] ?>">
-                            <button class="btn btn-resolve" type="submit" name="case_action" value="approval_decision" data-swal-confirm="Approve this coordinator action? It will be applied to the case now."><i class="bi bi-check-lg"></i> Approve Action</button>
-                            <button class="btn btn-reject" type="submit" name="case_action" value="approval_decision" data-approval-decision="reject"><i class="bi bi-x-lg"></i> Reject Action</button>
+                <div id="case-approval-slot">
+                    <?php if ($pendingApproval && $pendingApproval['status'] === 'Pending'): ?>
+                    <section class="panel approval-panel" id="case-approval-panel">
+                        <div class="approval-heading">
+                            <span class="approval-heading-icon"><i class="bi bi-shield-check"></i></span>
+                            <h2>Approve This Action?</h2>
                         </div>
-                        <input type="hidden" name="approval_decision" id="approvalDecision" value="approve">
-                    </form>
-                </section>
-                <?php endif; ?>
+                        <p class="approval-intro">A coordinator requested <strong><?= h($pendingApproval['action_label']) ?></strong>. Review the submitted details before deciding.</p>
+                        <div class="approval-summary"><?= h(CaseApproval::description($pendingApproval)) ?></div>
+                        <form class="action-form approval-form" method="POST" action="show.php?id=<?= (int) $case['complaint_id'] ?>" data-ajax-target="<?= h($caseRefreshTargets) ?>">
+                            <?= Security::csrfField() ?>
+                            <textarea name="review_remarks" placeholder="Optional review note"></textarea>
+                            <div class="approval-actions">
+                                <input type="hidden" name="approval_id" value="<?= (int) $pendingApproval['approval_id'] ?>">
+                                <input type="hidden" name="case_action" value="approval_decision">
+                                <button class="btn btn-resolve" type="submit" name="approval_decision" value="approve" data-swal-action="approval_decision" data-swal-confirm="Approve this coordinator action? It will be applied to the case now."><i class="bi bi-check-lg"></i> Approve Action</button>
+                                <button class="btn btn-reject" type="submit" name="approval_decision" value="reject" data-swal-action="approval_decision" data-swal-confirm="Reject this coordinator action? It will not be applied to the case."><i class="bi bi-x-lg"></i> Reject Action</button>
+                            </div>
+                        </form>
+                    </section>
+                    <?php elseif ($pendingApprovalForRequester): ?>
+                    <section class="panel approval-panel" id="case-approval-pending">
+                        <div class="approval-heading">
+                            <span class="approval-heading-icon"><i class="bi bi-hourglass-split"></i></span>
+                            <h2>Approval Pending</h2>
+                        </div>
+                        <p class="approval-intro">Your <strong><?= h($pendingApprovalForRequester['action_label']) ?></strong> request is waiting for the SDRU head's review.</p>
+                        <div class="approval-summary"><?= h(CaseApproval::description($pendingApprovalForRequester)) ?></div>
+                    </section>
+                    <?php endif; ?>
+                </div>
+
 
                 <?php if ($message): ?>
                 <div class="alert alert-success"><?= h($message) ?></div>
@@ -1516,7 +1557,7 @@ function person_name($first, $last) {
                                     <?php endif; ?>
                                     </div>
                                     <?php if ($statementStatus === 'Submitted' && !in_array($viewerRoleKey, ['sdr-staff', 'sdru-staff'], true)): ?>
-                                    <form class="action-form" method="POST" action="show.php?id=<?= (int) $case['complaint_id'] ?>"
+                                    <form class="action-form" method="POST" action="show.php?id=<?= (int) $case['complaint_id'] ?>" data-ajax-target="<?= h($caseRefreshTargets . ',#counter-statements') ?>"
                                         style="margin-top:10px">
                                         <?= Security::csrfField() ?>
                                         <input type="hidden" name="case_action" value="request_counter_revision">
@@ -1560,11 +1601,11 @@ function person_name($first, $last) {
                                             <div class="label">Next Action</div>
                                             <div class="value" style="margin:6px 0 10px">The complainant has submitted a response. You may now advance the case to the investigation stage.</div>
                                             <div class="button-row">
-                                                <form class="action-form" method="POST" action="show.php?id=<?= (int) $case['complaint_id'] ?>">
-                                                    <?= Security::csrfField() ?>
+                                    <form class="action-form" method="POST" action="show.php?id=<?= (int) $case['complaint_id'] ?>" data-ajax-target="<?= h($caseRefreshTargets . ',#counter-statements') ?>">
+                                        <?= Security::csrfField() ?>
                                                     <input type="hidden" name="case_action" value="proceed_counter_statement">
                                                     <input type="hidden" name="counter_statement_id" value="<?= (int) $statement['counter_statement_id'] ?>">
-                                                    <button class="btn btn-assign" type="submit"><i class="bi bi-search"></i> Proceed to Investigation</button>
+                                                    <button class="btn btn-assign" type="submit" data-swal-confirm="Proceed to investigation? The submitted counter-statement will be accepted and the case workflow will continue."><i class="bi bi-search"></i> Proceed to Investigation</button>
                                                 </form>
                                             </div>
                                         </div>
@@ -1579,13 +1620,13 @@ function person_name($first, $last) {
                                         <div class="label">Next Action</div>
                                         <div class="value" style="margin:6px 0 10px">What would you like to do with the Respondent&rsquo;s Counter-Statement?</div>
                                         <div class="button-row">
-                                            <form class="action-form" method="POST" action="show.php?id=<?= (int) $case['complaint_id'] ?>">
+                                            <form class="action-form" method="POST" action="show.php?id=<?= (int) $case['complaint_id'] ?>" data-ajax-target="<?= h($caseRefreshTargets . ',#counter-statements') ?>">
                                                 <?= Security::csrfField() ?>
                                                 <input type="hidden" name="case_action" value="proceed_counter_statement">
                                                 <input type="hidden" name="counter_statement_id" value="<?= (int) $statement['counter_statement_id'] ?>">
-                                                <button class="btn btn-assign" type="submit"><i class="bi bi-search"></i> Proceed to Investigation</button>
+                                                <button class="btn btn-assign" type="submit" data-swal-confirm="Proceed to investigation? The case workflow will continue using the submitted counter-statement."><i class="bi bi-search"></i> Proceed to Investigation</button>
                                             </form>
-                                            <form class="action-form" method="POST" action="show.php?id=<?= (int) $case['complaint_id'] ?>">
+                                            <form class="action-form" method="POST" action="show.php?id=<?= (int) $case['complaint_id'] ?>" data-ajax-target="<?= h($caseRefreshTargets . ',#counter-statements') ?>">
                                                 <?= Security::csrfField() ?>
                                                 <input type="hidden" name="case_action" value="forward_counter_statement">
                                                 <input type="hidden" name="counter_statement_id" value="<?= (int) $statement['counter_statement_id'] ?>">
@@ -1734,29 +1775,34 @@ function person_name($first, $last) {
 
                         <?php
                         $outcomeText = trim((string) ($case['outcome'] ?? ''));
-                        if ($outcomeText !== '' && in_array($caseStatus, ['Resolved', 'Reformation in Progress', 'Reformation Completed', 'Archived'], true)):
-                            $resolutionMeta = null;
+                        $resolutionMeta = null;
+                        if ($outcomeText !== '' && in_array($caseStatus, ['Resolved', 'Reformation in Progress', 'Reformation Completed', 'Archived'], true)) {
                             foreach ($history as $historyItem) {
                                 if (($historyItem['new_status'] ?? '') === 'Resolved') {
                                     $resolutionMeta = $historyItem;
                                     break;
                                 }
                             }
+                        }
                         ?>
-                        <section class="panel case-outcome-panel">
-                            <h2><i class="bi bi-check2-circle"></i> Outcome / Resolution</h2>
-                            <?php if ($resolutionMeta): ?>
-                                <div class="case-outcome-meta">
-                                    Resolved by
-                                    <?= h(person_name($resolutionMeta['actor_first_name'], $resolutionMeta['actor_last_name'])) ?>
-                                    &middot; <?= h(date('M d, Y h:i A', strtotime($resolutionMeta['created_at']))) ?>
-                                </div>
+                        <div class="case-slot" id="case-outcome-slot">
+                            <?php if ($outcomeText !== '' && in_array($caseStatus, ['Resolved', 'Reformation in Progress', 'Reformation Completed', 'Archived'], true)): ?>
+                            <section class="panel case-outcome-panel">
+                                <h2><i class="bi bi-check2-circle"></i> Outcome / Resolution</h2>
+                                <?php if ($resolutionMeta): ?>
+                                    <div class="case-outcome-meta">
+                                        Resolved by
+                                        <?= h(person_name($resolutionMeta['actor_first_name'], $resolutionMeta['actor_last_name'])) ?>
+                                        &middot; <?= h(date('M d, Y h:i A', strtotime($resolutionMeta['created_at']))) ?>
+                                    </div>
+                                <?php endif; ?>
+                                <div class="case-outcome-text"><?= nl2br(h($outcomeText)) ?></div>
+                            </section>
                             <?php endif; ?>
-                            <div class="case-outcome-text"><?= nl2br(h($outcomeText)) ?></div>
-                        </section>
-                        <?php endif; ?>
+                        </div>
 
-                        <?php if (!empty($reformationRecords)): ?>
+                        <div class="case-slot" id="reformation-records-slot">
+                            <?php if (!empty($reformationRecords)): ?>
                         <section class="panel">
                             <h2><i class="bi bi-journal-text"></i> Reformation Activities</h2>
                             <?php foreach ($reformationRecords as $record): ?>
@@ -1772,7 +1818,8 @@ function person_name($first, $last) {
                             </div>
                             <?php endforeach; ?>
                         </section>
-                        <?php endif; ?>
+                            <?php endif; ?>
+                        </div>
                     </div>
 
                     <aside>
@@ -1783,7 +1830,7 @@ function person_name($first, $last) {
                             <h2><i class="bi bi-arrow-repeat"></i> Reformation Panel</h2>
                             <?php if (!$canManageCase): ?>
                             <p class="muted" style="margin-bottom:10px"><i class="bi bi-lock-fill"></i> This case is
-                                not assigned to you for reformation. You can still view all case details.
+                                not assigned to you for reformation, so its details and staff actions are unavailable.
                             </p>
                             <?php else: ?>
                             <div class="case-action-group">
@@ -1799,7 +1846,7 @@ function person_name($first, $last) {
                                 <p class="muted" style="margin-bottom:0"><i class="bi bi-check2-circle" style="color:#157000"></i> Reformation completed on <?= h(date('M d, Y', strtotime($case['reformation_completed_at']))) ?>.</p>
                                 <?php else: ?>
                                 <form class="action-form" method="POST"
-                                    action="show.php?id=<?= (int) $case['complaint_id'] ?>">
+                                    action="show.php?id=<?= (int) $case['complaint_id'] ?>" data-ajax-target="<?= h($caseRefreshTargets) ?>">
                                     <?= Security::csrfField() ?>
                                     <button class="btn btn-resolve" type="submit" name="case_action" value="reformation_completed"
                                         <?= $caseStatus === 'Reformation in Progress' ? 'data-swal-confirm="Mark this case reformation as completed?"' : 'disabled title="Reformation begins once the case is in progress."' ?>><i class="bi bi-check-lg"></i> Mark Reformation Completed</button>
@@ -1829,8 +1876,7 @@ function person_name($first, $last) {
                             <h2>Case Actions</h2>
                             <?php if (!$canManageCase): ?>
                             <p class="muted" style="margin-bottom:10px"><i class="bi bi-lock-fill"></i> This case is
-                                not assigned to you. Staff actions are only available on cases assigned to you, but you
-                                can still view all case details.
+                                not assigned to you, so its details and staff actions are unavailable.
                             </p>
                             <?php else: ?>
                             <?php if ($caseLocked): ?><p class="muted" style="margin-bottom:10px"><i
@@ -1840,7 +1886,7 @@ function person_name($first, $last) {
                             <div class="case-action-group">
                                 <h3 class="case-action-label">Staff Review</h3>
                                 <form class="action-form" method="POST"
-                                    action="show.php?id=<?= (int) $case['complaint_id'] ?>">
+                                    action="show.php?id=<?= (int) $case['complaint_id'] ?>" data-ajax-target="<?= h($caseRefreshTargets) ?>">
                                     <?= Security::csrfField() ?>
                                     <textarea name="remarks" placeholder="Remarks / notes..."></textarea>
                                     <button class="btn btn-reject" type="submit" name="case_action" value="reject"
@@ -1854,7 +1900,7 @@ function person_name($first, $last) {
                             <div class="case-action-group">
                                 <h3 class="case-action-label">Case Classification</h3>
                                 <form class="action-form" method="POST"
-                                    action="show.php?id=<?= (int) $case['complaint_id'] ?>">
+                                    action="show.php?id=<?= (int) $case['complaint_id'] ?>" data-ajax-target="<?= h($caseRefreshTargets) ?>" data-ajax-reset="true">
                                     <?= Security::csrfField() ?>
                                     <select name="classification" id="caseClassification" required
                                         <?= $caseLocked ? 'disabled title="This case is closed."' : '' ?>>
@@ -1869,7 +1915,7 @@ function person_name($first, $last) {
                                         maxlength="100" hidden <?= $caseLocked ? 'disabled' : '' ?>>
                                     <button class="btn btn-assign" type="submit" name="case_action" value="classify"
                                         <?= $caseLocked ? 'disabled title="This case is closed."' : '' ?>
-                                        data-swal-confirm="Save this case classification?">Save Classification</button>
+                                        data-swal-action="classify" data-sicms-processing-label="Saving Classification...">Save Classification</button>
                                 </form>
                             </div>
 
@@ -1877,7 +1923,7 @@ function person_name($first, $last) {
                                 <h3 class="case-action-label">Case Workflow</h3>
                                 <?php if ($viewerRoleKey !== 'coordinator'): ?>
                                 <button type="button" class="btn btn-assign" id="openAssignModal"
-                                    <?= $caseLocked ? 'disabled title="This case is closed."' : '' ?>><i class="bi bi-person-plus"></i> Assign to Discipline Coordinator</button>
+                                    <?= $caseLocked ? 'disabled title="This case is closed."' : ($hasCaseClassification ? '' : 'disabled title="Classify the case before assigning a coordinator."') ?>><i class="bi bi-person-plus"></i> Assign to Discipline Coordinator</button>
                                 <?php if ($isHeadViewer): ?>
                                 <?php if (in_array($caseStatus, ['Resolved', 'Reformation in Progress', 'Reformation Completed'], true)): ?>
                                 <button type="button" class="btn btn-assign" id="openAssignReformationModal"><i class="bi bi-arrow-repeat"></i> Assign to Reformation Coordinator</button>
@@ -1893,7 +1939,7 @@ function person_name($first, $last) {
                             <div class="case-action-group">
                                 <h3 class="case-action-label">Case Outcome</h3>
                                 <form class="action-form" method="POST"
-                                    action="show.php?id=<?= (int) $case['complaint_id'] ?>">
+                                    action="show.php?id=<?= (int) $case['complaint_id'] ?>" data-ajax-target="<?= h($caseRefreshTargets) ?>">
                                     <?= Security::csrfField() ?>
                                     <div class="outcome-field">
                                         <textarea name="outcome" id="caseOutcome" placeholder="Record the final outcome/resolution of this case (required for Resolve)."></textarea>
@@ -1911,7 +1957,7 @@ function person_name($first, $last) {
                                     </div>
                                 </form>
                                 <form class="action-form" method="POST"
-                                    action="show.php?id=<?= (int) $case['complaint_id'] ?>">
+                                    action="show.php?id=<?= (int) $case['complaint_id'] ?>" data-ajax-target="<?= h($caseRefreshTargets) ?>">
                                     <?= Security::csrfField() ?>
                                     <textarea name="remarks" placeholder="Reason for escalation (required to escalate)."></textarea>
                                     <button class="btn btn-escalate" type="submit" name="case_action" value="<?= $caseStatus === 'Escalated' ? 'withdraw_escalation' : 'escalate' ?>"
@@ -1923,26 +1969,9 @@ function person_name($first, $last) {
                         <?php endif; ?>
                         <?php endif; ?>
 
-                        <?php if (!$isReformationCoordinator && $canManageRespondentAccounts): ?>
-                        <?php
-                        $released = !empty($case['respondent_released_at']);
-                        $visibility = CaseRecord::respondentVisibility($complaintId);
-                        $visibilityLabels = [
-                            'complaint_details' => 'Complaint Details (narrative)',
-                            'incident' => 'Incident date, time, and location',
-                            'hearings' => 'Scheduled hearings',
-                            'final_information' => 'Final information (outcome / action taken / remarks)',
-                        ];
-                        ?>
+                        <?php if ($canManageRespondentAccounts): ?>
                         <section class="panel" id="forward-respondent">
                             <h2><i class="bi bi-send"></i> Forward Case Information to Respondent</h2>
-                            <?php
-                            $linkedForwardAccounts = array_values(array_filter(
-                                $respondentAccounts,
-                                fn($ra) => !empty($ra['linked_account_id']) && ($ra['account_status'] ?? '') === 'active'
-                            ));
-                            $hasLinkedAccounts = !empty($linkedForwardAccounts);
-                            ?>
                             <?php if ($released): ?>
                                 <p class="muted" style="font-size:12px;margin:0 0 12px">Permitted case information was released to the respondent(s) on <?= h(date('M d, Y h:i A', strtotime($case['respondent_released_at']))) ?>. Respondents see only what is checked when forwarding; evidence, witnesses, and internal notes are never shown to them.</p>
                             <?php else: ?>
@@ -2006,12 +2035,13 @@ function person_name($first, $last) {
                 <button class="case-modal-close" type="button" data-close-modal aria-label="Close">&times;</button>
             </div>
             <form class="action-form revision-form" method="POST"
-                action="show.php?id=<?= (int) $case['complaint_id'] ?>">
+                action="show.php?id=<?= (int) $case['complaint_id'] ?>" data-ajax-target="<?= h($caseRefreshTargets) ?>" data-ajax-reset="true" data-ajax-close="#returnModalOverlay">
                 <?= Security::csrfField() ?>
                 <div class="case-modal-body">
-                    <textarea name="remarks" placeholder="Revision reason and instructions"
+                    <label class="case-modal-label" for="revisionInstructions">Revision Guide / Instructions</label>
+                    <textarea id="revisionInstructions" name="remarks" placeholder="Explain what the complainant needs to correct"
                         required></textarea>
-                    <div class="revision-fields">
+                    <div class="revision-fields" id="revisionAreas">
                         <?php foreach ($revisionFieldLabels as $field => $label): ?>
                         <label class="revision-field"><input type="checkbox" name="revision_fields[]"
                                 value="<?= h($field) ?>"> <span><?= h($label) ?></span></label>
@@ -2037,7 +2067,7 @@ function person_name($first, $last) {
                 <button class="case-modal-close" type="button" data-close-modal aria-label="Close">&times;</button>
             </div>
             <form class="action-form" method="POST"
-                action="show.php?id=<?= (int) $case['complaint_id'] ?>">
+                action="show.php?id=<?= (int) $case['complaint_id'] ?>" data-ajax-target="<?= h($caseRefreshTargets) ?>" data-ajax-reset="true" data-ajax-close="#assignModalOverlay">
                 <?= Security::csrfField() ?>
                 <div class="case-modal-body">
                     <label class="case-modal-label" for="coordinatorSelect">Discipline Coordinator</label>
@@ -2072,7 +2102,7 @@ function person_name($first, $last) {
                 </div>
                 <button class="case-modal-close" type="button" data-close-modal aria-label="Close">&times;</button>
             </div>
-            <form class="action-form" method="POST" action="show.php?id=<?= (int) $case['complaint_id'] ?>">
+            <form class="action-form" method="POST" action="show.php?id=<?= (int) $case['complaint_id'] ?>" data-ajax-target="<?= h($caseRefreshTargets) ?>" data-ajax-reset="true" data-ajax-close="#assignReformationModalOverlay">
                 <?= Security::csrfField() ?>
                 <div class="case-modal-body">
                     <label class="case-modal-label" for="reformationCoordinatorSelect">Reformation Coordinator</label>
@@ -2104,10 +2134,10 @@ function person_name($first, $last) {
                 </div>
                 <button class="case-modal-close" type="button" data-close-modal aria-label="Close">&times;</button>
             </div>
-            <form class="action-form" method="POST" action="show.php?id=<?= (int) $case['complaint_id'] ?>" enctype="multipart/form-data" data-sicms-validate>
-                <?= Security::csrfField() ?>
-                <div class="case-modal-body">
-                    <label class="case-modal-label" for="reformationActivityName">Activity Name</label>
+             <form class="action-form" method="POST" action="show.php?id=<?= (int) $case['complaint_id'] ?>" enctype="multipart/form-data" data-sicms-validate data-ajax-target="<?= h($caseRefreshTargets) ?>" data-ajax-reset="true" data-ajax-close="#reformationActivityModalOverlay">
+                 <?= Security::csrfField() ?>
+                 <div class="case-modal-body">
+                     <label class="case-modal-label" for="reformationActivityName">Activity Name</label>
                     <input id="reformationActivityName" type="text" name="activity_name" required placeholder="e.g. Counseling session, case review, follow-up" maxlength="120">
                     <label class="case-modal-label" for="progressDate">Date</label>
                     <input id="progressDate" type="date" value="<?= h(date('Y-m-d')) ?>" readonly>
@@ -2125,7 +2155,7 @@ function person_name($first, $last) {
                 </div>
                 <div class="case-modal-actions">
                     <button type="button" class="btn btn-secondary" data-close-modal>Cancel</button>
-                    <button class="btn btn-assign" type="submit" name="case_action" value="reformation_activity" data-sicms-processing-label="Submitting update...">Submit Update</button>
+                     <button class="btn btn-assign" type="submit" name="case_action" value="reformation_activity" data-direct-case-action data-swal-confirm="Add this reformation update?" data-sicms-processing-label="Saving Reformation Information..." data-sicms-processing-modal="true">Submit Update</button>
                 </div>
             </form>
         </div>
@@ -2140,17 +2170,17 @@ function person_name($first, $last) {
                 </div>
                 <button class="case-modal-close" type="button" data-close-modal aria-label="Close">&times;</button>
             </div>
-            <form class="action-form" method="POST" action="show.php?id=<?= (int) $case['complaint_id'] ?>" enctype="multipart/form-data" data-sicms-validate>
-                <?= Security::csrfField() ?>
-                <div class="case-modal-body">
-                    <label class="case-modal-label" for="reformationReportTitle">Report Title</label>
+             <form class="action-form" method="POST" action="show.php?id=<?= (int) $case['complaint_id'] ?>" enctype="multipart/form-data" data-sicms-validate data-ajax-target="<?= h($caseRefreshTargets) ?>" data-ajax-reset="true" data-ajax-close="#reformationReportModalOverlay">
+                 <?= Security::csrfField() ?>
+                 <div class="case-modal-body">
+                     <label class="case-modal-label" for="reformationReportTitle">Report Title</label>
                     <input id="reformationReportTitle" type="text" name="report_title" maxlength="120" value="Reformation Report" required>
                     <label class="case-modal-label" for="reformationReportFile">Reformation Report File</label>
                     <input id="reformationReportFile" type="file" name="reformation_report_file" accept=".pdf,.jpg,.jpeg,.png,.docx" required data-sicms-size-mb="5" data-sicms-accept-ext="pdf,jpg,jpeg,png,docx">
                 </div>
                 <div class="case-modal-actions">
                     <button type="button" class="btn btn-secondary" data-close-modal>Cancel</button>
-                    <button class="btn btn-assign" type="submit" name="case_action" value="reformation_report_upload" data-sicms-processing-label="Uploading report...">Upload Report</button>
+                     <button class="btn btn-assign" type="submit" name="case_action" value="reformation_report_upload" data-direct-case-action data-swal-confirm="Upload this reformation report?" data-sicms-processing-label="Uploading Reformation Report..." data-sicms-processing-modal="true">Upload Report</button>
                 </div>
             </form>
         </div>
@@ -2166,7 +2196,8 @@ function person_name($first, $last) {
                 <button class="case-modal-close" type="button" data-close-modal aria-label="Close">&times;</button>
             </div>
             <form class="action-form" method="POST"
-                action="show.php?id=<?= (int) $case['complaint_id'] ?>" enctype="multipart/form-data" data-sicms-validate>
+                action="show.php?id=<?= (int) $case['complaint_id'] ?>" enctype="multipart/form-data" data-sicms-validate
+                data-ajax-target="<?= h($caseRefreshTargets) ?>" data-ajax-reset="true" data-ajax-close="#updateModalOverlay">
                 <?= Security::csrfField() ?>
                 <div class="case-modal-body">
                     <label class="case-modal-label" for="caseUpdateType">Update Type</label>
@@ -2182,7 +2213,24 @@ function person_name($first, $last) {
                     <select id="respondentId" name="respondent_id">
                         <option value="">Select respondent</option>
                         <?php foreach ($respondents as $respondent): ?>
-                        <option value="<?= (int) $respondent['respondent_id'] ?>"><?= h($respondent['full_name']) ?> (<?= h($respondent['respondent_type']) ?>)</option>
+                        <option value="<?= (int) $respondent['respondent_id'] ?>" data-respondent="<?= h(json_encode([
+                            'respondent_id' => (int) $respondent['respondent_id'],
+                            'respondent_type' => (string) ($respondent['respondent_type'] ?? ''),
+                            'full_name' => (string) ($respondent['full_name'] ?? ''),
+                            'age' => (string) ($respondent['age'] ?? ''),
+                            'gender' => (string) ($respondent['gender'] ?? ''),
+                            'student_no' => (string) ($respondent['student_no'] ?? ''),
+                            'employee_no' => (string) ($respondent['employee_no'] ?? ''),
+                            'college' => (string) ($respondent['college'] ?? ''),
+                            'course_year' => (string) ($respondent['course_year'] ?? ''),
+                            'position' => (string) ($respondent['position'] ?? ''),
+                            'office_department' => (string) ($respondent['office_department'] ?? ''),
+                            'affiliation' => (string) ($respondent['affiliation'] ?? ''),
+                            'contact_info' => (string) ($respondent['contact_info'] ?? ''),
+                            'email' => (string) ($respondent['email'] ?? ''),
+                            'address' => (string) ($respondent['address'] ?? ''),
+                            'details' => (string) ($respondent['details'] ?? ''),
+                        ], $jsonEncodeFlags)) ?>"><?= h($respondent['full_name']) ?> (<?= h($respondent['respondent_type']) ?>)</option>
                         <?php endforeach; ?>
                     </select>
                     <?php endif; ?>
@@ -2202,8 +2250,9 @@ function person_name($first, $last) {
                         <div class="update-respondent-field" data-update-respondent-types="Student"><input name="respondent_course" placeholder="Course / Program"></div>
                         <div class="update-respondent-field" data-update-respondent-types="Student"><input name="respondent_section" placeholder="Section"></div>
                         <div class="student-account-results" data-update-respondent-types="Student" data-student-results></div>
-                        <div class="update-respondent-field" data-update-respondent-types="Employee"><input name="respondent_position" placeholder="Position"></div>
-                        <div class="update-respondent-field" data-update-respondent-types="Employee"><input name="respondent_department" placeholder="College / Office / Department"></div>
+                         <div class="update-respondent-field" data-update-respondent-types="Employee"><input name="respondent_employee_no" placeholder="Employee Number"></div>
+                         <div class="update-respondent-field" data-update-respondent-types="Employee"><input name="respondent_position" placeholder="Position"></div>
+                         <div class="update-respondent-field" data-update-respondent-types="Employee"><input name="respondent_department" placeholder="College / Office / Department"></div>
                         <div class="update-respondent-field" data-update-respondent-types="Other"><input name="respondent_affiliation" placeholder="Affiliation / Organization"></div>
                         <input name="respondent_contact" placeholder="Contact Number">
                         <input name="respondent_email" type="email" placeholder="Email">
@@ -2223,8 +2272,8 @@ function person_name($first, $last) {
                 </div>
                 <div class="case-modal-actions">
                     <button type="button" class="btn btn-secondary" data-close-modal>Cancel</button>
-                    <button class="btn btn-assign" type="submit" name="case_action" value="case_update" data-sicms-processing-label="Submitting update..."
-                        id="submitCaseUpdate" data-swal-confirm="Add this case update? The original complaint and the case status will remain unchanged."><i class="bi bi-plus-circle"></i> <span id="submitCaseUpdateLabel">Add Case Update</span></button>
+                    <button class="btn btn-assign" type="submit" name="case_action" value="case_update" data-direct-case-action data-swal-confirm="Add this case update?" data-sicms-processing-label="Saving Case Update..." data-sicms-processing-modal="true"
+                        id="submitCaseUpdate"><i class="bi bi-plus-circle"></i> <span id="submitCaseUpdateLabel">Add Case Update</span></button>
                 </div>
             </form>
         </div>
@@ -2240,7 +2289,7 @@ function person_name($first, $last) {
                 </div>
                 <button class="case-modal-close" type="button" data-close-modal aria-label="Close">&times;</button>
             </div>
-            <form class="action-form" method="POST" action="show.php?id=<?= (int) $case['complaint_id'] ?>">
+            <form class="action-form" method="POST" action="show.php?id=<?= (int) $case['complaint_id'] ?>" data-ajax-target="<?= h($caseRefreshTargets) ?>" data-ajax-reset="true" data-ajax-close="#forwardModalOverlay">
                 <?= Security::csrfField() ?>
                 <input type="hidden" name="case_action" value="forward_to_respondents">
                 <div class="case-modal-body">
@@ -2309,17 +2358,17 @@ function person_name($first, $last) {
             'address' => (string) ($respondent['address'] ?? ''),
             'details' => (string) ($respondent['details'] ?? ''),
         ];
-    }, $respondents))) ?>;
+    }, $respondents)), $jsonEncodeFlags) ?>;
 
     (() => {
-        const archivedUrl = <?= json_encode(app_route('archived_cases.index')) ?>;
+        const archivedUrl = <?= json_encode(app_route('archived_cases.index'), $jsonEncodeFlags) ?>;
 
-        const updateType = document.getElementById('caseUpdateType');
-        const respondentFields = document.getElementById('respondentUpdateFields');
-        const standardFields = document.getElementById('standardCaseUpdateFields');
-        const respondentId = document.getElementById('respondentId');
-        const respondentType = document.querySelector('[name="respondent_type"]');
-        const detailsField = document.getElementById('caseUpdateDetails');
+        let updateType = document.getElementById('caseUpdateType');
+        let respondentFields = document.getElementById('respondentUpdateFields');
+        let standardFields = document.getElementById('standardCaseUpdateFields');
+        let respondentId = document.getElementById('respondentId');
+        let respondentType = document.querySelector('[name="respondent_type"]');
+        let detailsField = document.getElementById('caseUpdateDetails');
         const syncRespondentTypeFields = () => {
             const selectedType = respondentType?.value || '';
             document.querySelectorAll('[data-update-respondent-types]').forEach(field => {
@@ -2344,8 +2393,10 @@ function person_name($first, $last) {
                 submitButton.dataset.swalConfirm = isRespondentUpdate
                     ? <?= json_encode(in_array($viewerRoleKey, ['head-of-sdru', 'sdru-head'], true)
                         ? 'Update this respondent\'s details? They will be applied immediately.'
-                        : 'Submit these respondent details for head approval?') ?>
-                    : 'Add this case update? The original complaint and the case status will remain unchanged.';
+                        : 'Submit these respondent details for head approval?', $jsonEncodeFlags) ?>
+                    : <?= json_encode(in_array($viewerRoleKey, ['head-of-sdru', 'sdru-head'], true)
+                        ? 'Add this case update? It will be recorded immediately.'
+                        : 'Submit this case update for head approval?', $jsonEncodeFlags) ?>;
             }
         };
         updateType?.addEventListener('change', syncUpdateFields);
@@ -2380,14 +2431,20 @@ function person_name($first, $last) {
             Object.keys(respondentFieldMap).forEach(name => setRespondentField(name, ''));
             setRespondentField('respondent_course', '');
             setRespondentField('respondent_section', '');
-            const linkedAccountField = document.querySelector('[name="respondent_linked_account_id"]');
+        let linkedAccountField = document.querySelector('[name="respondent_linked_account_id"]');
             if (linkedAccountField) linkedAccountField.value = '';
             const studentResults = document.querySelector('[data-student-results]');
             if (studentResults) studentResults.innerHTML = '';
         };
         const fillRespondentFields = () => {
             const selectedId = respondentId ? parseInt(respondentId.value, 10) : 0;
-            const data = selectedId ? caseRespondents.find(r => r.respondent_id === selectedId) : null;
+            const selectedOption = respondentId?.selectedOptions?.[0];
+            let data = selectedId ? caseRespondents.find(r => r.respondent_id === selectedId) : null;
+            if (!data && selectedOption?.dataset.respondent) {
+                try {
+                    data = JSON.parse(selectedOption.dataset.respondent);
+                } catch (error) {}
+            }
             if (!data) {
                 clearRespondentFields();
                 return;
@@ -2406,10 +2463,10 @@ function person_name($first, $last) {
         });
         fillRespondentFields();
 
-        const studentLookupUrl = <?= json_encode(app_url('web/api/student_lookup.php')) ?>;
-        const studentLookupBtn = document.querySelector('[data-find-student]');
-        const studentResultsBox = document.querySelector('[data-student-results]');
-        const studentNumberField = document.querySelector('[name="respondent_student_no"]');
+        const studentLookupUrl = <?= json_encode(app_url('web/api/student_lookup.php'), $jsonEncodeFlags) ?>;
+        let studentLookupBtn = document.querySelector('[data-find-student]');
+        let studentResultsBox = document.querySelector('[data-student-results]');
+        let studentNumberField = document.querySelector('[name="respondent_student_no"]');
         const linkedAccountField = document.querySelector('[name="respondent_linked_account_id"]');
 
         const renderStudentResults = accounts => {
@@ -2512,43 +2569,214 @@ function person_name($first, $last) {
             if (studentResultsBox) studentResultsBox.innerHTML = '';
         });
 
-        document.querySelectorAll('[data-approval-decision]').forEach(button => {
-            button.addEventListener('click', () => {
-                const field = button.form?.querySelector('[name="approval_decision"]');
-                if (field) field.value = button.dataset.approvalDecision;
+        document.getElementById('updateModalOverlay')?.setAttribute('data-case-update-bound', 'true');
+
+        const bindCaseUpdateModal = () => {
+            const modal = document.getElementById('updateModalOverlay');
+            if (!modal || modal.dataset.caseUpdateBound === 'true') return;
+            modal.dataset.caseUpdateBound = 'true';
+            updateType = document.getElementById('caseUpdateType');
+            respondentFields = document.getElementById('respondentUpdateFields');
+            standardFields = document.getElementById('standardCaseUpdateFields');
+            respondentId = document.getElementById('respondentId');
+            respondentType = modal.querySelector('[name="respondent_type"]');
+            detailsField = document.getElementById('caseUpdateDetails');
+            studentLookupBtn = modal.querySelector('[data-find-student]');
+            studentResultsBox = modal.querySelector('[data-student-results]');
+            studentNumberField = modal.querySelector('[name="respondent_student_no"]');
+            linkedAccountField = modal.querySelector('[name="respondent_linked_account_id"]');
+
+            updateType?.addEventListener('change', syncUpdateFields);
+            respondentType?.addEventListener('change', syncRespondentTypeFields);
+            respondentId?.addEventListener('change', () => {
+                if (linkedAccountField) linkedAccountField.value = '';
+                if (studentResultsBox) studentResultsBox.innerHTML = '';
+                fillRespondentFields();
             });
+            studentNumberField?.addEventListener('input', () => {
+                if (linkedAccountField) linkedAccountField.value = '';
+                if (studentResultsBox) studentResultsBox.innerHTML = '';
+            });
+            studentLookupBtn?.addEventListener('click', async () => {
+                const query = (studentNumberField?.value || '').trim();
+                if (!studentResultsBox) return;
+                studentResultsBox.innerHTML = '';
+                if (!query) {
+                    const hint = document.createElement('div');
+                    hint.className = 'find-hint';
+                    hint.textContent = 'Enter a student number to search first.';
+                    studentResultsBox.appendChild(hint);
+                    return;
+                }
+                if (linkedAccountField) linkedAccountField.value = '';
+                const hint = document.createElement('div');
+                hint.className = 'find-hint';
+                hint.textContent = 'Searching…';
+                studentResultsBox.appendChild(hint);
+                try {
+                    const response = await fetch(studentLookupUrl + '?student_number=' + encodeURIComponent(query), {
+                        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                    });
+                    const data = await response.json();
+                    if (!data.success) throw new Error(data.message || 'Search failed.');
+                    renderStudentResults(data.accounts || []);
+                } catch (error) {
+                    studentResultsBox.innerHTML = '';
+                    const failed = document.createElement('div');
+                    failed.className = 'find-hint';
+                    failed.textContent = error.message || 'Unable to search for student accounts.';
+                    studentResultsBox.appendChild(failed);
+                }
+            });
+            syncRespondentTypeFields();
+            syncUpdateFields();
+            fillRespondentFields();
+        };
+        document.addEventListener('daris:ajax-success', bindCaseUpdateModal);
+
+        document.addEventListener('click', event => {
+            const button = event.target.closest('[data-direct-case-action]');
+            if (!button) return;
+            const form = button.form;
+            const action = button.value;
+            const required = Array.from(form?.querySelectorAll('[required]') || []);
+            const missing = required.find(control => !control.checkValidity());
+            if (!missing) return;
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            let title = 'Required Information Missing';
+            let text = 'Please complete the required information before saving.';
+            if (action === 'reformation_report_upload' && missing.type === 'file') {
+                title = 'Report Required';
+                text = 'Please select a reformation report to upload.';
+            } else if (action === 'case_update') {
+                title = 'Update Required';
+                text = missing.name === 'details' ? 'Please enter the case update before saving.' : 'Please select the case update type before saving.';
+            } else if (action === 'reformation_activity') {
+                title = 'Reformation Information Required';
+                text = 'Please complete the activity, progress status, and observations before saving.';
+            }
+            window.DARISAlert?.toast('warning', title, text);
+            missing.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
+            window.setTimeout(() => missing.focus?.(), 180);
         });
 
         document.addEventListener('click', event => {
-            const button = event.target.closest('[data-swal-confirm]');
+            const button = event.target.closest('[data-swal-confirm], [data-swal-action]');
             if (!button) return;
             event.preventDefault();
-            const action = button.value;
+            const action = button.dataset.swalAction || button.form?.querySelector('[name="case_action"]')?.value || button.value || '';
+            const caseNumber = <?= json_encode((string) ($case['case_number'] ?? 'this case'), $jsonEncodeFlags) ?>;
+            const selectedCoordinator = button.form?.querySelector('select[name="coordinator_account_id"], select[name="reformation_coordinator_account_id"]')?.selectedOptions?.[0]?.textContent?.trim();
+            const actionCopy = {
+                reject: ['Reject this complaint?', 'The complaint will be rejected and the complainant will be notified.'],
+                return: ['Return complaint for revision?', 'The complainant will be notified and asked to revise the selected information.'],
+                assign: ['Assign this case' + (selectedCoordinator ? ` to ${selectedCoordinator}` : '') + '?', 'The selected discipline coordinator will become responsible for handling ' + caseNumber + '.'],
+                assign_reformation: ['Assign this Reformation Coordinator?', 'The selected coordinator will become responsible for the reformation stage of ' + caseNumber + '.'],
+                classify: ['Save this case classification?', 'The selected classification will be recorded for ' + caseNumber + '.'],
+                resolve: ['Resolve this case?', caseNumber + ' will be marked as resolved.'],
+                reopen: ['Reopen this case?', caseNumber + ' will return to Under Investigation.'],
+                archive: ['Archive this case?', caseNumber + ' will be moved to Archived Cases.'],
+                unarchive: ['Restore this case?', caseNumber + ' will return to active cases with its previous status.'],
+                escalate: ['Escalate this case?', caseNumber + ' will be marked as escalated and most case actions will be locked.'],
+                withdraw_escalation: ['Withdraw this escalation?', caseNumber + ' will return to Under Investigation.'],
+                reformation_completed: ['Complete the reformation stage?', caseNumber + ' will be marked as Reformation Completed.'],
+                forward_counter_statement: ['Forward Counter-Statement?', 'The permitted counter-statement information will be shared with the complainant.'],
+                request_counter_revision: ['Return Counter-Statement for Revision?', 'The respondent will be asked to revise the submitted counter-statement.'],
+                proceed_counter_statement: ['Proceed to Investigation?', 'The counter-statement will be accepted and the case investigation will continue.'],
+                reformation_activity: ['Add Reformation Update?', 'This update will become part of the case record.'],
+                reformation_report_upload: ['Upload Reformation Report?', 'The selected report will become part of the case record.'],
+                case_update: ['Add this Case Update?', 'The update will be added without changing the current case status.'],
+                forward_to_respondents: ['Forward Case to Respondent?', 'The selected case information will be shared with the selected respondent recipients.'],
+            };
+            const copy = actionCopy[action];
+            const topNotice = (icon, title, text, focusTarget) => {
+                const options = { toast: true, position: 'top', icon, title, text, timer: 5200, timerProgressBar: true, showConfirmButton: false, showCloseButton: true, backdrop: false };
+                (window.DARISAlert?.toast(icon, title, text) || Swal.fire(options));
+                if (focusTarget) {
+                    focusTarget.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
+                    window.setTimeout(() => focusTarget.focus?.(), 180);
+                }
+            };
+
+            if (action === 'classify') {
+                const classification = button.form?.querySelector('[name="classification"]');
+                const other = button.form?.querySelector('[name="classification_other"]');
+                if (!classification?.value) {
+                    topNotice('warning', 'Classification Required', 'Please select a classification before saving.', classification);
+                    return;
+                }
+                if (classification.value === 'Others' && !other?.value.trim()) {
+                    topNotice('warning', 'Classification Required', 'Please specify the case classification before saving.', other);
+                    return;
+                }
+                button.dataset.sicmsProcessingModal = 'true';
+            }
+
+            if (action === 'return') {
+                const selectedAreas = button.form?.querySelectorAll('[name="revision_fields[]"]:checked') || [];
+                const instructions = button.form?.querySelector('[name="remarks"]');
+                if (!selectedAreas.length) {
+                    topNotice('warning', 'Select Revision Area', 'Please select at least one part of the complaint that needs revision.', button.form?.querySelector('[name="revision_fields[]"]'));
+                    return;
+                }
+                if (!instructions?.value.trim()) {
+                    topNotice('warning', 'Revision Instructions Required', 'Please explain what the complainant needs to revise.', instructions);
+                    return;
+                }
+            }
+
+            if (action === 'assign' || action === 'assign_reformation') {
+                const coordinator = button.form?.querySelector('select[name="coordinator_account_id"], select[name="reformation_coordinator_account_id"]');
+                if (!coordinator?.value) {
+                    topNotice('warning', 'Coordinator Required', 'Please select a coordinator before assigning this case.', coordinator);
+                    return;
+                }
+            }
+            if (action === 'resolve') {
+                const outcome = button.form?.querySelector('[name="outcome"]');
+                if (!outcome?.value.trim()) {
+                    topNotice('warning', 'Case Outcome Required', 'Please record the case outcome before marking the case as resolved.', outcome);
+                    return;
+                }
+            }
+            if (action === 'forward_to_respondents') {
+                const recipients = button.form?.querySelectorAll('[name="respondent_ids[]"]:checked') || [];
+                const extraEmail = button.form?.querySelector('[name="respondent_extra_email"]');
+                if (!recipients.length && !extraEmail?.value.trim()) {
+                    topNotice('warning', 'Respondent Required', 'Please select a linked respondent or provide a respondent email before forwarding the case.', extraEmail);
+                    return;
+                }
+            }
+            const firstMissingRequired = Array.from(button.form?.querySelectorAll('[required]') || [])
+                .find(control => !control.checkValidity());
+            if (firstMissingRequired) {
+                const label = button.form?.querySelector(`label[for="${firstMissingRequired.id}"]`)?.textContent?.replace('*', '').trim();
+                topNotice('warning', 'Required Information Missing', `Please complete ${label || 'the required information'} before continuing.`, firstMissingRequired);
+                return;
+            }
             let config = {
                 icon: 'question',
-                title: button.dataset.swalConfirm,
+                title: copy?.[0] || button.dataset.confirmTitle || 'Confirm this action?',
+                text: copy?.[1] || button.dataset.swalConfirm,
                 showCancelButton: true,
-                confirmButtonText: 'Yes, continue',
+                confirmButtonText: button.dataset.confirmButton || 'Continue',
                 cancelButtonText: 'Cancel',
-                reverseButtons: true
+                reverseButtons: true,
+                allowOutsideClick: false
             };
 
             if (action === 'reject') {
                 const remarksField = button.form?.querySelector('[name="remarks"]');
                 const remarks = (remarksField?.value || '').trim();
                 if (!remarks) {
-                    Swal.fire({
-                        icon: 'warning',
-                        title: 'Rejection note required',
-                        text: 'Please enter a note in the Remarks field explaining why this complaint is being rejected.',
-                        confirmButtonText: 'Okay',
-                        confirmButtonColor: '#c0392b'
-                    });
-                    remarksField?.focus();
+                    topNotice('warning', 'Reason Required', 'Please provide a reason for rejecting this complaint.', remarksField);
                     return;
                 }
+                config.title = 'Reject Complaint?';
+                config.text = 'Are you sure you want to reject this complaint? The complainant will receive the reason you provided.';
                 config.icon = 'warning';
-                config.confirmButtonText = 'Yes, reject';
+                config.confirmButtonText = 'Yes, Reject Complaint';
                 config.confirmButtonColor = '#c0392b';
             } else if (action === 'archive') {
                 config.icon = 'warning';
@@ -2563,7 +2791,9 @@ function person_name($first, $last) {
                 config.confirmButtonText = 'Yes, unresolve';
             } else if (action === 'return') {
                 config.icon = 'warning';
-                config.confirmButtonText = 'Yes, return';
+                config.title = 'Return Complaint for Revision?';
+                config.text = 'Are you sure you want to return this complaint to the complainant for revision? The revision instructions will be included.';
+                config.confirmButtonText = 'Yes, Return for Revision';
                 config.confirmButtonColor = '#b8860b';
             } else if (action === 'assign') {
                 config.confirmButtonText = 'Yes, assign';
@@ -2576,14 +2806,7 @@ function person_name($first, $last) {
                 const escalateRemarksField = button.form?.querySelector('[name="remarks"]');
                 const escalateRemarks = (escalateRemarksField?.value || '').trim();
                 if (!escalateRemarks) {
-                    Swal.fire({
-                        icon: 'warning',
-                        title: 'Escalation reason required',
-                        text: 'Please enter the reason for escalation before marking this case as escalated.',
-                        confirmButtonText: 'Okay',
-                        confirmButtonColor: '#c2410c'
-                    });
-                    escalateRemarksField?.focus();
+                    topNotice('warning', 'Escalation Reason Required', 'Please provide the reason for escalating this case.', escalateRemarksField);
                     return;
                 }
                 config.icon = 'warning';
@@ -2594,10 +2817,15 @@ function person_name($first, $last) {
                 config.confirmButtonText = 'Yes, withdraw';
             }
 
-            Swal.fire(config).then(result => {
+            (window.DARISAlert?.fire(config) || Swal.fire(config)).then(result => {
                 if (!result.isConfirmed) return;
 
                 if (action === 'archive') {
+                    const originalButtonHtml = button.innerHTML;
+                    button.disabled = true;
+                    button.setAttribute('aria-busy', 'true');
+                    button.innerHTML = '<span class="sicms-processing-spinner" aria-hidden="true"></span> Archiving case...';
+                    window.DARISAlert?.processing('Archiving Case...');
                     const fd = new FormData(button.form);
                     if (button.name) fd.set(button.name, button.value);
                     fetch(button.form.action, {
@@ -2606,148 +2834,247 @@ function person_name($first, $last) {
                         body: fd,
                         credentials: 'same-origin'
                     })
-                        .then(resp => resp.json())
-                        .then(data => {
-                            if (data && data.success) {
-                                Swal.fire({
-                                    icon: 'success',
-                                    title: 'Case archived',
-                                    text: 'This case has been moved to Archived Cases.',
-                                    showCancelButton: true,
-                                    confirmButtonText: 'Open Archived Cases',
-                                    cancelButtonText: 'Close',
-                                    confirmButtonColor: '#1a9d00',
-                                    reverseButtons: true
-                                }).then(next => {
-                                    if (next.isConfirmed) {
-                                        window.location.href = archivedUrl;
-                                    } else {
-                                        window.location.reload();
-                                    }
-                                });
-                            } else {
-                                const msg = (data && data.errors) ? data.errors.join(' ') : 'Please try again.';
-                                Swal.fire({ icon: 'error', title: 'Unable to archive case', text: msg }).then(() => window.location.reload());
+                        .then(async response => {
+                            const contentType = response.headers.get('content-type') || '';
+                            if (contentType.includes('application/json')) {
+                                const data = await response.json();
+                                if (data && data.success) {
+                                    window.DARISAlert?.closeProcessing?.();
+                                    window.DARISAlert?.toast('success', 'Case Archived', `Case ${data.case_number || caseNumber} has been archived successfully.`);
+                                    window.setTimeout(() => { window.location.href = archivedUrl; }, 1300);
+                                    return;
+                                }
+                                const errors = Array.isArray(data?.errors) ? data.errors.join(' ') : (data?.message || 'Please try again.');
+                                throw new Error(errors);
                             }
+
+                            if (!response.ok) throw new Error('The case action could not be completed.');
+                            const html = await response.text();
+                            const parsed = new DOMParser().parseFromString(html, 'text/html');
+                            const flash = parsed.querySelector('.alert-success, .alert-error, .alert-danger');
+                            if (flash?.matches('.alert-error, .alert-danger')) {
+                                throw new Error(flash.textContent.trim() || 'The case action could not be completed.');
+                            }
+                            if (flash) {
+                                window.location.reload();
+                                return;
+                            }
+                            throw new Error('The case action returned an unexpected response.');
                         })
-                        .catch(() => Swal.fire({ icon: 'error', title: 'Unable to archive case', text: 'Please try again.' }).then(() => window.location.reload()));
+                        .catch(error => {
+                            window.DARISAlert?.closeProcessing?.();
+                            window.DARISAlert?.toast('error', 'Unable to Archive Case', error.message || 'The case was not archived. Please try again.', { timer: 7000 });
+                            button.disabled = false;
+                            button.removeAttribute('aria-busy');
+                            button.innerHTML = originalButtonHtml;
+                        });
                 } else {
+                    const processingLabels = {
+                        approval_decision: 'Processing approval...',
+                        reject: 'Rejecting complaint...', return: 'Returning complaint...', assign: 'Assigning coordinator...',
+                        assign_reformation: 'Assigning coordinator...', classify: 'Saving classification...', resolve: 'Resolving case...',
+                        reopen: 'Reopening case...', archive: 'Archiving case...', unarchive: 'Restoring case...',
+                        escalate: 'Escalating case...', withdraw_escalation: 'Withdrawing escalation...',
+                        reformation_completed: 'Completing reformation...', forward_counter_statement: 'Forwarding statement...',
+                        request_counter_revision: 'Returning statement...', proceed_counter_statement: 'Starting Investigation...',
+                        reformation_activity: 'Saving reformation update...', reformation_report_upload: 'Uploading report...',
+                        case_update: 'Saving case update...', forward_to_respondents: 'Forwarding case...'
+                    };
+                    if (!button.dataset.sicmsProcessingLabel) button.dataset.sicmsProcessingLabel = processingLabels[action] || 'Processing...';
+                    button.dataset.sicmsProcessingModal = 'true';
                     button.form.requestSubmit(button);
                 }
             });
         });
 
-        const bindModal = (openSelector, overlayId) => {
-            const openBtn = document.getElementById(openSelector);
-            const overlay = document.getElementById(overlayId);
-            if (!openBtn || !overlay) return;
-            const setOpen = open => overlay.classList.toggle('open', open);
-            openBtn.addEventListener('click', () => setOpen(true));
-            overlay.querySelectorAll('[data-close-modal]').forEach(btn => btn.addEventListener('click', () => setOpen(false)));
-            overlay.addEventListener('mousedown', e => { if (e.target === overlay) setOpen(false); });
-            document.addEventListener('keydown', e => { if (e.key === 'Escape') setOpen(false); });
+        document.addEventListener('keydown', event => {
+            if (event.key !== 'Enter' || event.defaultPrevented) return;
+            const control = event.target;
+            if (control instanceof HTMLTextAreaElement) return;
+            const form = control instanceof HTMLFormElement ? control : control.closest('form');
+            const submitter = control.closest('button[type="submit"], input[type="submit"]')
+                || form?.querySelector('button[type="submit"][data-swal-confirm], input[type="submit"][data-swal-confirm]');
+            if (!submitter?.dataset.swalConfirm) return;
+            event.preventDefault();
+            submitter.click();
+        });
+
+        const modalOverlays = {
+            openReturnModal: 'returnModalOverlay',
+            openAssignModal: 'assignModalOverlay',
+            openAssignReformationModal: 'assignReformationModalOverlay',
+            openReformationActivityModal: 'reformationActivityModalOverlay',
+            openReformationReportModal: 'reformationReportModalOverlay',
+            openUpdateModal: 'updateModalOverlay',
+            openForwardModal: 'forwardModalOverlay',
         };
 
-        bindModal('openReturnModal', 'returnModalOverlay');
-        bindModal('openAssignModal', 'assignModalOverlay');
-        bindModal('openAssignReformationModal', 'assignReformationModalOverlay');
-        bindModal('openReformationActivityModal', 'reformationActivityModalOverlay');
-        bindModal('openReformationReportModal', 'reformationReportModalOverlay');
-        bindModal('openUpdateModal', 'updateModalOverlay');
-        bindModal('openForwardModal', 'forwardModalOverlay');
+        const setModalOpen = (overlayId, open) => {
+            const overlay = document.getElementById(overlayId);
+            if (!overlay) return;
+            overlay.classList.toggle('open', open);
+            overlay.hidden = !open;
+        };
 
-        const caseClassification = document.getElementById('caseClassification');
-        const caseClassificationOther = document.getElementById('caseClassificationOther');
-        if (caseClassification && caseClassificationOther) {
-            const syncClassification = () => {
-                const isOthers = caseClassification.value === 'Others';
-                caseClassificationOther.hidden = !isOthers;
-                caseClassificationOther.disabled = caseClassification.disabled || !isOthers;
-                caseClassificationOther.required = isOthers && !caseClassification.disabled;
-            };
-            caseClassification.addEventListener('change', syncClassification);
-            syncClassification();
-        }
+        document.addEventListener('click', event => {
+            const opener = event.target.closest('[id]');
+            if (!opener || !modalOverlays[opener.id] || opener.disabled) return;
+            setModalOpen(modalOverlays[opener.id], true);
+        });
+
+        document.addEventListener('click', event => {
+            const closer = event.target.closest('[data-close-modal]');
+            if (!closer) return;
+            const overlay = closer.closest('.case-modal-overlay');
+            if (overlay) setModalOpen(overlay.id, false);
+        });
+
+        document.addEventListener('mousedown', event => {
+            const overlay = event.target.closest('.case-modal-overlay');
+            if (overlay && event.target === overlay) setModalOpen(overlay.id, false);
+        });
+
+        document.addEventListener('keydown', event => {
+            if (event.key !== 'Escape') return;
+            document.querySelectorAll('.case-modal-overlay.open').forEach(overlay => setModalOpen(overlay.id, false));
+        });
+
+        <?php if ($message): ?>
+        window.addEventListener('load', () => {
+            const message = <?= json_encode((string) $message, $jsonEncodeFlags) ?>;
+            const messageKey = message.toLowerCase();
+            const title = messageKey.includes('classification') ? 'Classification Saved'
+                : messageKey.includes('rejected') ? 'Complaint Rejected'
+                : messageKey.includes('revision') ? 'Returned for Revision'
+                : messageKey.includes('assigned') ? 'Coordinator Assigned'
+                : messageKey.includes('forward') ? 'Case Information Forwarded'
+                : messageKey.includes('resolved') ? 'Case Resolved'
+                : messageKey.includes('reopened') ? 'Case Reopened'
+                : messageKey.includes('archiv') ? 'Case Record Updated'
+                : messageKey.includes('report') ? 'Report Saved'
+                : 'Case Updated';
+            const detail = messageKey.includes('classification')
+                ? <?= json_encode('Classification has been set to “' . (string) ($case['case_classification'] ?? '') . '”.', $jsonEncodeFlags) ?>
+                : messageKey.includes('rejected') ? 'The complaint has been rejected successfully.'
+                : messageKey.includes('revision') ? 'The complaint has been returned with the revision instructions.'
+                : message;
+            (window.DARISAlert?.toast('success', title, detail) || Swal.fire({ toast: true, position: 'top', icon: 'success', title, text: detail, timer: 4800, showConfirmButton: false, showCloseButton: true, backdrop: false }));
+        }, { once: true });
+        <?php elseif (!empty($errors)): ?>
+        window.addEventListener('load', () => {
+            const text = <?= json_encode(implode(' ', array_map('strval', $errors)), $jsonEncodeFlags) ?>;
+            (window.DARISAlert?.toast('error', 'Unable to Update Case', text, { timer: 7000 }) || Swal.fire({ toast: true, position: 'top', icon: 'error', title: 'Unable to Update Case', text, timer: 7000, showConfirmButton: false, showCloseButton: true, backdrop: false }));
+        }, { once: true });
+        <?php endif; ?>
+
+        const syncClassification = () => {
+            const caseClassification = document.getElementById('caseClassification');
+            const caseClassificationOther = document.getElementById('caseClassificationOther');
+            if (!caseClassification || !caseClassificationOther) return;
+            const isOthers = caseClassification.value === 'Others';
+            caseClassificationOther.hidden = !isOthers;
+            caseClassificationOther.disabled = caseClassification.disabled || !isOthers;
+            caseClassificationOther.required = isOthers && !caseClassification.disabled;
+        };
+
+        document.addEventListener('change', event => {
+            if (event.target.id === 'caseClassification') syncClassification();
+        });
+        document.addEventListener('daris:ajax-success', syncClassification);
+        syncClassification();
     })();
 
-    const statusBanner = document.getElementById('caseStatusBanner');
+    const statusSlugs = {
+        'Under Investigation': 'under-investigation',
+        'Returned for Revision': 'returned',
+        'Rejected': 'rejected',
+        'Rejected Complaint': 'rejected',
+        'Resolved': 'resolved',
+        'Reformation in Progress': 'reformation-in-progress',
+        'Reformation Completed': 'reformation-completed',
+        'Escalated': 'escalated',
+        'Archived': 'archived'
+    };
+    const statusIcons = {
+        'Under Investigation': 'bi-search',
+        'Returned for Revision': 'bi-arrow-return-left',
+        'Rejected': 'bi-x-circle',
+        'Rejected Complaint': 'bi-x-circle',
+        'Resolved': 'bi-check2-circle',
+        'Reformation in Progress': 'bi-arrow-repeat',
+        'Reformation Completed': 'bi-patch-check',
+        'Escalated': 'bi-arrow-up-circle',
+        'Archived': 'bi-archive'
+    };
+    let statusPollTimer = null;
 
-    if (statusBanner) {
-        const statusCaseId = statusBanner.dataset.caseId;
-        const statusEndpoint = statusBanner.dataset.statusEndpoint + '?id=' + statusCaseId;
-        const statusPill = document.getElementById('caseStatusPill');
-        const statusUpdated = document.getElementById('caseStatusUpdated');
-        const statusSlugs = {
-            'Under Investigation': 'under-investigation',
-            'Returned for Revision': 'returned',
-            'Rejected': 'rejected',
-            'Resolved': 'resolved',
-            'Escalated': 'escalated',
-            'Archived': 'archived'
-        };
-        const statusIcons = {
-            'Under Investigation': 'bi-search',
-            'Returned for Revision': 'bi-arrow-return-left',
-            'Rejected': 'bi-x-circle',
-            'Resolved': 'bi-check2-circle',
-            'Escalated': 'bi-arrow-up-circle',
-            'Archived': 'bi-archive'
-        };
-        let lastStatus = document.getElementById('caseStatusPill').textContent.trim();
+    const formatDbTime = raw => {
+        const match = String(raw || '').match(/^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})$/);
+        if (!match) return '';
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const year = match[1];
+        const month = months[Number(match[2]) - 1];
+        const day = Number(match[3]);
+        let hour = Number(match[4]);
+        const minute = match[5];
+        const suffix = hour >= 12 ? 'PM' : 'AM';
+        hour = hour % 12 || 12;
+        return month + ' ' + String(day).padStart(2, '0') + ', ' + year + ' ' + String(hour).padStart(2, '0') + ':' + minute + ' ' + suffix;
+    };
 
-        const formatDbTime = raw => {
-            const match = String(raw || '').match(/^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})$/);
-            if (!match) return '';
-            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-            const year = match[1];
-            const month = months[Number(match[2]) - 1];
-            const day = Number(match[3]);
-            let hour = Number(match[4]);
-            const minute = match[5];
-            const suffix = hour >= 12 ? 'PM' : 'AM';
-            hour = hour % 12 || 12;
-            return month + ' ' + String(day).padStart(2, '0') + ', ' + year + ' ' + String(hour).padStart(2, '0') + ':' + minute + ' ' + suffix;
-        };
+    const getStatusNodes = () => ({
+        banner: document.getElementById('caseStatusBanner'),
+        pill: document.getElementById('caseStatusPill'),
+        updated: document.getElementById('caseStatusUpdated')
+    });
 
-        const applyStatus = newStatus => {
-            const slug = statusSlugs[newStatus] || 'under-investigation';
-            statusPill.textContent = newStatus;
-            statusBanner.dataset.status = slug;
-            const icon = statusBanner.querySelector('.status-banner-badge i');
-            if (icon && statusIcons[newStatus]) {
-                icon.className = 'bi ' + statusIcons[newStatus];
+    const applyStatus = (newStatus, updatedAt) => {
+        const nodes = getStatusNodes();
+        if (!nodes.banner || !nodes.pill) return;
+        const slug = statusSlugs[newStatus] || 'under-investigation';
+        nodes.pill.textContent = newStatus;
+        nodes.banner.dataset.status = slug;
+        const icon = nodes.banner.querySelector('.status-banner-badge i');
+        if (icon && statusIcons[newStatus]) icon.className = 'bi ' + statusIcons[newStatus];
+        if (updatedAt && nodes.updated) {
+            const formatted = formatDbTime(updatedAt);
+            if (formatted) nodes.updated.textContent = 'Updated ' + formatted;
+        }
+    };
+
+    const pollStatus = async () => {
+        const nodes = getStatusNodes();
+        if (!nodes.banner || !nodes.pill) return;
+        const endpoint = nodes.banner.dataset.statusEndpoint;
+        const caseId = nodes.banner.dataset.caseId;
+        if (!endpoint || !caseId) return;
+        try {
+            const response = await fetch(endpoint + '?id=' + encodeURIComponent(caseId), { credentials: 'same-origin' });
+            if (!response.ok) return;
+            const data = await response.json();
+            if (!data.success) return;
+
+            const newStatus = String(data.status || '').trim();
+            if (newStatus && newStatus !== nodes.pill.textContent.trim()) {
+                applyStatus(newStatus, data.updated_at);
+                nodes.banner.classList.remove('flash');
+                void nodes.banner.offsetWidth;
+                nodes.banner.classList.add('flash');
+            } else if (newStatus) {
+                applyStatus(newStatus, data.updated_at);
             }
-        };
+        } catch (error) {}
+    };
 
-        const pollStatus = async () => {
-            try {
-                const response = await fetch(statusEndpoint, { credentials: 'same-origin' });
-                if (!response.ok) return;
-                const data = await response.json();
-                if (!data.success) return;
+    const initializeStatusPolling = () => {
+        if (statusPollTimer) window.clearInterval(statusPollTimer);
+        const nodes = getStatusNodes();
+        if (!nodes.banner || !nodes.pill) return;
+        statusPollTimer = window.setInterval(pollStatus, 5000);
+    };
 
-                const newStatus = String(data.status || '').trim();
-                if (newStatus && newStatus !== lastStatus) {
-                    lastStatus = newStatus;
-                    applyStatus(newStatus);
-                    statusBanner.classList.remove('flash');
-                    void statusBanner.offsetWidth;
-                    statusBanner.classList.add('flash');
-                }
-
-                if (data.updated_at) {
-                    const formatted = formatDbTime(data.updated_at);
-                    if (formatted) {
-                        statusUpdated.textContent = 'Updated ' + formatted;
-                    }
-                }
-            } catch (error) {
-                // Ignore transient polling failures; retry on the next tick.
-            }
-        };
-
-        setInterval(pollStatus, 5000);
-    }
+    document.addEventListener('daris:ajax-success', initializeStatusPolling);
+    initializeStatusPolling();
     </script>
 </body>
 

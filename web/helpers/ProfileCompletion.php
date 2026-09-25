@@ -1,5 +1,8 @@
 <?php
 
+require_once __DIR__ . '/Colleges.php';
+require_once __DIR__ . '/Courses.php';
+
 class ProfileCompletion {
     public static function isStudentAccount(array $user) {
         return self::roleKey($user) === 'student';
@@ -31,6 +34,20 @@ class ProfileCompletion {
             if (trim((string) ($user[$field] ?? '')) === '') {
                 $missing[] = $label;
             }
+        }
+
+        $college = trim((string) ($user['college'] ?? ''));
+        $course = trim((string) ($user['course'] ?? ''));
+        $section = trim((string) ($user['section'] ?? ''));
+
+        if ($college !== '' && !Colleges::contains($college) && !in_array('College', $missing, true)) {
+            $missing[] = 'College';
+        }
+        if ($course !== '' && !Courses::belongsToCollege($course, $college) && !in_array('Course', $missing, true)) {
+            $missing[] = 'Course';
+        }
+        if ($section !== '' && !Courses::isValidSection($section) && !in_array('Section', $missing, true)) {
+            $missing[] = 'Section';
         }
 
         if ((string) ($user['auth_provider'] ?? '') === 'google' && empty($user['password_hash'])) {

@@ -12,6 +12,9 @@
     --sicms-muted: #5f6f5c;
     --sicms-danger: #b42318;
     --sicms-warning: #9a6700;
+    --green-900: var(--sicms-green-900);
+    --green-700: var(--sicms-green-700);
+    --green-600: var(--sicms-green-600);
     --bg-page: var(--sicms-page);
     --bg-sidebar: linear-gradient(180deg, #0b2f16 0%, #123c1b 58%, #0a2712 100%);
     --surface-primary: var(--sicms-surface);
@@ -29,6 +32,7 @@
     --text-primary: var(--sicms-text);
     --text-secondary: var(--sicms-green-900);
     --text-muted: var(--sicms-muted);
+    --text-on-accent: #ffffff;
     --accent: var(--sicms-green-600);
     --accent-hover: #188d15;
     --success: #1b8d2d;
@@ -463,6 +467,96 @@ tbody tr:hover {
     margin-right: 4px;
     vertical-align: -.08em;
     width: .85em;
+}
+
+/* Shared DARIS SweetAlert2 presentation. Kept here so every role and module uses
+   the same spacing, typography, controls, and theme treatment. */
+.swal2-popup.dar-is-swal {
+    background: var(--surface-primary, #fff);
+    border: 1px solid var(--border-primary, #dce5da);
+    border-radius: 16px;
+    color: var(--text-primary, #17211a);
+    font-family: inherit;
+    padding: 1.65rem;
+}
+
+.dar-is-swal-title { color: inherit; font-size: 1.35rem; line-height: 1.3; padding-top: .25rem; }
+.dar-is-swal-copy { color: var(--text-secondary, #566158); font-size: .95rem; line-height: 1.55; }
+.dar-is-swal-actions { gap: .7rem; margin-top: 1.35rem; }
+.dar-is-swal-button {
+    border: 1px solid transparent;
+    border-radius: 9px;
+    cursor: pointer;
+    font: inherit;
+    font-size: .9rem;
+    font-weight: 700;
+    min-height: 42px;
+    padding: .65rem 1.05rem;
+}
+.dar-is-swal-confirm { background: var(--primary, #1a8c2b); color: #fff; }
+.dar-is-swal-cancel { background: var(--surface-secondary, #f3f6f3); border-color: var(--border-primary, #dce5da); color: var(--text-primary, #253128); }
+.dar-is-swal-danger { background: #b42318; color: #fff; }
+.dar-is-swal-validation { border-radius: 8px; font-size: .88rem; }
+.dar-is-swal .swal2-loader { border-color: #1a8c2b transparent #1a8c2b transparent; }
+
+html[data-theme="dark"] .swal2-popup.dar-is-swal {
+    background: #18231d !important;
+    border-color: #31463a !important;
+    color: #f2f7f3 !important;
+}
+html[data-theme="dark"] .dar-is-swal-copy { color: #b8c7bc !important; }
+html[data-theme="dark"] .dar-is-swal-cancel { background: #1f382d !important; border-color: #3b5848 !important; color: #f2f7f3 !important; }
+html[data-theme="dark"] .dar-is-swal-validation { background: #3b1f1d !important; color: #ffd7d2 !important; }
+
+.swal2-popup.dar-is-toast {
+    background: var(--surface-primary, #fff);
+    border: 1px solid var(--border-primary, #dce5da);
+    border-radius: 11px;
+    box-shadow: 0 12px 32px rgba(20, 42, 27, .16);
+    color: var(--text-primary, #17211a);
+    font-family: inherit;
+    max-width: min(430px, calc(100vw - 28px));
+    padding: .8rem 1rem;
+}
+.dar-is-toast-title { color: inherit; font-size: .96rem; font-weight: 750; line-height: 1.3; margin: 0; }
+.dar-is-toast-copy { color: var(--text-secondary, #566158); font-size: .84rem; line-height: 1.4; margin: .2rem 0 0; }
+.dar-is-toast-progress { background: rgba(26, 140, 43, .35); }
+html[data-theme="dark"] .swal2-popup.dar-is-toast { background: #18231d !important; border-color: #31463a !important; color: #f2f7f3 !important; }
+html[data-theme="dark"] .dar-is-toast-copy { color: #b8c7bc !important; }
+html[data-theme="dark"] .dar-is-toast-progress { background: rgba(63, 207, 89, .5) !important; }
+html[data-theme="dark"] .swal2-popup .swal2-close {
+    color: #b8c7bc !important;
+}
+html[data-theme="dark"] .swal2-popup .swal2-close:hover {
+    color: #fff !important;
+}
+html[data-theme="dark"] .swal2-popup .swal2-timer-progress-bar {
+    background: rgba(63, 207, 89, .5) !important;
+}
+html[data-theme="dark"] .swal2-popup .swal2-loader {
+    border-color: #3fcf59 transparent #3fcf59 transparent !important;
+}
+
+/* SweetAlert cards float over the existing page without dimming or replacing it. */
+.swal2-container,
+html[data-theme="dark"] body .swal2-container {
+    background: transparent !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    pointer-events: none !important;
+}
+
+.swal2-container .swal2-popup {
+    max-height: calc(100vh - 32px);
+    max-width: min(520px, calc(100vw - 28px));
+    overflow-y: auto;
+    pointer-events: auto !important;
+}
+
+/* Timed/countdown notifications sit just below the system's top chrome. */
+.swal2-container.swal2-top {
+    align-items: flex-start !important;
+    padding-top: clamp(64px, 9vh, 92px) !important;
 }
 
 @keyframes sicms-processing-spin {

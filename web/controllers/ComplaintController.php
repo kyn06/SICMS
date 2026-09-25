@@ -8,6 +8,7 @@ require_once __DIR__ . '/../models/Message.php';
 require_once __DIR__ . '/../models/Notification.php';
 require_once __DIR__ . '/../models/AuditLog.php';
 require_once __DIR__ . '/../models/CounterStatement.php';
+require_once __DIR__ . '/../models/ComplaintDraft.php';
 require_once __DIR__ . '/../helpers/Security.php';
 require_once __DIR__ . '/../helpers/Colleges.php';
 require_once __DIR__ . '/../helpers/Courses.php';
@@ -37,9 +38,19 @@ class ComplaintController {
     }
 
     public function handleCreateRequest() {
+        if (empty($_SESSION['complaint_submission_token'])) {
+            $_SESSION['complaint_submission_token'] = bin2hex(random_bytes(24));
+        }
+        $submissionToken = (string) $_SESSION['complaint_submission_token'];
         $errors = $_SESSION['complaint_errors'] ?? [];
         $old = $_SESSION['complaint_old'] ?? [];
         $success = $_SESSION['complaint_success'] ?? null;
+
+        $draft = ComplaintDraft::forAccount((int) $this->user['account_id']);
+        $restoringDraft = $draft && ($_GET['draft'] ?? '') === 'continue';
+        if ($restoringDraft && empty($old)) {
+            $old = $draft['payload'];
+        }
 
         unset($_SESSION['complaint_errors'], $_SESSION['complaint_old'], $_SESSION['complaint_success']);
 
@@ -57,6 +68,9 @@ class ComplaintController {
             'fieldErrors' => $fieldErrors,
             'old' => $old,
             'success' => $success,
+            'submissionToken' => $submissionToken,
+            'complaintDraft' => $draft,
+            'restoringDraft' => $restoringDraft,
         ];
     }
 
@@ -255,6 +269,7 @@ class ComplaintController {
         Notification::setConnection($this->db);
         AuditLog::setConnection($this->db);
         CounterStatement::setConnection($this->db);
+        ComplaintDraft::setConnection($this->db);
 
         $this->user = User::findByEmail($_SESSION['email']);
 
@@ -291,6 +306,20 @@ class ComplaintController {
     }
 
     private function store() {
+        $submissionToken = (string) ($_POST['submission_token'] ?? '');
+        $sessionToken = (string) ($_SESSION['complaint_submission_token'] ?? '');
+        $processedTokens = (array) ($_SESSION['processed_complaint_tokens'] ?? []);
+        if ($submissionToken === '' || !hash_equals($sessionToken, $submissionToken)) {
+            $_SESSION['complaint_errors'] = ['This complaint form is outdated. Please review it and submit again.'];
+            header('Location: create.php');
+            exit;
+        }
+        if (isset($processedTokens[$submissionToken])) {
+            $_SESSION['complaint_success'] = $processedTokens[$submissionToken];
+            header('Location: create.php');
+            exit;
+        }
+
         $validation = $this->validate($_POST, $_FILES);
         $errors = $validation['errors'];
         $fieldErrors = $validation['fields'];
@@ -330,7 +359,7 @@ class ComplaintController {
                 'complainant_email' => $isStudentComplainant ? trim($this->user['email']) : trim($_POST['complainant_email'] ?? ''),
                 'complainant_contact' => trim($_POST['complainant_contact']),
                 'complainant_college' => $isStudentComplainant ? trim($_POST['complainant_college'] ?? '') : '',
-                'complainant_course' => $isStudentComplainant ? trim($_POST['complainant_course'] ?? '') : '',
+                'complainant_course' => $isStudentComplainant ? Courses::canonical($_POST['complainant_course'] ?? '') : '',
                 'complainant_year_level' => $isStudentComplainant ? Courses::yearLevel(trim($_POST['complainant_section'] ?? '')) : '',
                 'complainant_section' => $isStudentComplainant ? trim($_POST['complainant_section'] ?? '') : '',
                 'complainant_course_year' => $isStudentComplainant ? trim($_POST['complainant_course_year'] ?? '') : '',
@@ -350,6 +379,12 @@ class ComplaintController {
                 $this->normalizeWitnesses($_POST),
                 $savedFiles
             );
+
+            $_SESSION['complaint_success'] = 'Complaint submitted successfully. Case Number: ' . $createdComplaint['case_number'];
+            $_SESSION['processed_complaint_tokens'][$submissionToken] = $_SESSION['complaint_success'];
+            $_SESSION['processed_complaint_tokens'] = array_slice($_SESSION['processed_complaint_tokens'], -5, null, true);
+            ComplaintDraft::deleteForAccount((int) $this->user['account_id']);
+            unset($_SESSION['complaint_submission_token']);
 
             Notification::createForUser(
                 (int) $this->user['account_id'],
@@ -372,7 +407,6 @@ class ComplaintController {
                 'Submitted complaint ' . $createdComplaint['case_number'] . '.'
             );
 
-            $_SESSION['complaint_success'] = 'Complaint submitted successfully. Case Number: ' . $createdComplaint['case_number'];
             header('Location: create.php');
             exit;
         } catch (Throwable $exception) {
@@ -386,7 +420,6 @@ class ComplaintController {
             error_log('[SICMS Complaint Submission] ' . get_class($exception) . ': ' . $exception->getMessage());
             $_SESSION['complaint_errors'] = [
                 'Unable to submit complaint. Please try again.',
-                'System detail: ' . $exception->getMessage(),
             ];
             $_SESSION['complaint_old'] = $_POST;
             header('Location: create.php');
@@ -437,7 +470,9 @@ class ComplaintController {
             }
             $validSections = array_merge(...array_values(Courses::sections()));
             if (!Colleges::contains($post['complainant_college'] ?? '')) $field('complainant_college', 'Please select a valid college.');
-            if (!in_array($post['complainant_course'] ?? '', Courses::all(), true)) $field('complainant_course', 'Please select a valid course.');
+            if (!Courses::belongsToCollege($post['complainant_course'] ?? '', $post['complainant_college'] ?? '')) {
+                $field('complainant_course', 'Please select a course offered by the selected college.');
+            }
             if (!in_array($post['complainant_section'] ?? '', $validSections, true)) $field('complainant_section', 'Please select a valid section.');
         } elseif ($complainantType === 'Employee') {
             foreach (['complainant_employee_no' => 'Employee number', 'complainant_department' => 'College, office, or department', 'complainant_position' => 'Position'] as $fieldName => $label) {
@@ -624,8 +659,9 @@ class ComplaintController {
             $type = trim($post['respondent_type'][$index] ?? '');
             if (!in_array($type, $validTypes, true)) $type = 'Student';
 
-            $course = trim($post['respondent_course'][$index] ?? '');
-            $section = trim($post['respondent_section'][$index] ?? '');
+            $isStudent = $type === 'Student';
+            $course = $isStudent ? trim($post['respondent_course'][$index] ?? '') : '';
+            $section = $isStudent ? trim($post['respondent_section'][$index] ?? '') : '';
             $courseYear = Courses::combine($course, $section);
             if ($courseYear === '' && ($course !== '' || $section !== '')) {
                 $courseYear = trim($course . ' | ' . $section, ' |');
@@ -636,9 +672,9 @@ class ComplaintController {
                 'full_name' => $name,
                 'gender' => $this->normalizedGender($post['respondent_gender'][$index] ?? ''),
                 'age' => $this->personAge($post['respondent_age'][$index] ?? ''),
-                'student_no' => trim($post['respondent_student_no'][$index] ?? ''),
+                'student_no' => $isStudent ? trim($post['respondent_student_no'][$index] ?? '') : '',
                 'employee_no' => trim($post['respondent_employee_no'][$index] ?? ''),
-                'college' => trim($post['respondent_college'][$index] ?? ''),
+                'college' => $isStudent ? trim($post['respondent_college'][$index] ?? '') : '',
                 'office_department' => trim($post['respondent_department'][$index] ?? ''),
                 'course_year' => $courseYear,
                 'position' => trim($post['respondent_position'][$index] ?? ''),
@@ -718,6 +754,19 @@ class ComplaintController {
     private function validatePerson(array $post, $prefix, $index, $label) {
         $errors = [];
 
+        $typeField = $prefix === 'witness' ? 'witness_type' : 'respondent_type';
+        $type = trim((string) ($post[$typeField][$index] ?? ''));
+        if (in_array($prefix, ['respondent', 'witness'], true) && $type === 'Student') {
+            $college = trim((string) ($post[$prefix . '_college'][$index] ?? ''));
+            $course = trim((string) ($post[$prefix . '_course'][$index] ?? ''));
+            if ($college !== '' && !Colleges::contains($college)) {
+                $errors[] = 'Please select a valid college for each ' . $label . '.';
+            }
+            if ($course !== '' && !Courses::belongsToCollege($course, $college)) {
+                $errors[] = 'Please select a course offered by the selected college for each ' . $label . '.';
+            }
+        }
+
         $gender = trim((string) ($post[$prefix . '_gender'][$index] ?? ''));
         if ($gender !== '' && !in_array($gender, ['Male', 'Female'], true)) {
             $errors[] = 'Please select a valid gender for each ' . $label . '.';
@@ -768,8 +817,9 @@ class ComplaintController {
             $type = trim($post['witness_type'][$index] ?? '');
             if (!in_array($type, $validTypes, true)) $type = 'Student';
 
-            $course = trim($post['witness_course'][$index] ?? '');
-            $section = trim($post['witness_section'][$index] ?? '');
+            $isStudent = $type === 'Student';
+            $course = $isStudent ? trim($post['witness_course'][$index] ?? '') : '';
+            $section = $isStudent ? trim($post['witness_section'][$index] ?? '') : '';
             $courseYear = Courses::combine($course, $section);
             if ($courseYear === '' && ($course !== '' || $section !== '')) {
                 $courseYear = trim($course . ' | ' . $section, ' |');
@@ -780,13 +830,13 @@ class ComplaintController {
                 'full_name' => $name,
                 'gender' => $this->normalizedGender($post['witness_gender'][$index] ?? ''),
                 'age' => $this->personAge($post['witness_age'][$index] ?? ''),
-                'student_no' => trim($post['witness_student_no'][$index] ?? ''),
+                'student_no' => $isStudent ? trim($post['witness_student_no'][$index] ?? '') : '',
                 'contact_info' => trim($post['witness_contact'][$index] ?? ''),
                 'email' => trim($post['witness_email'][$index] ?? ''),
                 'address' => trim($post['witness_address'][$index] ?? ''),
                 'statement' => trim($post['witness_statement'][$index] ?? ''),
                 'employee_no' => trim($post['witness_employee_no'][$index] ?? ''),
-                'college' => trim($post['witness_college'][$index] ?? ''),
+                'college' => $isStudent ? trim($post['witness_college'][$index] ?? '') : '',
                 'office_department' => trim($post['witness_department'][$index] ?? ''),
                 'position' => trim($post['witness_position'][$index] ?? ''),
                 'affiliation' => trim($post['witness_affiliation'][$index] ?? ''),

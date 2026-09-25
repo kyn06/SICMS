@@ -22,6 +22,7 @@ class CaseController {
     private $db;
     private $user;
     private $staffRoles = ['admin', 'sdr staff', 'sdr-staff', 'sdru-staff', 'coordinator', 'reformation-coordinator', 'head-of-sdru', 'sdru-head', 'head of sdru'];
+    private $activeApprovalId = 0;
     private $revisionFields = ['complaint_details', 'incident_date', 'incident_time', 'incident_location', 'respondents', 'witnesses', 'evidence'];
     private $classifications = [
         'Cyberbullying',
@@ -158,11 +159,15 @@ class CaseController {
     }
 
     public function archivedIndex() {
-        return [
+        $viewData = [
             'user' => $this->user,
             'cases' => CaseRecord::listArchivedCases($this->archivedFilters($_GET)),
             'filters' => $this->archivedFilters($_GET),
+            'message' => $_SESSION['case_message'] ?? null,
+            'errors' => $_SESSION['case_errors'] ?? [],
         ];
+        $this->clearFlash();
+        return $viewData;
     }
 
     public function archivedSearch() {
@@ -246,6 +251,9 @@ class CaseController {
             'pendingApproval' => in_array($this->roleKey(), ['head-of-sdru', 'sdru-head'], true)
                 ? CaseApproval::findForCase((int) ($_GET['approval_id'] ?? 0), $complaintId)
                 : null,
+            'pendingApprovalForRequester' => in_array($this->roleKey(), ['coordinator', 'reformation-coordinator'], true)
+                ? CaseApproval::findPendingForRequester($complaintId, (int) $this->user['account_id'])
+                : null,
         ];
     }
 
@@ -254,8 +262,226 @@ class CaseController {
         return array_values(array_unique(array_merge($this->classifications, $existing)));
     }
 
+    private function classificationValidationError() {
+        $selected = trim((string) ($_POST['classification'] ?? ''));
+        $classification = $selected;
+        if ($selected === 'Others') $classification = trim((string) ($_POST['classification_other'] ?? ''));
+        if ($classification === '') return 'Please select or specify a case classification.';
+        if ($selected !== 'Others' && !in_array($selected, $this->classificationOptions(), true)) return 'Please select a valid case classification.';
+        if (strlen($classification) > 100) return 'The case classification is too long (maximum 100 characters).';
+        return null;
+    }
+
+    private function approvalRequestValidationError($action, array $case, $complaintId) {
+        $status = $case['status'] ?? '';
+        $remarks = trim((string) ($_POST['remarks'] ?? ''));
+
+        if ($action === 'reject' && $remarks === '') {
+            return 'Please provide a rejection note explaining why the complaint is being rejected.';
+        }
+        if ($action === 'return') {
+            $revisionFields = array_values(array_intersect($this->revisionFields, (array) ($_POST['revision_fields'] ?? [])));
+            if ($remarks === '' || empty($revisionFields)) {
+                return 'Revision remarks and at least one field to revise are required.';
+            }
+        }
+        if ($action === 'classify') {
+            return $this->classificationValidationError();
+        }
+        if ($action === 'assign') {
+            $classification = trim((string) ($case['case_classification'] ?? ''));
+            if ($classification === '' || strcasecmp($classification, 'Unclassified') === 0) {
+                return 'Classify the case before assigning a discipline coordinator.';
+            }
+        }
+        if ($action === 'resolve') {
+            if ($status !== 'Under Investigation') {
+                return 'Only cases under investigation can be marked as resolved.';
+            }
+            if (trim((string) ($_POST['outcome'] ?? '')) === '') {
+                return 'Please provide the outcome/resolution before marking the case as resolved.';
+            }
+        }
+        if ($action === 'escalate') {
+            if ($status !== 'Under Investigation') {
+                return 'Only cases under investigation can be marked as escalated.';
+            }
+            if ($remarks === '') {
+                return 'Please provide the reason for escalation before marking the case as escalated.';
+            }
+        }
+        if ($action === 'withdraw_escalation' && $status !== 'Escalated') {
+            return 'Only escalated cases can have their escalation withdrawn.';
+        }
+        if ($action === 'archive' && !in_array($status, ['Resolved', 'Reformation in Progress', 'Reformation Completed', 'Escalated'], true)) {
+            return 'Only resolved or escalated cases can be archived.';
+        }
+        if ($action === 'unarchive' && $status !== 'Archived') {
+            return 'Only archived cases can be returned to active cases.';
+        }
+        if ($action === 'reopen' && !in_array($status, ['Resolved', 'Reformation in Progress', 'Reformation Completed'], true)) {
+            return 'Only resolved cases can be opened again.';
+        }
+        if ($action === 'case_update') {
+            $updateType = trim((string) ($_POST['update_type'] ?? ''));
+            if (!in_array($updateType, array_keys(CaseUpdate::updateTypes()), true)) {
+                return 'Please select a valid update type.';
+            }
+            if ($updateType !== 'additional_details' && trim((string) ($_POST['details'] ?? '')) === '') {
+                return 'Please provide the details of this case update.';
+            }
+            if ($updateType === 'additional_details') {
+                $respondents = CaseRecord::getRespondents($complaintId);
+                $respondentId = (int) ($_POST['respondent_id'] ?? 0);
+                if ($respondentId <= 0 && !empty($_POST['respondent_name'])) {
+                    $matchingRespondents = array_values(array_filter(
+                        $respondents,
+                        fn($respondent) => strcasecmp(trim((string) $respondent['full_name']), trim((string) $_POST['respondent_name'])) === 0
+                    ));
+                    if (count($matchingRespondents) === 1) {
+                        $respondentId = (int) $matchingRespondents[0]['respondent_id'];
+                    }
+                }
+                if ($respondentId <= 0 && count($respondents) === 1) {
+                    $respondentId = (int) $respondents[0]['respondent_id'];
+                }
+                $existing = null;
+                foreach ($respondents as $respondent) {
+                    if ((int) $respondent['respondent_id'] === $respondentId) {
+                        $existing = $respondent;
+                        break;
+                    }
+                }
+                if (empty($respondents)
+                    && (trim((string) ($_POST['respondent_type'] ?? '')) === '' || trim((string) ($_POST['respondent_name'] ?? '')) === '')
+                ) {
+                    return 'Respondent type and full name are required to add the first respondent.';
+                }
+                if (!empty($respondents) && !$existing) {
+                    return 'Please select a valid respondent.';
+                }
+                $fieldMap = [
+                    'respondent_type' => 'respondent_type', 'respondent_name' => 'full_name',
+                    'respondent_gender' => 'gender', 'respondent_age' => 'age',
+                    'respondent_student_no' => 'student_no', 'respondent_employee_no' => 'employee_no',
+                    'respondent_college' => 'college', 'respondent_department' => 'office_department',
+                    'respondent_course_year' => 'course_year', 'respondent_position' => 'position',
+                    'respondent_affiliation' => 'affiliation', 'respondent_contact' => 'contact_info',
+                    'respondent_email' => 'email', 'respondent_address' => 'address',
+                    'respondent_details' => 'details',
+                ];
+                $course = trim((string) ($_POST['respondent_course'] ?? ''));
+                $section = trim((string) ($_POST['respondent_section'] ?? ''));
+                $hasChanges = !$existing;
+                if ($existing) {
+                    foreach ($fieldMap as $input => $column) {
+                        $value = trim((string) ($_POST[$input] ?? ''));
+                        if ($value !== '' && (string) ($existing[$column] ?? '') !== $value) {
+                            $hasChanges = true;
+                            break;
+                        }
+                    }
+                    if (!$hasChanges && ($course !== '' || $section !== '')) {
+                        $courseYear = trim($course . ' | ' . $section, ' |');
+                        $hasChanges = (string) ($existing['course_year'] ?? '') !== $courseYear;
+                    }
+                }
+                if (!$hasChanges) {
+                    return 'Please provide at least one new respondent detail.';
+                }
+            }
+        }
+        if ($action === 'reformation_activity') {
+            if (trim((string) ($_POST['activity_name'] ?? '')) === '') {
+                return 'Please provide the reformation activity name.';
+            }
+            if (!in_array(trim((string) ($_POST['progress_status'] ?? '')), ['Pending', 'Ongoing', 'Completed'], true)) {
+                return 'Please select a valid progress status.';
+            }
+            if ($remarks === '') {
+                return 'Please provide the progress notes.';
+            }
+        }
+        if ($action === 'reformation_completed') {
+            if ($status !== 'Reformation in Progress') {
+                return 'Reformation can only be completed once the case is in progress.';
+            }
+            if (empty(ReformationReport::forCase($complaintId))) {
+                return 'A reformation report must be uploaded before the case can be marked as completed.';
+            }
+            if (empty(ReformationRecord::forCase($complaintId))) {
+                return 'At least one reformation activity must be recorded before completion.';
+            }
+        }
+
+        return null;
+    }
+
+    private function approvalExecutionAccessError(array $approval, array $case, $action) {
+        $requesterId = (int) ($approval['requested_by_account_id'] ?? 0);
+        $requester = $requesterId > 0 ? User::findRow($requesterId) : null;
+        if (!$requester || ($requester['status'] ?? '') !== 'active') {
+            return 'The coordinator who requested this action is no longer active.';
+        }
+
+        $isReformationAction = in_array($action, ['reformation_activity', 'reformation_completed'], true);
+        $expectedRole = $isReformationAction ? 'reformation-coordinator' : 'coordinator';
+        if (Security::normalizeRole($requester['role'] ?? '') !== $expectedRole) {
+            return 'The requesting account no longer has the required coordinator role.';
+        }
+
+        $assignmentField = $isReformationAction
+            ? 'assigned_reformation_coordinator_account_id'
+            : 'assigned_coordinator_account_id';
+        if ((int) ($case[$assignmentField] ?? 0) !== $requesterId) {
+            return 'This case is no longer assigned to the coordinator who requested the action.';
+        }
+
+        return null;
+    }
+
+    private function stageApprovalFiles($action) {
+        $fileFields = [
+            'case_update' => ['attachments'],
+            'reformation_activity' => ['progress_attachments'],
+        ];
+        if (!isset($fileFields[$action])) return [];
+
+        $stagedFiles = [];
+        try {
+            foreach ($fileFields[$action] as $field) {
+                $uploads = $_FILES[$field] ?? [];
+                $errors = FileUploadService::validateFiles($uploads);
+                if (!empty($errors)) throw new Exception(implode(' ', $errors));
+                $savedFiles = FileUploadService::saveToEvidence($uploads);
+                if (!empty($savedFiles)) $stagedFiles[$field] = $savedFiles;
+            }
+            return $stagedFiles;
+        } catch (Throwable $exception) {
+            FileUploadService::removeSavedFiles($stagedFiles);
+            throw $exception;
+        }
+    }
+
+    private function approvalFilesFromPayload(array $payload) {
+        if (empty($payload['_approval_files']) || !is_array($payload['_approval_files'])) return [];
+        $files = [];
+        foreach ($payload['_approval_files'] as $field => $entries) {
+            $files[$field] = FileUploadService::validateStoredFiles((array) $entries);
+        }
+        return $files;
+    }
+
     public function clearFlash() {
         unset($_SESSION['case_message'], $_SESSION['case_errors']);
+    }
+
+    private function caseRedirect($complaintId) {
+        $redirect = 'show.php?id=' . (int) $complaintId;
+        if ($this->activeApprovalId > 0) {
+            $redirect .= '&approval_id=' . (int) $this->activeApprovalId;
+        }
+        return $redirect;
     }
 
     private function authenticateStaff() {
@@ -290,9 +516,12 @@ class CaseController {
     private function handleAction($complaintId) {
         $action = $_POST['case_action'] ?? '';
         $remarks = trim($_POST['remarks'] ?? '');
+        $reviewRemarks = trim($_POST['review_remarks'] ?? '');
         $actorAccountId = (int) $this->user['account_id'];
         $approvalExecution = false;
+        $approvalFiles = [];
         $approvalId = (int) ($_POST['approval_id'] ?? 0);
+        $this->activeApprovalId = $action === 'approval_decision' ? $approvalId : 0;
 
         try {
             if ($action === 'approval_decision') {
@@ -300,13 +529,22 @@ class CaseController {
                 if (!in_array($this->roleKey(), $headRoles, true)) {
                     throw new Exception('Only the SDRU head can review case approvals.');
                 }
+                if (!CaseApproval::lockForReview($approvalId)) {
+                    throw new Exception('This approval request is currently being reviewed. Please try again.');
+                }
                 $approval = CaseApproval::findForCase($approvalId, $complaintId);
                 $decision = $_POST['approval_decision'] ?? '';
                 if (!$approval || $approval['status'] !== 'Pending' || !in_array($decision, ['approve', 'reject'], true)) {
                     throw new Exception('This approval request is no longer available.');
                 }
                 if ($decision === 'reject') {
-                    CaseApproval::decide($approvalId, $actorAccountId, 'Rejected', trim($_POST['review_remarks'] ?? ''));
+                    if (!CaseApproval::decide($approvalId, $actorAccountId, 'Rejected', $reviewRemarks)) {
+                        throw new Exception('This approval request was already reviewed.');
+                    }
+                    $rejectedPayload = json_decode($approval['payload'], true);
+                    if (is_array($rejectedPayload) && !empty($rejectedPayload['_approval_files'])) {
+                        FileUploadService::removeSavedFiles((array) $rejectedPayload['_approval_files']);
+                    }
                     Notification::createForUser(
                         (int) $approval['requested_by_account_id'],
                         'case_action_rejected',
@@ -315,7 +553,7 @@ class CaseController {
                         'web/views/cases/show.php?id=' . $complaintId
                     );
                     $_SESSION['case_message'] = 'Approval request rejected. No case action was executed.';
-                    header('Location: show.php?id=' . $complaintId);
+                    header('Location: ' . $this->caseRedirect($complaintId));
                     exit;
                 }
                 $payload = json_decode($approval['payload'], true);
@@ -323,11 +561,13 @@ class CaseController {
                 if (str_starts_with($approval['action_type'], 'hearing_')) {
                     $hearingId = (int) ($payload['hearing_id'] ?? 0);
                     if ($approval['action_type'] === 'hearing_schedule') {
+                        $timestamp = strtotime(trim((string) ($payload['hearing_datetime'] ?? '')));
+                        if ($timestamp === false) throw new Exception('The approved hearing date is invalid.');
                         $now = date('Y-m-d H:i:s');
-                        Hearing::schedule([
+                        $scheduled = Hearing::schedule([
                             'complaint_id' => $complaintId,
                             'scheduled_by_account_id' => (int) $approval['requested_by_account_id'],
-                            'hearing_datetime' => date('Y-m-d H:i:s', strtotime($payload['hearing_datetime'] ?? '')),
+                            'hearing_datetime' => date('Y-m-d H:i:s', $timestamp),
                             'venue' => trim($payload['venue'] ?? ''),
                             'google_meet_link' => trim($payload['google_meet_link'] ?? ''),
                             'remarks' => trim($payload['remarks'] ?? ''),
@@ -335,32 +575,59 @@ class CaseController {
                             'created_at' => $now,
                             'updated_at' => $now,
                         ]);
+                        if (!$scheduled) throw new Exception('The approved hearing could not be scheduled.');
                     } elseif ($approval['action_type'] === 'hearing_update') {
-                        Hearing::updateHearing($hearingId, [
-                            'hearing_datetime' => date('Y-m-d H:i:s', strtotime($payload['hearing_datetime'] ?? '')),
+                        $hearing = $hearingId > 0 ? Hearing::findHearing($hearingId) : null;
+                        $timestamp = strtotime(trim((string) ($payload['hearing_datetime'] ?? '')));
+                        if (!$hearing || (int) $hearing['complaint_id'] !== (int) $complaintId) {
+                            throw new Exception('The hearing action is no longer valid for this case.');
+                        }
+                        if ($timestamp === false) throw new Exception('The approved hearing date is invalid.');
+                        $updated = Hearing::updateHearing($hearingId, [
+                            'hearing_datetime' => date('Y-m-d H:i:s', $timestamp),
                             'venue' => trim($payload['venue'] ?? ''),
                             'google_meet_link' => trim($payload['google_meet_link'] ?? ''),
                             'remarks' => trim($payload['remarks'] ?? ''),
                             'updated_at' => date('Y-m-d H:i:s'),
                         ]);
+                        if (!$updated) throw new Exception('The approved hearing could not be updated.');
+                    } elseif ($approval['action_type'] === 'hearing_cancel') {
+                        $hearing = $hearingId > 0 ? Hearing::findHearing($hearingId) : null;
+                        if (!$hearing || (int) $hearing['complaint_id'] !== (int) $complaintId) {
+                            throw new Exception('The hearing action is no longer valid for this case.');
+                        }
+                        if (!Hearing::updateStatus($hearingId, ($payload['hearing_action'] ?? '') === 'cancel' ? 'Cancelled' : 'Completed')) {
+                            throw new Exception('The approved hearing status could not be saved.');
+                        }
                     } else {
-                        Hearing::updateStatus($hearingId, ($payload['hearing_action'] ?? '') === 'cancel' ? 'Cancelled' : 'Completed');
+                        throw new Exception('The approved hearing action is invalid.');
                     }
-                    CaseApproval::decide($approvalId, $actorAccountId, 'Approved', null);
-                    Notification::createForUser(
-                        (int) $approval['requested_by_account_id'],
-                        'case_action_approved',
-                        'Case Action Approved',
-                        'Your requested action "' . $approval['action_label'] . '" for case ' . $approval['case_number'] . ' was approved and executed.',
-                        'web/views/cases/show.php?id=' . $complaintId
-                    );
-                    AuditLog::record($this->user, 'Case Activity Approval', 'Approved and executed ' . $approval['action_label'] . ' for ' . ($approval['case_number'] ?? ('case #' . $complaintId)) . '.');
+                    try {
+                        Notification::createForUser(
+                            (int) $approval['requested_by_account_id'],
+                            'case_action_approved',
+                            'Case Action Approved',
+                            'Your requested action "' . $approval['action_label'] . '" for case ' . $approval['case_number'] . ' was approved and executed.',
+                            'web/views/cases/show.php?id=' . $complaintId
+                        );
+                        AuditLog::record($this->user, 'Case Activity Approval', 'Approved and executed ' . $approval['action_label'] . ' for ' . ($approval['case_number'] ?? ('case #' . $complaintId)) . '.');
+                    } catch (Throwable $notificationException) {
+                        error_log('SICMS approval notification failed for approval #' . $approvalId . ': ' . $notificationException->getMessage());
+                    }
+                    if (!CaseApproval::decide($approvalId, $actorAccountId, 'Approved', $reviewRemarks)) {
+                        throw new Exception('This approval request was already reviewed.');
+                    }
                     $_SESSION['case_message'] = 'Approved hearing action executed successfully.';
-                    header('Location: show.php?id=' . $complaintId);
+                    header('Location: ' . $this->caseRedirect($complaintId));
                     exit;
                 }
-                if (empty($payload['case_action'])) throw new Exception('Approval request payload is invalid.');
-                $_POST = array_merge($_POST, $payload, ['approval_execution' => '1']);
+                if (empty($payload['case_action']) || !hash_equals((string) $approval['action_type'], (string) $payload['case_action'])) {
+                    throw new Exception('Approval request action is invalid.');
+                }
+                $approvalFiles = $this->approvalFilesFromPayload($payload);
+                unset($payload['_approval_files'], $payload['approval_execution'], $payload['review_remarks']);
+                $_POST = array_merge($_POST, $payload);
+                unset($_POST['_approval_files'], $_POST['approval_execution']);
                 $action = $payload['case_action'];
                 $approvalExecution = true;
                 $remarks = trim($_POST['remarks'] ?? '');
@@ -370,16 +637,28 @@ class CaseController {
             $caseStatus = $case['status'] ?? '';
             $isClosed = in_array($caseStatus, ['Resolved', 'Reformation in Progress', 'Reformation Completed', 'Escalated', 'Archived'], true);
 
+            if ($approvalExecution) {
+                $approvalAccessError = $this->approvalExecutionAccessError($approval, $case, $action);
+                if ($approvalAccessError !== null) {
+                    $_SESSION['case_errors'] = [$approvalAccessError];
+                    header('Location: ' . $this->caseRedirect($complaintId));
+                    exit;
+                }
+            }
+            $caseActorAccountId = $approvalExecution
+                ? (int) ($approval['requested_by_account_id'] ?? $actorAccountId)
+                : $actorAccountId;
+
             if (in_array($this->roleKey(), ['sdr-staff', 'sdru-staff'], true)) {
                 $_SESSION['case_errors'] = ['Your role allows viewing cases only. Case actions are reserved for managerial staff.'];
-                header('Location: show.php?id=' . $complaintId);
+                header('Location: ' . $this->caseRedirect($complaintId));
                 exit;
             }
 
             if ($this->roleKey() === 'coordinator'
                 && (int) ($case['assigned_coordinator_account_id'] ?? 0) !== (int) $this->user['account_id']) {
                 $_SESSION['case_errors'] = ['You can only manage cases assigned to you.'];
-                header('Location: show.php?id=' . $complaintId);
+                header('Location: ' . $this->caseRedirect($complaintId));
                 exit;
             }
 
@@ -390,8 +669,72 @@ class CaseController {
                 && !in_array($this->roleKey(), $respondentManagerRoles, true)
             ) {
                 $_SESSION['case_errors'] = ['Only the assigned coordinator, assigned reformation coordinator, or SDRU head can manage respondents or forward case information to them.'];
-                header('Location: show.php?id=' . $complaintId);
+                header('Location: ' . $this->caseRedirect($complaintId));
                 exit;
+            }
+
+            $reformationActions = ['reformation_activity', 'reformation_report_upload', 'reformation_completed'];
+            if ($this->roleKey() === 'coordinator'
+                && (in_array($action, $reformationActions, true) || in_array($action, ['assign', 'assign_reformation'], true))
+            ) {
+                $_SESSION['case_errors'] = ['Discipline coordinators cannot assign coordinators or manage the reformation process.'];
+                header('Location: ' . $this->caseRedirect($complaintId));
+                exit;
+            }
+
+            if ($this->roleKey() === 'reformation-coordinator') {
+                if (!in_array($action, $reformationActions, true)) {
+                    $_SESSION['case_errors'] = ['Reformation coordinators can only manage the reformation process for their assigned cases.'];
+                    header('Location: ' . $this->caseRedirect($complaintId));
+                    exit;
+                }
+
+                if ((int) ($case['assigned_reformation_coordinator_account_id'] ?? 0) !== (int) $this->user['account_id']) {
+                    $_SESSION['case_errors'] = ['You can only manage cases assigned to you for reformation.'];
+                    header('Location: ' . $this->caseRedirect($complaintId));
+                    exit;
+                }
+            }
+
+            if (in_array($action, ['reject', 'return', 'assign', 'classify', 'escalate'], true) && $isClosed) {
+                $_SESSION['case_errors'] = ['This case is already closed and can no longer be modified.'];
+                header('Location: ' . $this->caseRedirect($complaintId));
+                exit;
+            }
+
+            if ($action === 'case_update' && in_array($caseStatus, ['Escalated', 'Archived'], true)) {
+                $_SESSION['case_errors'] = ['This case is ' . strtolower($caseStatus) . ' and can no longer be updated.'];
+                header('Location: ' . $this->caseRedirect($complaintId));
+                exit;
+            }
+
+            if ($action === 'reformation_activity' && !in_array($caseStatus, ['Resolved', 'Reformation in Progress'], true)) {
+                $_SESSION['case_errors'] = ['Reformation progress can only be added while the case is resolved or in progress.'];
+                header('Location: ' . $this->caseRedirect($complaintId));
+                exit;
+            }
+            if ($action === 'reformation_report_upload' && !in_array($caseStatus, ['Resolved', 'Reformation in Progress'], true)) {
+                $_SESSION['case_errors'] = ['A reformation report can only be uploaded while the case is resolved or in progress.'];
+                header('Location: ' . $this->caseRedirect($complaintId));
+                exit;
+            }
+
+            if ($action === 'classify') {
+                $classificationError = $this->classificationValidationError();
+                if ($classificationError !== null) {
+                    $_SESSION['case_errors'] = [$classificationError];
+                    header('Location: ' . $this->caseRedirect($complaintId));
+                    exit;
+                }
+            }
+
+            if ($action === 'assign') {
+                $currentClassification = trim((string) ($case['case_classification'] ?? ''));
+                if ($currentClassification === '' || strcasecmp($currentClassification, 'Unclassified') === 0) {
+                    $_SESSION['case_errors'] = ['Classify the case before assigning a discipline coordinator.'];
+                    header('Location: ' . $this->caseRedirect($complaintId));
+                    exit;
+                }
             }
 
             $coordinatorRoles = ['coordinator', 'reformation-coordinator'];
@@ -400,12 +743,40 @@ class CaseController {
                 && in_array($action, $approvalActions, true)
                 && !$approvalExecution
             ) {
+                $approvalValidationError = $this->approvalRequestValidationError($action, $case, $complaintId);
+                if ($approvalValidationError !== null) {
+                    $_SESSION['case_errors'] = [$approvalValidationError];
+                    header('Location: ' . $this->caseRedirect($complaintId));
+                    exit;
+                }
+                $pendingApproval = CaseApproval::findPendingForCaseAction($complaintId, $actorAccountId, $action);
+                if ($pendingApproval) {
+                    $_SESSION['case_message'] = 'This action is already waiting for head approval.';
+                    header('Location: ' . $this->caseRedirect($complaintId));
+                    exit;
+                }
+
                 $payload = $_POST;
-                unset($payload['csrf_token'], $payload['approval_id'], $payload['approval_execution']);
+                unset($payload['csrf_token'], $payload['approval_id'], $payload['approval_execution'], $payload['_approval_files']);
+                try {
+                    $stagedFiles = $this->stageApprovalFiles($action);
+                } catch (Throwable $exception) {
+                    $_SESSION['case_errors'] = [$exception->getMessage()];
+                    header('Location: ' . $this->caseRedirect($complaintId));
+                    exit;
+                }
+                $payload['_approval_files'] = $stagedFiles;
                 $approvalLabel = $action === 'case_update' && ($payload['update_type'] ?? '') === 'additional_details'
                     ? 'Update Respondent Details'
                     : ucwords(str_replace('_', ' ', $action));
-                $approval = CaseApproval::createForCase($complaintId, $actorAccountId, $action, $approvalLabel, $payload);
+                try {
+                    $approval = CaseApproval::createForCase($complaintId, $actorAccountId, $action, $approvalLabel, $payload);
+                } catch (Throwable $exception) {
+                    FileUploadService::removeSavedFiles($stagedFiles);
+                    $_SESSION['case_errors'] = [$exception->getMessage()];
+                    header('Location: ' . $this->caseRedirect($complaintId));
+                    exit;
+                }
                 Notification::createForHeads(
                     'case_action_approval_needed',
                     'Case Action Approval Needed',
@@ -413,28 +784,7 @@ class CaseController {
                     'web/views/cases/show.php?id=' . $complaintId . '&approval_id=' . (int) ($approval['approval_id'] ?? 0)
                 );
                 $_SESSION['case_message'] = 'Action submitted for head approval. The case was not changed.';
-                header('Location: show.php?id=' . $complaintId);
-                exit;
-            }
-
-            if ($this->roleKey() === 'reformation-coordinator') {
-                $reformationActions = ['reformation_activity', 'reformation_report_upload', 'reformation_completed'];
-                if (!in_array($action, $reformationActions, true)) {
-                    $_SESSION['case_errors'] = ['Reformation coordinators can only manage the reformation process for their assigned cases.'];
-                    header('Location: show.php?id=' . $complaintId);
-                    exit;
-                }
-
-                if ((int) ($case['assigned_reformation_coordinator_account_id'] ?? 0) !== (int) $this->user['account_id']) {
-                    $_SESSION['case_errors'] = ['You can only manage cases assigned to you for reformation.'];
-                    header('Location: show.php?id=' . $complaintId);
-                    exit;
-                }
-            }
-
-            if (in_array($action, ['reject', 'return', 'assign', 'classify', 'escalate'], true) && $isClosed) {
-                $_SESSION['case_errors'] = ['This case is already closed and can no longer be modified.'];
-                header('Location: show.php?id=' . $complaintId);
+                header('Location: ' . $this->caseRedirect($complaintId));
                 exit;
             }
 
@@ -465,12 +815,12 @@ class CaseController {
                 if (!$existing && empty($existingRespondents)) {
                     if ($respondentType === '' || $respondentName === '') {
                         $_SESSION['case_errors'] = ['Respondent type and full name are required to add the first respondent.'];
-                        header('Location: show.php?id=' . $complaintId);
+                        header('Location: ' . $this->caseRedirect($complaintId));
                         exit;
                     }
                 } elseif (!$existing) {
                     $_SESSION['case_errors'] = ['Please select a valid respondent.'];
-                    header('Location: show.php?id=' . $complaintId);
+                    header('Location: ' . $this->caseRedirect($complaintId));
                     exit;
                 }
 
@@ -500,7 +850,7 @@ class CaseController {
                 }
                 if (empty($changes)) {
                     $_SESSION['case_errors'] = ['Please provide at least one new respondent detail.'];
-                    header('Location: show.php?id=' . $complaintId);
+                    header('Location: ' . $this->caseRedirect($complaintId));
                     exit;
                 }
                 if (!$existing) {
@@ -539,23 +889,23 @@ class CaseController {
 
                 if ($classification === '') {
                     $_SESSION['case_errors'] = ['Please select or specify a case classification.'];
-                    header('Location: show.php?id=' . $complaintId);
+                    header('Location: ' . $this->caseRedirect($complaintId));
                     exit;
                 }
 
                 if ($selected !== 'Others' && !in_array($selected, $this->classificationOptions(), true)) {
                     $_SESSION['case_errors'] = ['Please select a valid case classification.'];
-                    header('Location: show.php?id=' . $complaintId);
+                    header('Location: ' . $this->caseRedirect($complaintId));
                     exit;
                 }
 
                 if (strlen($classification) > 100) {
                     $_SESSION['case_errors'] = ['The case classification is too long (maximum 100 characters).'];
-                    header('Location: show.php?id=' . $complaintId);
+                    header('Location: ' . $this->caseRedirect($complaintId));
                     exit;
                 }
 
-                CaseRecord::classifyCase($complaintId, $classification, $remarks, $actorAccountId);
+                CaseRecord::classifyCase($complaintId, $classification, $remarks, $caseActorAccountId);
                 AuditLog::record($this->user, 'Case Classification', 'Classified ' . $caseLabel . ' as ' . $classification . '.');
                 $_SESSION['case_message'] = 'Case classification saved.';
             } elseif ($action === 'return') {
@@ -563,27 +913,27 @@ class CaseController {
 
                 if ($remarks === '' || empty($revisionFields)) {
                     $_SESSION['case_errors'] = ['Revision remarks and at least one field to revise are required.'];
-                    header('Location: show.php?id=' . $complaintId);
+                    header('Location: ' . $this->caseRedirect($complaintId));
                     exit;
                 }
 
-                CaseRecord::updateStatus($complaintId, 'Returned for Revision', $remarks, $actorAccountId, $revisionFields);
+                CaseRecord::updateStatus($complaintId, 'Returned for Revision', $remarks, $caseActorAccountId, $revisionFields);
                 AuditLog::record($this->user, 'Complaint Updates', 'Returned complaint ' . $caseLabel . ' for revision. Fields: ' . implode(', ', $revisionFields) . '.');
                 $_SESSION['case_message'] = 'Complaint returned for revision.';
             } elseif ($action === 'reject') {
                 if ($remarks === '') {
                     $_SESSION['case_errors'] = ['Please provide a rejection note explaining why the complaint is being rejected.'];
-                    header('Location: show.php?id=' . $complaintId);
+                    header('Location: ' . $this->caseRedirect($complaintId));
                     exit;
                 }
 
-                CaseRecord::updateStatus($complaintId, 'Rejected', $remarks, $actorAccountId);
+                CaseRecord::updateStatus($complaintId, 'Rejected', $remarks, $caseActorAccountId);
                 AuditLog::record($this->user, 'Complaint Updates', 'Rejected complaint ' . $caseLabel . '.');
                 $_SESSION['case_message'] = 'Complaint rejected.';
             } elseif ($action === 'resolve') {
                 if ($caseStatus !== 'Under Investigation') {
                     $_SESSION['case_errors'] = ['Only cases under investigation can be marked as resolved.'];
-                    header('Location: show.php?id=' . $complaintId);
+                    header('Location: ' . $this->caseRedirect($complaintId));
                     exit;
                 }
 
@@ -591,25 +941,28 @@ class CaseController {
 
                 if ($outcome === '') {
                     $_SESSION['case_errors'] = ['Please provide the outcome/resolution before marking the case as resolved.'];
-                    header('Location: show.php?id=' . $complaintId);
+                    header('Location: ' . $this->caseRedirect($complaintId));
                     exit;
                 }
 
-                CaseRecord::resolveCase($complaintId, $remarks, $outcome, $actorAccountId);
+                CaseRecord::resolveCase($complaintId, $remarks, $outcome, $caseActorAccountId);
 
-                $actorName = trim(($this->user['first_name'] ?? '') . ' ' . ($this->user['last_name'] ?? '')) ?: 'SDRU';
+                $caseActor = $caseActorAccountId === $actorAccountId
+                    ? $this->user
+                    : (User::findRow($caseActorAccountId) ?: []);
+                $actorName = trim(($caseActor['first_name'] ?? '') . ' ' . ($caseActor['last_name'] ?? '')) ?: 'SDRU';
                 $closureMessage = 'Case ' . $caseLabel . ' has been resolved and is now closed. Thank you for your cooperation. Please contact the SDRU office if you have further concerns.';
                 $closureRecipients = array_unique(array_filter([
                     (int) ($case['submitted_by_account_id'] ?? 0),
                     (int) ($case['assigned_coordinator_account_id'] ?? 0),
-                ], fn($accountId) => $accountId > 0 && $accountId !== $actorAccountId));
+                ], fn($accountId) => $accountId > 0 && $accountId !== $caseActorAccountId));
 
                 foreach ($closureRecipients as $recipientId) {
-                    Message::createMessage($actorAccountId, $recipientId, $closureMessage);
+                    Message::createMessage($caseActorAccountId, $recipientId, $closureMessage);
                     Notification::notifyNewMessage(
                         $recipientId,
                         $actorName,
-                        'web/views/messages/index.php?conversation_id=' . $actorAccountId
+                        'web/views/messages/index.php?conversation_id=' . $caseActorAccountId
                     );
                 }
 
@@ -618,53 +971,53 @@ class CaseController {
             } elseif ($action === 'escalate') {
                 if ($caseStatus !== 'Under Investigation') {
                     $_SESSION['case_errors'] = ['Only cases under investigation can be marked as escalated.'];
-                    header('Location: show.php?id=' . $complaintId);
+                    header('Location: ' . $this->caseRedirect($complaintId));
                     exit;
                 }
 
                 if ($remarks === '') {
                     $_SESSION['case_errors'] = ['Please provide the reason for escalation before marking the case as escalated.'];
-                    header('Location: show.php?id=' . $complaintId);
+                    header('Location: ' . $this->caseRedirect($complaintId));
                     exit;
                 }
 
-                CaseRecord::escalateCase($complaintId, $remarks, $actorAccountId);
+                CaseRecord::escalateCase($complaintId, $remarks, $caseActorAccountId);
                 AuditLog::record($this->user, 'Case Escalation', 'Marked case ' . $caseLabel . ' as escalated.');
                 $_SESSION['case_message'] = 'Case marked as escalated. All case actions are now locked except archiving.';
             } elseif ($action === 'withdraw_escalation') {
                 if (($case['status'] ?? '') !== 'Escalated') {
                     $_SESSION['case_errors'] = ['Only escalated cases can have their escalation withdrawn.'];
-                    header('Location: show.php?id=' . $complaintId);
+                    header('Location: ' . $this->caseRedirect($complaintId));
                     exit;
                 }
 
-                CaseRecord::updateStatus($complaintId, 'Under Investigation', $remarks, $actorAccountId);
+                CaseRecord::updateStatus($complaintId, 'Under Investigation', $remarks, $caseActorAccountId);
                 AuditLog::record($this->user, 'Case Escalation Withdrawn', 'Withdrew escalation for ' . $caseLabel . '. Status returned to Under Investigation.');
                 $_SESSION['case_message'] = 'Escalation withdrawn. The case is now under investigation again.';
             } elseif ($action === 'archive') {
                 $isAjax = ($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') === 'XMLHttpRequest';
 
                 if (!in_array($case['status'] ?? '', ['Resolved', 'Reformation in Progress', 'Reformation Completed', 'Escalated'], true)) {
-                    if ($isAjax) {
+                    if ($isAjax && !$approvalExecution) {
                         header('Content-Type: application/json; charset=utf-8');
                         echo json_encode(['success' => false, 'errors' => ['Only resolved or escalated cases can be archived.']]);
                         exit;
                     }
 
                     $_SESSION['case_errors'] = ['Only resolved or escalated cases can be archived.'];
-                    header('Location: show.php?id=' . $complaintId);
+                    header('Location: ' . $this->caseRedirect($complaintId));
                     exit;
                 }
 
-                CaseRecord::updateStatus($complaintId, 'Archived', $remarks, $actorAccountId);
+                CaseRecord::updateStatus($complaintId, 'Archived', $remarks, $caseActorAccountId);
                 AuditLog::record($this->user, 'Case Archival', 'Archived case ' . $caseLabel . '.');
-                $_SESSION['case_message'] = 'Case archived.';
 
-                if ($isAjax) {
+                if ($isAjax && !$approvalExecution) {
                     header('Content-Type: application/json; charset=utf-8');
                     echo json_encode(['success' => true, 'message' => 'This case has been moved to Archived Cases.', 'case_number' => $caseLabel]);
                     exit;
                 }
+                $_SESSION['case_message'] = 'Case archived.';
             } elseif ($action === 'unarchive') {
                 if (($case['status'] ?? '') !== 'Archived') {
                     $_SESSION['case_errors'] = ['Only archived cases can be returned to active cases.'];
@@ -672,29 +1025,38 @@ class CaseController {
                     exit;
                 }
 
-                CaseRecord::unarchiveCase($complaintId, $remarks, $actorAccountId);
+                CaseRecord::unarchiveCase($complaintId, $remarks, $caseActorAccountId);
                 AuditLog::record($this->user, 'Case Unarchival', 'Returned archived case ' . $caseLabel . ' to active cases.');
                 $_SESSION['case_message'] = 'Case unarchived and returned to active cases.';
             } elseif ($action === 'reopen') {
                 if (!in_array(($case['status'] ?? ''), ['Resolved', 'Reformation in Progress', 'Reformation Completed'], true)) {
                     $_SESSION['case_errors'] = ['Only resolved cases can be opened again.'];
-                    header('Location: show.php?id=' . $complaintId);
+                    header('Location: ' . $this->caseRedirect($complaintId));
                     exit;
                 }
 
-                CaseRecord::updateStatus($complaintId, 'Under Investigation', $remarks, $actorAccountId);
+                CaseRecord::updateStatus($complaintId, 'Under Investigation', $remarks, $caseActorAccountId);
                 AuditLog::record($this->user, 'Case Reopened', 'Reopened case ' . $caseLabel . '. Status returned to Under Investigation.');
                 $_SESSION['case_message'] = 'Case opened again. Its status is now Under Investigation.';
             } elseif ($action === 'assign') {
-                $coordinatorId = (int) ($_POST['coordinator_account_id'] ?? 0);
-
-                if ($coordinatorId <= 0) {
-                    $_SESSION['case_errors'] = ['Please select a coordinator.'];
-                    header('Location: show.php?id=' . $complaintId);
+                $currentClassification = trim((string) ($case['case_classification'] ?? ''));
+                if ($currentClassification === '' || strcasecmp($currentClassification, 'Unclassified') === 0) {
+                    $_SESSION['case_errors'] = ['Classify the case before assigning a discipline coordinator.'];
+                    header('Location: ' . $this->caseRedirect($complaintId));
                     exit;
                 }
 
-                CaseRecord::assignCoordinator($complaintId, $coordinatorId, $remarks, $actorAccountId);
+                $coordinatorId = (int) ($_POST['coordinator_account_id'] ?? 0);
+                $coordinators = CaseRecord::getCoordinators('coordinator');
+                $validCoordinatorIds = array_map(fn($coordinator) => (int) $coordinator['account_id'], $coordinators);
+
+                if ($coordinatorId <= 0 || !in_array($coordinatorId, $validCoordinatorIds, true)) {
+                    $_SESSION['case_errors'] = ['Please select a valid discipline coordinator.'];
+                    header('Location: ' . $this->caseRedirect($complaintId));
+                    exit;
+                }
+
+                CaseRecord::assignCoordinator($complaintId, $coordinatorId, $remarks, $caseActorAccountId);
                 AuditLog::record($this->user, 'Case Assignment', 'Assigned coordinator for ' . $caseLabel . '.');
                 $_SESSION['case_message'] = 'Coordinator assigned.';
             } elseif ($action === 'case_update') {
@@ -704,27 +1066,34 @@ class CaseController {
 
                 if (!in_array($updateType, $allowedTypes, true)) {
                     $_SESSION['case_errors'] = ['Please select a valid update type.'];
-                    header('Location: show.php?id=' . $complaintId);
+                    header('Location: ' . $this->caseRedirect($complaintId));
                     exit;
                 }
 
                 if ($details === '') {
                     $_SESSION['case_errors'] = ['Please provide the details of this case update.'];
-                    header('Location: show.php?id=' . $complaintId);
+                    header('Location: ' . $this->caseRedirect($complaintId));
                     exit;
                 }
 
-                $attachmentErrors = FileUploadService::validateFiles($_FILES['attachments'] ?? []);
-                $hasAttachments = !empty(array_values(array_filter(($_FILES['attachments']['name'] ?? []), fn($name) => $name !== '')));
+                $approvedFiles = ($approvalExecution && !empty($approvalFiles['attachments']))
+                    ? (array) $approvalFiles['attachments']
+                    : [];
+                if (!empty($approvedFiles)) {
+                    $savedFiles = FileUploadService::validateStoredFiles($approvedFiles);
+                } else {
+                    $attachmentErrors = FileUploadService::validateFiles($_FILES['attachments'] ?? []);
+                    $hasAttachments = !empty(array_values(array_filter(($_FILES['attachments']['name'] ?? []), fn($name) => $name !== '')));
 
-                if (!empty($attachmentErrors)) {
-                    $_SESSION['case_errors'] = ['Unable to attach evidence: ' . implode(' ', $attachmentErrors)];
-                    header('Location: show.php?id=' . $complaintId);
-                    exit;
+                    if (!empty($attachmentErrors)) {
+                        $_SESSION['case_errors'] = ['Unable to attach evidence: ' . implode(' ', $attachmentErrors)];
+                        header('Location: ' . $this->caseRedirect($complaintId));
+                        exit;
+                    }
+
+                    $savedFiles = $hasAttachments ? FileUploadService::saveToEvidence($_FILES['attachments']) : [];
                 }
-
-                $savedFiles = $hasAttachments ? FileUploadService::saveToEvidence($_FILES['attachments']) : [];
-                CaseUpdate::add($complaintId, $actorAccountId, $updateType, $details, $caseStatus, $savedFiles);
+                CaseUpdate::add($complaintId, $caseActorAccountId, $updateType, $details, $caseStatus, $savedFiles);
 
                 $stageLabel = CaseUpdate::stageLabel($caseStatus);
                 $typeLabel = CaseUpdate::updateTypes()[$updateType] ?? $updateType;
@@ -735,13 +1104,13 @@ class CaseController {
 
                 if (!$isHeadRole) {
                     $_SESSION['case_errors'] = ['Only the SDRU head can assign a reformation coordinator.'];
-                    header('Location: show.php?id=' . $complaintId);
+                    header('Location: ' . $this->caseRedirect($complaintId));
                     exit;
                 }
 
                 if ($caseStatus !== 'Resolved') {
                     $_SESSION['case_errors'] = ['A case must be resolved before it can be assigned to a reformation coordinator.'];
-                    header('Location: show.php?id=' . $complaintId);
+                    header('Location: ' . $this->caseRedirect($complaintId));
                     exit;
                 }
 
@@ -751,11 +1120,11 @@ class CaseController {
 
                 if (!$hasReformationRole) {
                     $_SESSION['case_errors'] = ['Please select a valid reformation coordinator.'];
-                    header('Location: show.php?id=' . $complaintId);
+                    header('Location: ' . $this->caseRedirect($complaintId));
                     exit;
                 }
 
-                CaseRecord::assignReformationCoordinator($complaintId, $coordinatorId, $remarks, $actorAccountId);
+                CaseRecord::assignReformationCoordinator($complaintId, $coordinatorId, $remarks, $caseActorAccountId);
                 AuditLog::record($this->user, 'Reformation Assignment', 'Assigned reformation coordinator for ' . $caseLabel . '.');
                 $_SESSION['case_message'] = 'Reformation coordinator assigned.';
             } elseif ($action === 'reformation_activity') {
@@ -766,33 +1135,40 @@ class CaseController {
 
                 if ($activityName === '') {
                     $_SESSION['case_errors'] = ['Please provide the reformation activity name.'];
-                    header('Location: show.php?id=' . $complaintId);
+                    header('Location: ' . $this->caseRedirect($complaintId));
                     exit;
                 }
 
                 if (!in_array($progressStatus, $allowedProgressStatuses, true)) {
                     $_SESSION['case_errors'] = ['Please select a valid progress status.'];
-                    header('Location: show.php?id=' . $complaintId);
+                    header('Location: ' . $this->caseRedirect($complaintId));
                     exit;
                 }
 
                 if ($remarks === '') {
                     $_SESSION['case_errors'] = ['Please provide progress notes.'];
-                    header('Location: show.php?id=' . $complaintId);
+                    header('Location: ' . $this->caseRedirect($complaintId));
                     exit;
                 }
 
-                $attachmentErrors = FileUploadService::validateFiles($_FILES['progress_attachments'] ?? []);
-                $hasAttachments = !empty(array_values(array_filter(($_FILES['progress_attachments']['name'] ?? []), fn($name) => $name !== '')));
+                $approvedFiles = ($approvalExecution && !empty($approvalFiles['progress_attachments']))
+                    ? (array) $approvalFiles['progress_attachments']
+                    : [];
+                if (!empty($approvedFiles)) {
+                    $savedFiles = FileUploadService::validateStoredFiles($approvedFiles);
+                } else {
+                    $attachmentErrors = FileUploadService::validateFiles($_FILES['progress_attachments'] ?? []);
+                    $hasAttachments = !empty(array_values(array_filter(($_FILES['progress_attachments']['name'] ?? []), fn($name) => $name !== '')));
 
-                if (!empty($attachmentErrors)) {
-                    $_SESSION['case_errors'] = ['Unable to attach progress files: ' . implode(' ', $attachmentErrors)];
-                    header('Location: show.php?id=' . $complaintId);
-                    exit;
+                    if (!empty($attachmentErrors)) {
+                        $_SESSION['case_errors'] = ['Unable to attach progress files: ' . implode(' ', $attachmentErrors)];
+                        header('Location: ' . $this->caseRedirect($complaintId));
+                        exit;
+                    }
+
+                    $savedFiles = $hasAttachments ? FileUploadService::saveToEvidence($_FILES['progress_attachments']) : [];
                 }
-
-                $savedFiles = $hasAttachments ? FileUploadService::saveToEvidence($_FILES['progress_attachments']) : [];
-                ReformationRecord::add($complaintId, $actorAccountId, $activityName, $progressStatus, $remarks, $savedFiles);
+                ReformationRecord::add($complaintId, $caseActorAccountId, $activityName, $progressStatus, $remarks, $savedFiles);
                 Notification::createForHeads(
                     'reformation_progress_updated',
                     'Reformation Progress Updated',
@@ -807,14 +1183,14 @@ class CaseController {
 
                 if (empty($reportFile['name']) || (is_array($reportFile['name']) && $reportFile['name'][0] === '')) {
                     $_SESSION['case_errors'] = ['Please select a reformation report file to upload.'];
-                    header('Location: show.php?id=' . $complaintId);
+                    header('Location: ' . $this->caseRedirect($complaintId));
                     exit;
                 }
 
                 $attachmentErrors = FileUploadService::validateFiles($reportFile);
                 if (!empty($attachmentErrors)) {
                     $_SESSION['case_errors'] = ['Unable to upload the reformation report: ' . implode(' ', $attachmentErrors)];
-                    header('Location: show.php?id=' . $complaintId);
+                    header('Location: ' . $this->caseRedirect($complaintId));
                     exit;
                 }
 
@@ -822,67 +1198,67 @@ class CaseController {
                 $fileData = $savedFiles[0] ?? null;
                 if (!$fileData) {
                     $_SESSION['case_errors'] = ['The reformation report could not be saved.'];
-                    header('Location: show.php?id=' . $complaintId);
+                    header('Location: ' . $this->caseRedirect($complaintId));
                     exit;
                 }
 
-                ReformationReport::add($complaintId, $actorAccountId, $reportTitle, $fileData);
+                ReformationReport::add($complaintId, $caseActorAccountId, $reportTitle, $fileData);
                 AuditLog::record($this->user, 'Reformation Report Uploaded', 'Uploaded a reformation report for ' . $caseLabel . '.');
                 $_SESSION['case_message'] = 'Reformation report uploaded successfully.';
             } elseif ($action === 'reformation_completed') {
                 if ($caseStatus !== 'Reformation in Progress') {
                     $_SESSION['case_errors'] = ['Reformation can only be completed once the case is in progress.'];
-                    header('Location: show.php?id=' . $complaintId);
+                    header('Location: ' . $this->caseRedirect($complaintId));
                     exit;
                 }
 
                 $existingReports = ReformationReport::forCase($complaintId);
                 if (empty($existingReports)) {
                     $_SESSION['case_errors'] = ['A reformation report must be uploaded before the case can be marked as completed.'];
-                    header('Location: show.php?id=' . $complaintId);
+                    header('Location: ' . $this->caseRedirect($complaintId));
                     exit;
                 }
 
                 $existingActivities = ReformationRecord::forCase($complaintId);
                 if (empty($existingActivities)) {
                     $_SESSION['case_errors'] = ['At least one reformation activity must be recorded before completion.'];
-                    header('Location: show.php?id=' . $complaintId);
+                    header('Location: ' . $this->caseRedirect($complaintId));
                     exit;
                 }
 
-                CaseRecord::markReformationCompleted($complaintId, $actorAccountId);
+                CaseRecord::markReformationCompleted($complaintId, $caseActorAccountId);
                 AuditLog::record($this->user, 'Reformation Progress', 'Marked reformation as completed for ' . $caseLabel . '.');
                 $_SESSION['case_message'] = 'Reformation marked as completed.';
             } elseif ($action === 'create_respondent_account') {
                 $respondent = $this->respondentRowForAction($complaintId, (int) ($_POST['respondent_id'] ?? 0));
                 if (!$respondent) {
                     $_SESSION['case_errors'] = ['Please select a valid respondent.'];
-                    header('Location: show.php?id=' . $complaintId); exit;
+                    header('Location: ' . $this->caseRedirect($complaintId)); exit;
                 }
                 if (!empty($respondent['linked_account_id'])) {
                     $_SESSION['case_errors'] = ['This respondent already has a linked account.'];
-                    header('Location: show.php?id=' . $complaintId); exit;
+                    header('Location: ' . $this->caseRedirect($complaintId)); exit;
                 }
 
                 $email = strtolower(trim((string) ($_POST['account_email'] ?? ($respondent['email'] ?? ''))));
                 if ($email === '') {
                     $_SESSION['case_errors'] = ['Respondent email is required before sending the invitation.'];
-                    header('Location: show.php?id=' . $complaintId); exit;
+                    header('Location: ' . $this->caseRedirect($complaintId)); exit;
                 }
                 if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
                     $_SESSION['case_errors'] = ['Please provide a valid email address for the respondent invitation.'];
-                    header('Location: show.php?id=' . $complaintId); exit;
+                    header('Location: ' . $this->caseRedirect($complaintId)); exit;
                 }
                 if (User::findByEmailInexact($email)) {
                     $_SESSION['case_errors'] = ['An account already exists with that email. Use "Link Existing Account" instead.'];
-                    header('Location: show.php?id=' . $complaintId); exit;
+                    header('Location: ' . $this->caseRedirect($complaintId)); exit;
                 }
 
                 $firstName = trim((string) ($_POST['account_first_name'] ?? ''));
                 $lastName = trim((string) ($_POST['account_last_name'] ?? ''));
                 if ($firstName === '' || $lastName === '') {
                     $_SESSION['case_errors'] = ['First name and last name are required for the new account.'];
-                    header('Location: show.php?id=' . $complaintId); exit;
+                    header('Location: ' . $this->caseRedirect($complaintId)); exit;
                 }
 
                 $accountData = [
@@ -903,7 +1279,7 @@ class CaseController {
                 $createdAccount = User::create($accountData);
                 if (!$createdAccount) {
                     $_SESSION['case_errors'] = ['Could not create the respondent account. Please try again.'];
-                    header('Location: show.php?id=' . $complaintId); exit;
+                    header('Location: ' . $this->caseRedirect($complaintId)); exit;
                 }
 
                 CaseRecord::linkRespondent($complaintId, $respondent['respondent_id'], (int) $createdAccount->account_id);
@@ -924,17 +1300,17 @@ class CaseController {
                 $respondent = $this->respondentRowForAction($complaintId, (int) ($_POST['respondent_id'] ?? 0));
                 if (!$respondent) {
                     $_SESSION['case_errors'] = ['Please select a valid respondent.'];
-                    header('Location: show.php?id=' . $complaintId); exit;
+                    header('Location: ' . $this->caseRedirect($complaintId)); exit;
                 }
                 if (!empty($respondent['linked_account_id'])) {
                     $_SESSION['case_errors'] = ['This respondent already has a linked account.'];
-                    header('Location: show.php?id=' . $complaintId); exit;
+                    header('Location: ' . $this->caseRedirect($complaintId)); exit;
                 }
 
                 $query = trim((string) ($_POST['account_search'] ?? ''));
                 if ($query === '') {
                     $_SESSION['case_errors'] = ['Please enter an account email or full name to search for.'];
-                    header('Location: show.php?id=' . $complaintId); exit;
+                    header('Location: ' . $this->caseRedirect($complaintId)); exit;
                 }
 
                 $account = User::findByEmailInexact($query);
@@ -945,18 +1321,22 @@ class CaseController {
                     ));
                     if (count($matches) !== 1) {
                         $_SESSION['case_errors'] = ['No unique existing account matched. Provide the exact account email.'];
-                        header('Location: show.php?id=' . $complaintId); exit;
+                        header('Location: ' . $this->caseRedirect($complaintId)); exit;
                     }
                     $account = $matches[0];
                 }
 
                 if (($account['status'] ?? '') !== 'active') {
                     $_SESSION['case_errors'] = ['Only active accounts can be linked to a respondent.'];
-                    header('Location: show.php?id=' . $complaintId); exit;
+                    header('Location: ' . $this->caseRedirect($complaintId)); exit;
+                }
+                if (Security::normalizeRole($account['role'] ?? '') !== 'student') {
+                    $_SESSION['case_errors'] = ['Only respondent accounts can be linked as respondents.'];
+                    header('Location: ' . $this->caseRedirect($complaintId)); exit;
                 }
                 if (strtolower((string) ($account['email'] ?? '')) !== strtolower((string) trim((string) ($respondent['email'] ?? '')))) {
                     $_SESSION['case_errors'] = ['The account email does not match this respondent\'s recorded email. Update the respondent\'s email first, or create a new account.'];
-                    header('Location: show.php?id=' . $complaintId); exit;
+                    header('Location: ' . $this->caseRedirect($complaintId)); exit;
                 }
 
                 CaseRecord::linkRespondent($complaintId, $respondent['respondent_id'], (int) $account['account_id']);
@@ -966,15 +1346,19 @@ class CaseController {
                 $respondent = $this->respondentRowForAction($complaintId, (int) ($_POST['respondent_id'] ?? 0));
                 if (!$respondent) {
                     $_SESSION['case_errors'] = ['Please select a valid respondent.'];
-                    header('Location: show.php?id=' . $complaintId); exit;
+                    header('Location: ' . $this->caseRedirect($complaintId)); exit;
                 }
                 if (empty($respondent['linked_account_id'])) {
                     $_SESSION['case_errors'] = ['This respondent has no linked account to invite.'];
-                    header('Location: show.php?id=' . $complaintId); exit;
+                    header('Location: ' . $this->caseRedirect($complaintId)); exit;
+                }
+                if (Security::normalizeRole($respondent['account_role'] ?? '') !== 'student') {
+                    $_SESSION['case_errors'] = ['Only respondent accounts can receive respondent invitations.'];
+                    header('Location: ' . $this->caseRedirect($complaintId)); exit;
                 }
                 if (($respondent['account_status'] ?? '') === 'active') {
                     $_SESSION['case_errors'] = ['This respondent\'s account is already active. No invitation is needed.'];
-                    header('Location: show.php?id=' . $complaintId); exit;
+                    header('Location: ' . $this->caseRedirect($complaintId)); exit;
                 }
 
                 $token = (string) ($respondent['invitation_token'] ?? '');
@@ -1000,11 +1384,15 @@ class CaseController {
                 $respondent = $this->respondentRowForAction($complaintId, (int) ($_POST['respondent_id'] ?? 0));
                 if (!$respondent) {
                     $_SESSION['case_errors'] = ['Please select a valid respondent.'];
-                    header('Location: show.php?id=' . $complaintId); exit;
+                    header('Location: ' . $this->caseRedirect($complaintId)); exit;
                 }
                 if (empty($respondent['linked_account_id'])) {
                     $_SESSION['case_errors'] = ['This respondent has no linked account yet.'];
-                    header('Location: show.php?id=' . $complaintId); exit;
+                    header('Location: ' . $this->caseRedirect($complaintId)); exit;
+                }
+                if (Security::normalizeRole($respondent['account_role'] ?? '') !== 'student') {
+                    $_SESSION['case_errors'] = ['Only respondent accounts can be managed from a case.'];
+                    header('Location: ' . $this->caseRedirect($complaintId)); exit;
                 }
                 if (($respondent['account_status'] ?? '') === 'active') {
                     $newStatus = 'inactive';
@@ -1030,26 +1418,34 @@ class CaseController {
                 $respondent = $this->respondentRowForAction($complaintId, (int) ($_POST['respondent_id'] ?? 0));
                 if (!$respondent) {
                     $_SESSION['case_errors'] = ['Please select a valid respondent.'];
-                    header('Location: show.php?id=' . $complaintId); exit;
+                    header('Location: ' . $this->caseRedirect($complaintId)); exit;
                 }
                 if (!empty($respondent['linked_account_id'])) {
                     $_SESSION['case_errors'] = ['This respondent already has a linked account.'];
-                    header('Location: show.php?id=' . $complaintId); exit;
+                    header('Location: ' . $this->caseRedirect($complaintId)); exit;
                 }
 
                 $studentNo = trim((string) ($respondent['student_no'] ?? ''));
                 $fullName = trim((string) ($respondent['full_name'] ?? ''));
                 if ($studentNo === '') {
                     $_SESSION['case_errors'] = ['No Student Number is recorded for this respondent. Add the Student Number through "Update Respondent Details" before forwarding the case.'];
-                    header('Location: show.php?id=' . $complaintId); exit;
+                    header('Location: ' . $this->caseRedirect($complaintId)); exit;
                 }
 
                 $matches = User::findComplainantsByStudentNo($studentNo, $fullName);
                 if (empty($matches)) {
                     $_SESSION['case_errors'] = ['No existing account found.'];
-                    header('Location: show.php?id=' . $complaintId); exit;
+                    header('Location: ' . $this->caseRedirect($complaintId)); exit;
                 }
 
+                $matches = array_values(array_filter(
+                    $matches,
+                    fn($match) => Security::normalizeRole($match['role'] ?? '') === 'student'
+                ));
+                if (empty($matches)) {
+                    $_SESSION['case_errors'] = ['No respondent account matched this respondent.'];
+                    header('Location: ' . $this->caseRedirect($complaintId)); exit;
+                }
                 $nameMatches = array_values(array_filter($matches, fn($match) => !empty($match['name_matches'])));
                 $candidates = !empty($nameMatches) ? $nameMatches : $matches;
 
@@ -1067,18 +1463,18 @@ class CaseController {
                 if (!$pending || (int) ($pending['complaint_id'] ?? 0) !== (int) $complaintId || (int) ($pending['respondent_id'] ?? 0) !== $respondentId) {
                     unset($_SESSION['case_forward_pending']);
                     $_SESSION['case_errors'] = ['The account search is no longer active. Run the search again before confirming.'];
-                    header('Location: show.php?id=' . $complaintId); exit;
+                    header('Location: ' . $this->caseRedirect($complaintId)); exit;
                 }
                 $respondent = $this->respondentRowForAction($complaintId, $respondentId);
                 if (!$respondent) {
                     unset($_SESSION['case_forward_pending']);
                     $_SESSION['case_errors'] = ['Please select a valid respondent.'];
-                    header('Location: show.php?id=' . $complaintId); exit;
+                    header('Location: ' . $this->caseRedirect($complaintId)); exit;
                 }
                 if (!empty($respondent['linked_account_id'])) {
                     unset($_SESSION['case_forward_pending']);
                     $_SESSION['case_errors'] = ['This respondent already has a linked account.'];
-                    header('Location: show.php?id=' . $complaintId); exit;
+                    header('Location: ' . $this->caseRedirect($complaintId)); exit;
                 }
 
                 $selected = null;
@@ -1091,12 +1487,17 @@ class CaseController {
                 if (!$selected) {
                     unset($_SESSION['case_forward_pending']);
                     $_SESSION['case_errors'] = ['The selected account is no longer available. Run the search again.'];
-                    header('Location: show.php?id=' . $complaintId); exit;
+                    header('Location: ' . $this->caseRedirect($complaintId)); exit;
                 }
                 if (($selected['status'] ?? '') !== 'active') {
                     unset($_SESSION['case_forward_pending']);
                     $_SESSION['case_errors'] = ['Only active accounts can be linked to a respondent.'];
-                    header('Location: show.php?id=' . $complaintId); exit;
+                    header('Location: ' . $this->caseRedirect($complaintId)); exit;
+                }
+                if (Security::normalizeRole($selected['role'] ?? '') !== 'student') {
+                    unset($_SESSION['case_forward_pending']);
+                    $_SESSION['case_errors'] = ['Only respondent accounts can be linked as respondents.'];
+                    header('Location: ' . $this->caseRedirect($complaintId)); exit;
                 }
 
                 unset($_SESSION['case_forward_pending']);
@@ -1113,18 +1514,18 @@ class CaseController {
                 $linked = CaseRecord::linkedRespondentAccounts($complaintId);
                 if (empty($linked)) {
                     $_SESSION['case_errors'] = ['Link at least one respondent account before forwarding the case to respondents.'];
-                    header('Location: show.php?id=' . $complaintId); exit;
+                    header('Location: ' . $this->caseRedirect($complaintId)); exit;
                 }
 
                 if ($caseStatus === 'Submitted') {
                     $_SESSION['case_errors'] = ['Assign a coordinator to this case before forwarding it to the respondents.'];
-                    header('Location: show.php?id=' . $complaintId); exit;
+                    header('Location: ' . $this->caseRedirect($complaintId)); exit;
                 }
 
                 $selectedIds = array_filter(array_map('intval', (array) ($_POST['respondent_ids'] ?? [])), fn($id) => $id > 0);
                 if (empty($selectedIds)) {
                     $_SESSION['case_errors'] = ['Select at least one linked respondent to forward the case to.'];
-                    header('Location: show.php?id=' . $complaintId); exit;
+                    header('Location: ' . $this->caseRedirect($complaintId)); exit;
                 }
 
                 $linkedById = [];
@@ -1139,7 +1540,7 @@ class CaseController {
                 }
                 if (empty($recipients)) {
                     $_SESSION['case_errors'] = ['The selected respondent is no longer linked to this case. Reload and try again.'];
-                    header('Location: show.php?id=' . $complaintId); exit;
+                    header('Location: ' . $this->caseRedirect($complaintId)); exit;
                 }
 
                 $visibleKeys = (array) ($_POST['respondent_visibility'] ?? []);
@@ -1190,12 +1591,12 @@ class CaseController {
                 $counterStatementId = (int) ($_POST['counter_statement_id'] ?? 0);
                 if ($counterStatementId <= 0) {
                     $_SESSION['case_errors'] = ['Please select a counter-statement.'];
-                    header('Location: show.php?id=' . $complaintId); exit;
+                    header('Location: ' . $this->caseRedirect($complaintId)); exit;
                 }
                 $statement = CounterStatement::find($counterStatementId);
                 if (!$statement || (int) $statement['complaint_id'] !== (int) $complaintId || $statement['status'] !== 'Submitted') {
                     $_SESSION['case_errors'] = ['Only a submitted counter-statement on this case can be returned for revision.'];
-                    header('Location: show.php?id=' . $complaintId); exit;
+                    header('Location: ' . $this->caseRedirect($complaintId)); exit;
                 }
 
                 CounterStatement::returnForRevision($counterStatementId, (int) $statement['respondent_account_id']);
@@ -1235,46 +1636,64 @@ class CaseController {
                 $_SESSION['case_errors'] = ['Invalid case action.'];
             }
             if ($approvalExecution) {
-                CaseApproval::decide($approvalId, $actorAccountId, 'Approved', null);
                 $approved = CaseApproval::findForCase($approvalId, $complaintId);
                 if ($approved) {
-                    Notification::createForUser(
-                        (int) $approved['requested_by_account_id'],
-                        'case_action_approved',
-                        'Case Action Approved',
-                        'Your requested action "' . $approved['action_label'] . '" for case ' . $approved['case_number'] . ' was approved and executed.',
-                        'web/views/cases/show.php?id=' . $complaintId
-                    );
+                    try {
+                        Notification::createForUser(
+                            (int) $approved['requested_by_account_id'],
+                            'case_action_approved',
+                            'Case Action Approved',
+                            'Your requested action "' . $approved['action_label'] . '" for case ' . $approved['case_number'] . ' was approved and executed.',
+                            'web/views/cases/show.php?id=' . $complaintId
+                        );
+                    } catch (Throwable $notificationException) {
+                        error_log('SICMS approval notification failed for approval #' . $approvalId . ': ' . $notificationException->getMessage());
+                    }
+                }
+                if (!CaseApproval::decide($approvalId, $actorAccountId, 'Approved', $reviewRemarks)) {
+                    throw new Exception('This approval request was already reviewed.');
                 }
                 $_SESSION['case_message'] = 'Approved action executed successfully.';
             }
         } catch (Throwable $exception) {
             error_log('SICMS case action "' . $action . '" failed for complaint #' . (int) $complaintId . ': ' . $exception->getMessage());
-            $_SESSION['case_errors'] = ['Unable to update case. Please check the case management database schema.'];
+            if ($approvalExecution) {
+                try {
+                    CaseApproval::decide(
+                        $approvalId,
+                        $actorAccountId,
+                        'Rejected',
+                        trim(($reviewRemarks !== '' ? $reviewRemarks . ' ' : '') . 'Automatic execution failed; the coordinator must submit a new request if needed.')
+                    );
+                } catch (Throwable $approvalException) {
+                    error_log('SICMS approval failure status could not be saved for approval #' . $approvalId . ': ' . $approvalException->getMessage());
+                }
+            }
+            $_SESSION['case_errors'] = ['Unable to complete this case action. No approval was granted; please submit a new request if the issue remains.'];
         }
 
-        header('Location: show.php?id=' . $complaintId);
+        header('Location: ' . $this->caseRedirect($complaintId));
         exit;
     }
 
     private function counterStatementDecision($complaintId, $caseLabel, $actorAccountId, $decision) {
         if (!in_array($this->roleKey(), ['coordinator', 'head-of-sdru', 'sdru-head'], true)) {
             $_SESSION['case_errors'] = ['Only the assigned coordinator (or the SDRU head) can take this action.'];
-            header('Location: show.php?id=' . $complaintId);
+            header('Location: ' . $this->caseRedirect($complaintId));
             exit;
         }
 
         $counterStatementId = (int) ($_POST['counter_statement_id'] ?? 0);
         if ($counterStatementId <= 0) {
             $_SESSION['case_errors'] = ['Please select a counter-statement.'];
-            header('Location: show.php?id=' . $complaintId);
+            header('Location: ' . $this->caseRedirect($complaintId));
             exit;
         }
 
         $statement = CounterStatement::find($counterStatementId);
         if (!$statement || (int) $statement['complaint_id'] !== (int) $complaintId || $statement['status'] !== 'Submitted') {
             $_SESSION['case_errors'] = ['Only a submitted counter-statement on this case can be reviewed.'];
-            header('Location: show.php?id=' . $complaintId);
+            header('Location: ' . $this->caseRedirect($complaintId));
             exit;
         }
 
@@ -1285,18 +1704,18 @@ class CaseController {
                 // allowed: advancing a statement that was forwarded and answered
             } elseif ($decision === 'proceed_to_investigation' && $alreadyForwarded) {
                 $_SESSION['case_errors'] = ['This counter-statement was forwarded for the complainant response. Wait for the response before proceeding to investigation.'];
-                header('Location: show.php?id=' . $complaintId);
+                header('Location: ' . $this->caseRedirect($complaintId));
                 exit;
             } else {
                 $_SESSION['case_errors'] = ['This counter-statement has already been reviewed by the coordinator.'];
-                header('Location: show.php?id=' . $complaintId);
+                header('Location: ' . $this->caseRedirect($complaintId));
                 exit;
             }
         }
 
         if (!CounterStatement::markCoordinatorAction($counterStatementId, $decision, $actorAccountId)) {
             $_SESSION['case_errors'] = ['This counter-statement has already been reviewed by the coordinator.'];
-            header('Location: show.php?id=' . $complaintId);
+            header('Location: ' . $this->caseRedirect($complaintId));
             exit;
         }
 
@@ -1364,14 +1783,26 @@ class CaseController {
     }
 
     private function archivedFilters(array $input) {
-        return [
+        $filters = [
             'case_number' => substr(trim((string) ($input['case_number'] ?? '')), 0, 100),
             'student_name' => substr(trim((string) ($input['student_name'] ?? '')), 0, 255),
             'search' => substr(trim((string) ($input['search'] ?? '')), 0, 255),
         ];
+        if ($this->roleKey() === 'coordinator') {
+            $filters['assigned_coordinator_account_id'] = (int) ($this->user['account_id'] ?? 0);
+        } elseif ($this->roleKey() === 'reformation-coordinator') {
+            $filters['assigned_reformation_coordinator_account_id'] = (int) ($this->user['account_id'] ?? 0);
+        }
+        return $filters;
     }
 
     private function canAccessCaseRecord(array $case) {
+        if ($this->roleKey() === 'coordinator') {
+            return (int) ($case['assigned_coordinator_account_id'] ?? 0) === (int) ($this->user['account_id'] ?? 0);
+        }
+        if ($this->roleKey() === 'reformation-coordinator') {
+            return (int) ($case['assigned_reformation_coordinator_account_id'] ?? 0) === (int) ($this->user['account_id'] ?? 0);
+        }
         return true;
     }
 
@@ -1414,13 +1845,15 @@ private function respondentRowForAction($complaintId, $respondentId) {
 
         if (!$account && $email !== '') {
             $candidate = User::findByEmailInexact($email);
-            if ($candidate && ($candidate['status'] ?? '') === 'active') {
+            if ($candidate
+                && ($candidate['status'] ?? '') === 'active'
+                && Security::normalizeRole($candidate['role'] ?? '') === 'student') {
                 $account = $candidate;
             }
         }
         if (!$account && $studentNo !== '') {
             $candidate = User::findActiveByStudentNumber($studentNo);
-            if ($candidate) {
+            if ($candidate && Security::normalizeRole($candidate['role'] ?? '') === 'student') {
                 $account = $candidate;
             }
         }

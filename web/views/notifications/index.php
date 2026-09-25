@@ -149,5 +149,59 @@ $currentGroup = null;
 <script>
 (()=>{const form=document.getElementById('notificationFilters'),list=document.getElementById('notificationList'),pager=document.getElementById('notificationPagination'),count=document.getElementById('notificationResultCount');if(!form||!list)return;const size=10,esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));let items=<?= json_encode(array_values($notifications), JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT) ?>,page=1,timer,request;const icon=t=>{t=String(t).toLowerCase();return t.includes('message')?'bi-chat-dots':t.includes('hearing')?'bi-calendar-event':t.includes('revision')?'bi-pencil-square':t.includes('case')||t.includes('complaint')?'bi-folder2-open':'bi-bell'};function render(){const pages=Math.max(1,Math.ceil(items.length/size));page=Math.min(page,pages);const slice=items.slice((page-1)*size,page*size);list.innerHTML=slice.length?slice.map(n=>`<article class="notification-item-row ${+n.is_read===0?'unread':''}" data-notification-id="${+n.notification_id}" data-unread="${+n.is_read===0?1:0}" data-destination="${n.link?`../../../${esc(n.link)}`:''}"><span class="item-icon"><i class="bi ${icon(n.type)}"></i></span><div class="item-content"><div class="item-title-line"><h2 class="item-title">${esc(n.title)}</h2></div><p class="item-message">${esc(n.message)}</p><div class="item-meta"><span><i class="bi bi-clock"></i> ${esc(new Date(n.created_at.replace(' ','T')).toLocaleString())}</span>${n.link?`<a class="related-link" href="../../../${esc(n.link)}">Open related page <i class="bi bi-arrow-right"></i></a>`:''}</div></div><div class="item-actions">${+n.is_read===0?`<form method="POST" action="index.php"><input type="hidden" name="csrf_token" value="<?= h(Security::csrfToken()) ?>"><input type="hidden" name="notification_id" value="${+n.notification_id}"><button class="btn mark-read" name="notification_action" value="mark_one">Mark read</button></form>`:'<span class="read-label"><i class="bi bi-check2"></i> Read</span>'}</div></article>`).join(''):'<div class="empty-state"><i class="bi bi-bell-slash"></i><h2>No notifications found</h2><p>Try changing the current search or status filter.</p></div>';pager.innerHTML=pages<=1?'':`<button data-page="1" ${page===1?'disabled':''}>First</button><button data-page="${page-1}" ${page===1?'disabled':''}>Previous</button><button class="active" disabled>Page ${page} of ${pages}</button><button data-page="${page+1}" ${page===pages?'disabled':''}>Next</button><button data-page="${pages}" ${page===pages?'disabled':''}>Last</button>`;count.textContent=`${items.length} notification${items.length===1?'':'s'}`}async function load(){if(request)request.abort();request=new AbortController();const p=new URLSearchParams(new FormData(form));p.set('ajax','1');const r=await fetch(`index.php?${p}`,{headers:{'X-Requested-With':'XMLHttpRequest'},signal:request.signal});const d=await r.json();if(!d.success)throw Error(d.message);items=d.notifications;page=1;render();p.delete('ajax');history.replaceState(null,'',p.toString()?`index.php?${p}`:'index.php')}pager.addEventListener('click',e=>{const b=e.target.closest('[data-page]');if(b){page=+b.dataset.page;render()}});form.addEventListener('submit',e=>{e.preventDefault();load().catch(()=>{})});form.elements.read.addEventListener('change',load);form.elements.search.addEventListener('input',()=>{clearTimeout(timer);timer=setTimeout(load,400)});document.getElementById('resetNotificationFilters').addEventListener('click',()=>{form.reset();load()});render()})();
 </script>
+<script>
+(() => {
+    const list = document.getElementById('notificationList');
+    const updateSummary = unread => {
+        const count = document.querySelector('.notification-summary .summary-count');
+        const label = document.querySelector('.notification-summary .summary-label');
+        if (count) count.textContent = String(unread);
+        if (label) label.textContent = `Unread notification${unread === 1 ? '' : 's'}`;
+        document.querySelectorAll('.notification-badge').forEach(badge => {
+            badge.textContent = unread > 0 ? String(unread) : '';
+            badge.hidden = unread === 0;
+        });
+    };
+
+    list?.addEventListener('submit', async event => {
+        const form = event.target;
+        const button = event.submitter;
+        if (!(form instanceof HTMLFormElement) || button?.value !== 'mark_one') return;
+        event.preventDefault();
+        button.disabled = true;
+        const original = button.innerHTML;
+        button.innerHTML = '<span class="sicms-processing-spinner" aria-hidden="true"></span> Marking…';
+        try {
+            const data = new FormData(form);
+            data.set('notification_action', 'mark_one');
+            const response = await fetch(form.action, { method: 'POST', body: data, headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } });
+            const payload = await response.json().catch(() => null);
+            if (!response.ok || !payload?.success) throw new Error(payload?.message || 'Unable to mark this notification as read.');
+            const item = form.closest('[data-notification-id]');
+            item?.classList.remove('unread');
+            if (item) item.dataset.unread = '0';
+            form.outerHTML = '<span class="read-label"><i class="bi bi-check2"></i> Read</span>';
+            updateSummary(Number(payload.unread || 0));
+            window.DARISAlert?.toast('success', 'Notification Updated', payload.message);
+        } catch (error) {
+            button.disabled = false;
+            button.innerHTML = original;
+            window.DARISAlert?.toast('error', 'Unable to Update Notification', error.message || 'Please try again.');
+        }
+    });
+
+    document.addEventListener('daris:notifications-read', event => {
+        const unread = Number(event.detail?.unread || 0);
+        updateSummary(unread);
+        if (!event.detail?.all) return;
+        list?.querySelectorAll('[data-notification-id]').forEach(item => {
+            item.classList.remove('unread');
+            item.dataset.unread = '0';
+            const actions = item.querySelector('.item-actions');
+            if (actions) actions.innerHTML = '<span class="read-label"><i class="bi bi-check2"></i> Read</span>';
+        });
+    });
+})();
+</script>
 </body>
 </html>

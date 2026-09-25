@@ -379,7 +379,7 @@ $complainantType = ov($old, 'complainant_type', $case['complainant_type'] ?? 'St
 
                 <div class="form-actions">
                     <a class="btn btn-secondary" href="show.php?id=<?= (int) $case['complaint_id'] ?>">Cancel</a>
-                    <button class="btn btn-primary" type="submit">Save Changes</button>
+                    <button class="btn btn-primary" type="submit" data-sicms-processing-label="Saving Legacy Case..." data-sicms-processing-modal="true">Save Changes</button>
                 </div>
             </form>
         </main>
@@ -482,9 +482,16 @@ $complainantType = ov($old, 'complainant_type', $case['complainant_type'] ?? 'St
             return section ? section.querySelectorAll('.dynamic-item').length > 0 : false;
         }
         document.querySelectorAll('[name="has_respondents"],[name="has_witnesses"],[name="has_evidence"],[name="has_hearings"]')
-            .forEach((radio) => radio.addEventListener('change', (event) => {
+            .forEach((radio) => radio.addEventListener('change', async (event) => {
                 if (radio.value === 'no' && sectionHasContent(radio.name)) {
-                    const ok = window.confirm('Switching this section to "No" will remove its saved entries. Continue?');
+                    const ok = window.SICMSConfirm
+                        ? await window.SICMSConfirm({
+                            title: 'Remove saved entries?',
+                            text: 'Switching this section to "No" will remove its saved entries when you save the case.',
+                            confirmText: 'Yes, remove entries',
+                            icon: 'warning'
+                        })
+                        : false;
                     if (!ok) {
                         document.querySelector(`input[name="${radio.name}"][value="yes"]`).checked = true;
                     }

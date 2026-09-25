@@ -37,11 +37,11 @@ $navGroups = [
     ],
     'MANAGEMENT' => [
         ['route' => 'messages.index', 'label' => 'Chat & Messaging', 'icon' => 'bi-chat-dots', 'roles' => ['student', 'respondent', 'admin', 'sdr-staff', 'sdru-staff', 'coordinator', 'reformation-coordinator', 'head-of-sdru', 'sdru-head']],
+        ['route' => 'accounts.index', 'label' => 'Users', 'icon' => 'bi-people', 'roles' => ['head-of-sdru', 'sdru-head']],
         ['route' => 'audit_logs.index', 'label' => 'Audit Logs', 'icon' => 'bi-shield-check', 'roles' => ['head-of-sdru', 'sdru-head']],
         ['route' => 'hearings.index', 'label' => 'Hearings', 'icon' => 'bi-calendar-event', 'roles' => ['admin', 'sdr-staff', 'sdru-staff', 'coordinator', 'head-of-sdru', 'sdru-head']],
     ],
     'SYSTEM' => [
-        ['route' => 'legacy.index', 'label' => 'Legacy of SDRU In-Charge', 'icon' => 'bi-award', 'roles' => ['*']],
         ['route' => 'settings.index', 'label' => 'Settings', 'icon' => 'bi-gear', 'roles' => ['*']],
     ],
 ];

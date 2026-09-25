@@ -1535,12 +1535,18 @@ function applied_filter_labels(array $filters, array $options) {
             const columns = [...pdfColumnsGrid.querySelectorAll('input[type="checkbox"]:checked')].map((input) => input.value);
             if (!columns.length) {
                 pdfColumnsFeedback.textContent = 'Select at least one column to include in the report.';
+                window.DARISAlert?.toast('warning', 'Report Columns Required', 'Please select at least one column to include in the PDF report.');
                 return;
             }
             const url = new URL(pendingPdfUrl, window.location.href);
             url.searchParams.delete('pdf_columns[]');
             columns.forEach((column) => url.searchParams.append('pdf_columns[]', column));
+            window.DARISAlert?.toast('info', 'Generating Report...', 'DARIS is preparing your PDF report.', { timer: 3000 });
             window.location.assign(url.toString());
+        });
+
+        document.querySelector('[data-export="excel"]')?.addEventListener('click', () => {
+            window.DARISAlert?.toast('info', 'Generating Report...', 'DARIS is preparing your Excel report.', { timer: 3000 });
         });
 
         <?php if ($isPrint): ?>

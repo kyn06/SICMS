@@ -103,6 +103,8 @@ $hasFinalInfo = in_array($caseStatus, $finalStatuses, true)
         .statement-evidence { border-top:1px solid var(--divider, #e6ede4); margin-top:16px; padding-top:14px; }
         .statement-evidence h3 { color: var(--text-secondary, #284127); font-size:13px; margin:0 0 8px; }
         .statement-locked { background: var(--surface-secondary, #f6f8f5); border: 1px solid var(--border-primary, #e2eae0); border-radius: 8px; color: var(--text-primary, #3f4c3e); padding: 14px 16px; }
+        .counter-draft-status { color:var(--text-muted, #617060); font-size:12px; margin-left:auto; align-self:center; }
+        .counter-draft-status.is-error { color:var(--status-danger-text, #a92c23); }
         .statement-locked .statement-text { white-space: pre-wrap; }
         .action-form { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
         .form-group { display: flex; flex-direction: column; gap: 4px; }
@@ -198,43 +200,45 @@ $hasFinalInfo = in_array($caseStatus, $finalStatuses, true)
                 <h2><i class="bi bi-pencil-square"></i> My Counter-Statement</h2>
                 <?php if ($caseActive && $statementDraft): ?>
                     <p class="muted" style="font-size:12px;margin:0 0 8px">Your statement is saved as a draft until you submit it to the SDRU.</p>
-                    <form class="action-form" method="POST" action="case_show.php?id=<?= (int) $complaintId ?>" data-sicms-validate>
+                    <form class="action-form" id="counterStatementForm" method="POST" action="case_show.php?id=<?= (int) $complaintId ?>" data-sicms-validate>
                         <?= Security::csrfField() ?>
                         <div class="form-group">
                             <label for="statement_content">Your Counter-Statement</label>
                             <textarea id="statement_content" name="statement_content" required placeholder="State your response to the complaint..."><?= h($statement['content'] ?? '') ?></textarea>
                         </div>
                         <div style="display:flex;gap:10px;flex-wrap:wrap">
-                            <button class="btn btn-secondary" type="submit" name="case_action" value="save_draft" data-sicms-processing-label="Saving draft..."><i class="bi bi-save"></i> Save Draft</button>
+                            <button class="btn btn-secondary" id="saveCounterDraft" type="button"><i class="bi bi-save"></i> Save Draft</button>
                             <button class="btn btn-primary" type="submit" name="case_action" value="submit_counter_statement" data-sicms-processing-label="Submitting statement..." data-swal-confirm="Submit this counter-statement to the SDRU? You will no longer be able to edit it unless the SDRU returns it for revision."><i class="bi bi-send"></i> Submit Counter-Statement</button>
+                            <span class="counter-draft-status" id="counterDraftStatus" role="status" aria-live="polite">Changes save automatically.</span>
                         </div>
                     </form>
 
                     <div class="statement-evidence" id="evidence">
                     <h3><i class="bi bi-paperclip"></i> Supporting Evidence for This Statement</h3>
+                    <p class="muted" style="font-size:12px;margin:0 0 10px">Evidence files are handled separately and are not part of counter-statement auto-save.</p>
                     <?php if (!empty($attachments)): ?>
                         <?php foreach ($attachments as $attachment): ?>
                         <div class="attach-row">
                             <a class="btn btn-secondary" target="_blank" href="../complaints/attachment.php?id=<?= (int) $attachment['evidence_id'] ?>&amp;mode=view"><i class="bi bi-eye"></i> View</a>
                             <a class="btn btn-secondary" href="../complaints/attachment.php?id=<?= (int) $attachment['evidence_id'] ?>&amp;mode=download"><i class="bi bi-download"></i> Download</a>
                             <span class="muted" style="font-size:13px"><?= h($attachment['original_filename']) ?> (<?= h(number_format($attachment['file_size'] / 1024, 1)) ?> KB)</span>
-                            <form method="POST" action="case_show.php?id=<?= (int) $complaintId ?>" style="display:inline">
+                            <form method="POST" action="case_show.php?id=<?= (int) $complaintId ?>" style="display:inline" data-ajax-target="#evidence">
                                 <?= Security::csrfField() ?>
                                 <input type="hidden" name="case_action" value="remove_counter_evidence">
                                 <input type="hidden" name="evidence_id" value="<?= (int) $attachment['evidence_id'] ?>">
-                                <button class="btn btn-remove" type="submit" data-swal-confirm="Remove this supporting file?"><i class="bi bi-trash"></i> Remove</button>
+                                <button class="btn btn-remove" type="submit" data-swal-confirm="Remove this supporting file?" data-evidence-name="<?= h($attachment['original_filename']) ?>" data-sicms-processing-label="Removing Evidence..." data-sicms-processing-modal="true"><i class="bi bi-trash"></i> Remove</button>
                             </form>
                         </div>
                         <?php endforeach; ?>
                     <?php endif; ?>
-                    <form class="action-form" method="POST" action="case_show.php?id=<?= (int) $complaintId ?>" enctype="multipart/form-data" data-sicms-validate>
+                    <form class="action-form" method="POST" action="case_show.php?id=<?= (int) $complaintId ?>" enctype="multipart/form-data" data-sicms-validate data-ajax-target="#evidence" data-ajax-reset="true">
                         <?= Security::csrfField() ?>
                         <input type="hidden" name="case_action" value="upload_counter_evidence">
                         <div class="form-group">
                             <label for="counter_evidence">Attach Supporting Evidence (pdf, jpg, jpeg, png, docx &middot; max 5MB each)</label>
                             <input type="file" id="counter_evidence" name="counter_evidence[]" multiple accept=".pdf,.jpg,.jpeg,.png,.docx" data-sicms-size-mb="5" data-sicms-accept-ext=".pdf,.jpg,.jpeg,.png,.docx">
                         </div>
-                        <div><button class="btn btn-remove" type="submit" data-sicms-processing-label="Uploading files..." style="background:#eef1ee;color:#3f4c3e"><i class="bi bi-paperclip"></i> Attach Files</button></div>
+                        <div><button class="btn btn-remove" type="submit" data-evidence-upload data-sicms-processing-label="Uploading Evidence..." data-sicms-processing-modal="true" style="background:#eef1ee;color:#3f4c3e"><i class="bi bi-paperclip"></i> Attach Files</button></div>
                     </form>
                     </div>
                 <?php elseif ($statement): ?>
@@ -326,18 +330,109 @@ $hasFinalInfo = in_array($caseStatus, $finalStatuses, true)
 </div>
 <script>
 (() => {
+    const counterForm = document.getElementById('counterStatementForm');
+    const counterText = document.getElementById('statement_content');
+    const counterSaveButton = document.getElementById('saveCounterDraft');
+    const counterStatus = document.getElementById('counterDraftStatus');
+    let counterVersion = <?= (int) ($statement['draft_version'] ?? 0) ?>;
+    let counterDirty = false;
+    let counterSaving = false;
+    let counterPending = false;
+    let counterTimer = null;
+    let counterFinalizing = false;
+
+    function setCounterStatus(message, isError = false) {
+        if (!counterStatus) return;
+        counterStatus.textContent = message;
+        counterStatus.classList.toggle('is-error', isError);
+    }
+
+    async function saveCounterDraft(manual = false) {
+        clearTimeout(counterTimer);
+        if (!counterForm || counterFinalizing || (!counterDirty && !manual)) return;
+        if (counterSaving) { counterPending = true; return; }
+        counterSaving = true;
+        counterSaveButton.disabled = true;
+        setCounterStatus('Saving draft…');
+        const body = new FormData();
+        body.set('csrf_token', counterForm.elements.csrf_token.value);
+        body.set('case_action', 'autosave_counter_statement');
+        body.set('statement_content', counterText.value);
+        body.set('draft_version', String(counterVersion));
+        try {
+            const response = await fetch(counterForm.action, { method: 'POST', body, headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } });
+            const result = await response.json();
+            if (!response.ok || !result.success) throw new Error(result.message || 'Draft could not be saved.');
+            counterVersion = result.version;
+            counterDirty = false;
+            setCounterStatus('Draft saved ' + new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) + '.');
+        } catch (error) {
+            setCounterStatus(error.message || 'Draft could not be saved. Your text remains on this page.', true);
+        } finally {
+            counterSaving = false;
+            counterSaveButton.disabled = false;
+            if (counterPending) { counterPending = false; counterDirty = true; saveCounterDraft(); }
+        }
+    }
+
+    counterText?.addEventListener('input', () => {
+        if (counterFinalizing) return;
+        counterDirty = true;
+        if (counterSaving) counterPending = true;
+        setCounterStatus('Unsaved changes');
+        clearTimeout(counterTimer);
+        counterTimer = setTimeout(() => saveCounterDraft(), 4000);
+    });
+    counterSaveButton?.addEventListener('click', () => { counterDirty = true; saveCounterDraft(true); });
+    counterForm?.addEventListener('submit', event => {
+        if (event.submitter?.value === 'submit_counter_statement') {
+            counterFinalizing = true;
+            clearTimeout(counterTimer);
+        }
+    });
+    window.addEventListener('beforeunload', event => {
+        if (!counterFinalizing && (counterDirty || counterSaving)) { event.preventDefault(); event.returnValue = ''; }
+    });
+
+    document.addEventListener('click', event => {
+        const button = event.target.closest('[data-evidence-upload]');
+        if (!button) return;
+        const fileInput = button.form?.querySelector('input[type="file"]');
+        if (fileInput?.files?.length) return;
+        event.preventDefault();
+        window.DARISAlert?.toast('warning', 'Evidence Required', 'Please select at least one evidence file to upload.');
+        fileInput?.focus();
+    });
+
     document.addEventListener('click', event => {
         const button = event.target.closest('[data-swal-confirm]');
         if (!button || !window.Swal) return;
         event.preventDefault();
-        Swal.fire({ icon: 'question', title: button.dataset.swalConfirm, showCancelButton: true, confirmButtonText: 'Continue', cancelButtonText: 'Cancel', reverseButtons: true })
+        const action = button.value || button.form?.querySelector('[name="case_action"]')?.value || '';
+        const copy = action === 'submit_counter_statement'
+            ? { title: 'Submit this counter-statement?', text: 'It will be sent to the SDRU and cannot be edited unless it is returned for revision.', confirm: 'Submit Counter-Statement' }
+            : action === 'remove_counter_evidence'
+                ? { title: 'Remove Evidence?', text: `Are you sure you want to remove “${button.dataset.evidenceName || 'this file'}”?`, confirm: 'Remove Evidence' }
+                : { title: 'Attach these supporting files?', text: button.dataset.swalConfirm, confirm: 'Attach Files' };
+        if (action === 'submit_counter_statement') {
+            const statement = button.form?.querySelector('[name="statement_content"]');
+            if (!statement?.value.trim()) {
+                event.preventDefault();
+                window.DARISAlert?.toast('warning', 'Counter-Statement Required', 'Please provide your counter-statement before submitting.');
+                statement?.focus();
+                return;
+            }
+        }
+        const options = { icon: action === 'remove_counter_evidence' ? 'warning' : 'question', title: copy.title, text: copy.text, showCancelButton: true, confirmButtonText: copy.confirm, cancelButtonText: 'Cancel', reverseButtons: true, allowOutsideClick: false };
+        (window.DARISAlert?.fire(options) || Swal.fire(options))
             .then(result => { if (result.isConfirmed) button.form?.requestSubmit(button); });
     });
 
     <?php $counterInfoText = is_array($counterInfo) ? implode(' ', $counterInfo) : (string) $counterInfo; ?>
     <?php if (strpos($counterInfoText, 'Counter-Statement Submitted') !== false): ?>
     if (window.Swal) {
-        Swal.fire({ icon: 'success', title: 'Counter-statement submitted', text: 'Your response has been added to the case successfully.', confirmButtonText: 'OK' });
+        const options = { toast: true, position: 'top', icon: 'success', title: 'Counter-Statement Submitted', text: 'Your counter-statement has been sent to the SDRU successfully.', timer: 4800, showConfirmButton: false, showCloseButton: true, backdrop: false };
+        (window.DARISAlert?.toast('success', options.title, options.text) || Swal.fire(options));
     }
     <?php endif; ?>
 })();

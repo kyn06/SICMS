@@ -637,6 +637,7 @@ CREATE TABLE `counter_statements` (
   `respondent_id` int UNSIGNED NOT NULL,
   `respondent_account_id` int UNSIGNED NOT NULL,
   `content` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+  `draft_version` int UNSIGNED NOT NULL DEFAULT 0,
   `status` varchar(30) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'Draft',
   `submitted_at` datetime DEFAULT NULL,
   `coordinator_action` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
@@ -1357,6 +1358,21 @@ ALTER TABLE `reformation_records`
 ALTER TABLE `reformation_reports`
   ADD CONSTRAINT `fk_reformation_reports_complaint` FOREIGN KEY (`complaint_id`) REFERENCES `complaints` (`complaint_id`) ON DELETE CASCADE,
   ADD CONSTRAINT `fk_reformation_reports_coordinator` FOREIGN KEY (`coordinator_account_id`) REFERENCES `accounts` (`account_id`);
+
+-- Standalone in-progress complaint drafts. These rows are intentionally kept
+-- outside `complaints` so they never appear in case queues, reports, or counts.
+CREATE TABLE IF NOT EXISTS `complaint_drafts` (
+  `draft_id` int UNSIGNED NOT NULL AUTO_INCREMENT,
+  `account_id` int UNSIGNED NOT NULL,
+  `submission_token` varchar(64) NOT NULL,
+  `payload` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `version` int UNSIGNED NOT NULL DEFAULT 1,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`draft_id`),
+  UNIQUE KEY `uq_complaint_drafts_account` (`account_id`),
+  CONSTRAINT `fk_complaint_drafts_account` FOREIGN KEY (`account_id`) REFERENCES `accounts` (`account_id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;

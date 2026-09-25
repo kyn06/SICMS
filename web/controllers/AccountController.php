@@ -367,7 +367,7 @@ class AccountController {
 
         if (!$this->user || $this->user['status'] !== 'active' || !in_array($roleKey, $this->allowedRoles, true)) {
             http_response_code(403);
-            echo 'Access denied. SDRU Staff or Head SDRU account required.';
+            echo 'Access denied. Head SDRU account required.';
             exit;
         }
     }

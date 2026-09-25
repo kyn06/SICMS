@@ -30,11 +30,12 @@ $token = trim((string) ($_GET['token'] ?? ($_POST['invitation_token'] ?? '')));
 function find_invitation($db, $token) {
     $sql = "SELECT r.respondent_id, r.complaint_id, r.full_name, r.invitation_token, r.invited_at,
                    a.account_id, a.email, a.first_name, a.last_name, a.status AS account_status,
-                   c.case_number, c.case_source
+                   a.role AS account_role, c.case_number, c.case_source
             FROM complaint_respondents r
             INNER JOIN complaints c ON c.complaint_id = r.complaint_id
             INNER JOIN accounts a ON a.account_id = r.account_id
-            WHERE r.invitation_token = ? AND (c.case_source IS NULL OR c.case_source <> 'Legacy')
+            WHERE r.invitation_token = ? AND a.role = 'student'
+              AND (c.case_source IS NULL OR c.case_source <> 'Legacy')
             LIMIT 1";
     $stmt = $db->prepare($sql);
     if (!$stmt) return null;
@@ -94,9 +95,9 @@ if ($requestMethod === 'POST') {
     $hash = password_hash($password, PASSWORD_DEFAULT);
     $now = date('Y-m-d H:i:s');
 
-    $stmt = $db->prepare("UPDATE accounts SET password_hash = ?, status = 'active', updated_at = ? WHERE account_id = ?");
-    $stmt->bind_param('ssi', $hash, $now, $invitation['account_id']);
-    if (!$stmt->execute()) {
+    $stmt = $db->prepare("UPDATE accounts SET password_hash = ?, status = 'active', updated_at = ? WHERE account_id = ? AND role = 'student'");
+    $stmt->bind_param("ssi", $hash, $now, $invitation['account_id']);
+    if (!$stmt->execute() || $stmt->affected_rows !== 1) {
         $_SESSION['activate_error'] = 'Could not activate your account. Please try again.';
         header('Location: activate.php?token=' . urlencode($token));
         exit;

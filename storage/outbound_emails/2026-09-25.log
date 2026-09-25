@@ -1,0 +1,99 @@
+{"time":"2026-09-25 03:35:34","to":"pedro.garcia@clsu2.edu.ph","subject":"Complaint Submitted","delivered":true}
+{"time":"2026-09-25 03:35:41","to":"ricardo.santos@sicms.local","subject":"New Complaint Submitted","delivered":true}
+{"time":"2026-09-25 03:35:47","to":"maria.cruz@sicms.local","subject":"New Complaint Submitted","delivered":true}
+{"time":"2026-09-25 03:35:55","to":"juan.delapena@sicms.local","subject":"New Complaint Submitted","delivered":true}
+{"time":"2026-09-25 03:36:00","to":"ana.bautista@sicms.local","subject":"New Complaint Submitted","delivered":true}
+{"time":"2026-09-25 03:36:05","to":"pedro.reyes@sicms.local","subject":"New Complaint Submitted","delivered":true}
+{"time":"2026-09-25 03:36:12","to":"carmen.garcia@sicms.local","subject":"New Complaint Submitted","delivered":true}
+{"time":"2026-09-25 03:36:18","to":"pedro1.reyes@sicms.local","subject":"New Complaint Submitted","delivered":true}
+{"time":"2026-09-25 03:36:23","to":"reformation.coordinator@sicms.local","subject":"New Complaint Submitted","delivered":true}
+{"time":"2026-09-25 03:36:28","to":"discipline.coordinator@sicms.local","subject":"New Complaint Submitted","delivered":true}
+{"time":"2026-09-25 10:55:55","to":"pedro.garcia@clsu2.edu.ph","subject":"Complaint Submitted","delivered":true}
+{"time":"2026-09-25 10:56:22","to":"ricardo.santos@sicms.local","subject":"New Complaint Submitted","delivered":true}
+{"time":"2026-09-25 10:56:45","to":"maria.cruz@sicms.local","subject":"New Complaint Submitted","delivered":false,"error":"Could not enable TLS encryption."}
+{"time":"2026-09-25 10:57:18","to":"juan.delapena@sicms.local","subject":"New Complaint Submitted","delivered":true}
+{"time":"2026-09-25 10:57:23","to":"ana.bautista@sicms.local","subject":"New Complaint Submitted","delivered":true}
+{"time":"2026-09-25 10:57:29","to":"pedro.reyes@sicms.local","subject":"New Complaint Submitted","delivered":true}
+{"time":"2026-09-25 10:57:35","to":"carmen.garcia@sicms.local","subject":"New Complaint Submitted","delivered":true}
+{"time":"2026-09-25 10:57:40","to":"pedro1.reyes@sicms.local","subject":"New Complaint Submitted","delivered":true}
+{"time":"2026-09-25 11:00:08","to":"recipient@example.com","subject":"Timeout test","delivered":false,"error":"SMTP connection failed: A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond"}
+{"time":"2026-09-25 11:00:09","to":"recipient@example.com","subject":"Timeout test","delivered":false,"error":"SMTP connection failed: A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond"}
+{"time":"2026-09-25 11:00:09","to":"recipient@example.com","subject":"Timeout test","delivered":false,"error":"Email skipped because the request mail time budget was exhausted."}
+{"time":"2026-09-25 11:00:09","to":"recipient@example.com","subject":"Timeout test","delivered":false,"error":"Email skipped because the request mail time budget was exhausted."}
+{"time":"2026-09-25 11:02:02","to":"pedro.garcia@clsu2.edu.ph","subject":"Complaint Submitted","delivered":false,"error":"SMTP response timed out."}
+{"time":"2026-09-25 11:02:06","to":"ricardo.santos@sicms.local","subject":"New Complaint Submitted","delivered":false,"error":"SMTP operation timed out."}
+{"time":"2026-09-25 11:02:06","to":"maria.cruz@sicms.local","subject":"New Complaint Submitted","delivered":false,"error":"Email skipped because the request mail time budget was exhausted."}
+{"time":"2026-09-25 11:02:06","to":"juan.delapena@sicms.local","subject":"New Complaint Submitted","delivered":false,"error":"Email skipped because the request mail time budget was exhausted."}
+{"time":"2026-09-25 11:02:06","to":"ana.bautista@sicms.local","subject":"New Complaint Submitted","delivered":false,"error":"Email skipped because the request mail time budget was exhausted."}
+{"time":"2026-09-25 11:02:06","to":"pedro.reyes@sicms.local","subject":"New Complaint Submitted","delivered":false,"error":"Email skipped because the request mail time budget was exhausted."}
+{"time":"2026-09-25 11:02:06","to":"carmen.garcia@sicms.local","subject":"New Complaint Submitted","delivered":false,"error":"Email skipped because the request mail time budget was exhausted."}
+{"time":"2026-09-25 11:02:06","to":"pedro1.reyes@sicms.local","subject":"New Complaint Submitted","delivered":false,"error":"Email skipped because the request mail time budget was exhausted."}
+{"time":"2026-09-25 11:02:06","to":"reformation.coordinator@sicms.local","subject":"New Complaint Submitted","delivered":false,"error":"Email skipped because the request mail time budget was exhausted."}
+{"time":"2026-09-25 11:02:06","to":"discipline.coordinator@sicms.local","subject":"New Complaint Submitted","delivered":false,"error":"Email skipped because the request mail time budget was exhausted."}
+{"time":"2026-09-25 11:08:55","to":"jose.flores@clsu2.edu.ph","subject":"Complaint Submitted","delivered":false,"error":"SMTP response timed out."}
+{"time":"2026-09-25 11:08:59","to":"ricardo.santos@sicms.local","subject":"New Complaint Submitted","delivered":false,"error":"SMTP response timed out."}
+{"time":"2026-09-25 11:08:59","to":"maria.cruz@sicms.local","subject":"New Complaint Submitted","delivered":false,"error":"Email skipped because the request mail time budget was exhausted."}
+{"time":"2026-09-25 11:08:59","to":"juan.delapena@sicms.local","subject":"New Complaint Submitted","delivered":false,"error":"Email skipped because the request mail time budget was exhausted."}
+{"time":"2026-09-25 11:08:59","to":"ana.bautista@sicms.local","subject":"New Complaint Submitted","delivered":false,"error":"Email skipped because the request mail time budget was exhausted."}
+{"time":"2026-09-25 11:08:59","to":"pedro.reyes@sicms.local","subject":"New Complaint Submitted","delivered":false,"error":"Email skipped because the request mail time budget was exhausted."}
+{"time":"2026-09-25 11:08:59","to":"carmen.garcia@sicms.local","subject":"New Complaint Submitted","delivered":false,"error":"Email skipped because the request mail time budget was exhausted."}
+{"time":"2026-09-25 11:08:59","to":"pedro1.reyes@sicms.local","subject":"New Complaint Submitted","delivered":false,"error":"Email skipped because the request mail time budget was exhausted."}
+{"time":"2026-09-25 11:08:59","to":"reformation.coordinator@sicms.local","subject":"New Complaint Submitted","delivered":false,"error":"Email skipped because the request mail time budget was exhausted."}
+{"time":"2026-09-25 11:08:59","to":"discipline.coordinator@sicms.local","subject":"New Complaint Submitted","delivered":false,"error":"Email skipped because the request mail time budget was exhausted."}
+{"time":"2026-09-25 11:12:40","to":"jose.flores@clsu2.edu.ph","subject":"Complaint Submitted","delivered":false,"error":"SMTP response timed out."}
+{"time":"2026-09-25 11:12:44","to":"ricardo.santos@sicms.local","subject":"New Complaint Submitted","delivered":false,"error":"SMTP response timed out."}
+{"time":"2026-09-25 11:12:44","to":"maria.cruz@sicms.local","subject":"New Complaint Submitted","delivered":false,"error":"Email skipped because the request mail time budget was exhausted."}
+{"time":"2026-09-25 11:12:44","to":"juan.delapena@sicms.local","subject":"New Complaint Submitted","delivered":false,"error":"Email skipped because the request mail time budget was exhausted."}
+{"time":"2026-09-25 11:12:44","to":"ana.bautista@sicms.local","subject":"New Complaint Submitted","delivered":false,"error":"Email skipped because the request mail time budget was exhausted."}
+{"time":"2026-09-25 11:12:44","to":"pedro.reyes@sicms.local","subject":"New Complaint Submitted","delivered":false,"error":"Email skipped because the request mail time budget was exhausted."}
+{"time":"2026-09-25 11:12:44","to":"carmen.garcia@sicms.local","subject":"New Complaint Submitted","delivered":false,"error":"Email skipped because the request mail time budget was exhausted."}
+{"time":"2026-09-25 11:12:44","to":"pedro1.reyes@sicms.local","subject":"New Complaint Submitted","delivered":false,"error":"Email skipped because the request mail time budget was exhausted."}
+{"time":"2026-09-25 11:12:44","to":"reformation.coordinator@sicms.local","subject":"New Complaint Submitted","delivered":false,"error":"Email skipped because the request mail time budget was exhausted."}
+{"time":"2026-09-25 11:12:44","to":"discipline.coordinator@sicms.local","subject":"New Complaint Submitted","delivered":false,"error":"Email skipped because the request mail time budget was exhausted."}
+{"time":"2026-09-25 11:13:34","to":"jose.flores@clsu2.edu.ph","subject":"Complaint Submitted","delivered":false,"error":"SMTP response timed out."}
+{"time":"2026-09-25 11:13:38","to":"ricardo.santos@sicms.local","subject":"New Complaint Submitted","delivered":false,"error":"SMTP response timed out."}
+{"time":"2026-09-25 11:13:38","to":"maria.cruz@sicms.local","subject":"New Complaint Submitted","delivered":false,"error":"Email skipped because the request mail time budget was exhausted."}
+{"time":"2026-09-25 11:13:38","to":"juan.delapena@sicms.local","subject":"New Complaint Submitted","delivered":false,"error":"Email skipped because the request mail time budget was exhausted."}
+{"time":"2026-09-25 11:13:38","to":"ana.bautista@sicms.local","subject":"New Complaint Submitted","delivered":false,"error":"Email skipped because the request mail time budget was exhausted."}
+{"time":"2026-09-25 11:13:38","to":"pedro.reyes@sicms.local","subject":"New Complaint Submitted","delivered":false,"error":"Email skipped because the request mail time budget was exhausted."}
+{"time":"2026-09-25 11:13:38","to":"carmen.garcia@sicms.local","subject":"New Complaint Submitted","delivered":false,"error":"Email skipped because the request mail time budget was exhausted."}
+{"time":"2026-09-25 11:13:38","to":"pedro1.reyes@sicms.local","subject":"New Complaint Submitted","delivered":false,"error":"Email skipped because the request mail time budget was exhausted."}
+{"time":"2026-09-25 11:13:38","to":"reformation.coordinator@sicms.local","subject":"New Complaint Submitted","delivered":false,"error":"Email skipped because the request mail time budget was exhausted."}
+{"time":"2026-09-25 11:13:38","to":"discipline.coordinator@sicms.local","subject":"New Complaint Submitted","delivered":false,"error":"Email skipped because the request mail time budget was exhausted."}
+{"time":"2026-09-25 16:23:30","to":"jose.flores@clsu2.edu.ph","subject":"Case Status Updated","delivered":false,"error":"SMTP response timed out."}
+{"time":"2026-09-25 16:26:22","to":"jose.flores@clsu2.edu.ph","subject":"Case Status Updated","delivered":false,"error":"SMTP response timed out."}
+{"time":"2026-09-25 16:27:57","to":"jose.flores@clsu2.edu.ph","subject":"Case Status Updated","delivered":false,"error":"SMTP response timed out."}
+{"time":"2026-09-25 16:47:41","to":"jose.flores@clsu2.edu.ph","subject":"Case Status Updated","delivered":false,"error":"SMTP response timed out."}
+{"time":"2026-09-25 16:49:28","to":"jose.flores@clsu2.edu.ph","subject":"Case Status Updated","delivered":false,"error":"SMTP operation timed out."}
+{"time":"2026-09-25 17:02:18","to":"jose.flores@clsu2.edu.ph","subject":"Case Status Updated","delivered":false,"error":"SMTP response timed out."}
+{"time":"2026-09-25 17:02:47","to":"ana.bautista@sicms.local","subject":"Case Assigned","delivered":false,"error":"SMTP operation timed out."}
+{"time":"2026-09-25 17:05:10","to":"jose.flores@clsu2.edu.ph","subject":"Case Status Updated","delivered":false,"error":"SMTP operation timed out."}
+{"time":"2026-09-25 17:05:55","to":"jose.flores@clsu2.edu.ph","subject":"Case Status Updated","delivered":false,"error":"SMTP response timed out."}
+{"time":"2026-09-25 17:11:05","to":"jose.flores@clsu2.edu.ph","subject":"Case Status Updated","delivered":false,"error":"SMTP operation timed out."}
+{"time":"2026-09-25 17:11:34","to":"ana.bautista@sicms.local","subject":"Case Assigned","delivered":false,"error":"SMTP response timed out."}
+{"time":"2026-09-25 17:19:27","to":"ana.bautista@sicms.local","subject":"Case Assigned","delivered":false,"error":"SMTP response timed out."}
+{"time":"2026-09-25 17:24:18","to":"ricardo.santos@sicms.local","subject":"Case Action Approval Needed","delivered":false,"error":"SMTP response timed out."}
+{"time":"2026-09-25 17:24:27","to":"ricardo.santos@sicms.local","subject":"New Message Received","delivered":false,"error":"SMTP response timed out."}
+{"time":"2026-09-25 17:24:59","to":"ricardo.santos@sicms.local","subject":"New Message Received","delivered":false,"error":"SMTP response timed out."}
+{"time":"2026-09-25 18:05:40","to":"jose.flores@clsu2.edu.ph","subject":"Complaint Submitted","delivered":false,"error":"SMTP response timed out."}
+{"time":"2026-09-25 18:05:44","to":"ricardo.santos@sicms.local","subject":"New Complaint Submitted","delivered":false,"error":"SMTP response timed out."}
+{"time":"2026-09-25 18:05:44","to":"maria.cruz@sicms.local","subject":"New Complaint Submitted","delivered":false,"error":"Email skipped because the request mail time budget was exhausted."}
+{"time":"2026-09-25 18:05:44","to":"juan.delapena@sicms.local","subject":"New Complaint Submitted","delivered":false,"error":"Email skipped because the request mail time budget was exhausted."}
+{"time":"2026-09-25 18:05:44","to":"ana.bautista@sicms.local","subject":"New Complaint Submitted","delivered":false,"error":"Email skipped because the request mail time budget was exhausted."}
+{"time":"2026-09-25 18:05:44","to":"pedro.reyes@sicms.local","subject":"New Complaint Submitted","delivered":false,"error":"Email skipped because the request mail time budget was exhausted."}
+{"time":"2026-09-25 18:05:44","to":"carmen.garcia@sicms.local","subject":"New Complaint Submitted","delivered":false,"error":"Email skipped because the request mail time budget was exhausted."}
+{"time":"2026-09-25 18:05:44","to":"pedro1.reyes@sicms.local","subject":"New Complaint Submitted","delivered":false,"error":"Email skipped because the request mail time budget was exhausted."}
+{"time":"2026-09-25 18:05:44","to":"reformation.coordinator@sicms.local","subject":"New Complaint Submitted","delivered":false,"error":"Email skipped because the request mail time budget was exhausted."}
+{"time":"2026-09-25 18:05:44","to":"discipline.coordinator@sicms.local","subject":"New Complaint Submitted","delivered":false,"error":"Email skipped because the request mail time budget was exhausted."}
+{"time":"2026-09-25 19:16:51","to":"ana.bautista@sicms.local","subject":"Case Assigned","delivered":false,"error":"SMTP response timed out."}
+{"time":"2026-09-25 19:19:50","to":"discipline.coordinator@sicms.local","subject":"Case Assigned","delivered":false,"error":"SMTP response timed out."}
+{"time":"2026-09-25 19:20:07","to":"pedro.garcia@clsu2.edu.ph","subject":"Case Resolved","delivered":false,"error":"SMTP response timed out."}
+{"time":"2026-09-25 19:20:11","to":"pedro.garcia@clsu2.edu.ph","subject":"New Message Received","delivered":false,"error":"SMTP response timed out."}
+{"time":"2026-09-25 19:20:11","to":"discipline.coordinator@sicms.local","subject":"New Message Received","delivered":false,"error":"Email skipped because the request mail time budget was exhausted."}
+{"time":"2026-09-25 19:20:23","to":"pedro.garcia@clsu2.edu.ph","subject":"Case Status Updated","delivered":false,"error":"SMTP response timed out."}
+{"time":"2026-09-25 19:20:36","to":"pedro.garcia@clsu2.edu.ph","subject":"Case Escalated","delivered":false,"error":"SMTP response timed out."}
+{"time":"2026-09-25 19:38:58","to":"pedro.garcia@clsu2.edu.ph","subject":"Case Status Updated","delivered":false,"error":"SMTP response timed out."}
+{"time":"2026-09-25 21:40:17","to":"ana.bautista@sicms.local","subject":"Case Assigned","delivered":false,"error":"SMTP response timed out."}
+{"time":"2026-09-25 21:40:35","to":"pedro.garcia@clsu2.edu.ph","subject":"Case Resolved","delivered":false,"error":"SMTP response timed out."}
+{"time":"2026-09-25 21:40:39","to":"pedro.garcia@clsu2.edu.ph","subject":"New Message Received","delivered":false,"error":"SMTP response timed out."}
+{"time":"2026-09-25 21:40:39","to":"ana.bautista@sicms.local","subject":"New Message Received","delivered":false,"error":"Email skipped because the request mail time budget was exhausted."}

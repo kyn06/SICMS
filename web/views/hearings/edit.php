@@ -114,13 +114,31 @@ $selectedDatetime = $old['hearing_datetime'] ?? date('Y-m-d\TH:i', strtotime($he
                 </div>
             </div>
             <div class="actions">
-                <button class="btn btn-primary" type="submit"><i class="bi bi-check2"></i> Save Changes</button>
+                <button class="btn btn-primary" type="submit" data-confirm-title="Reschedule Hearing?" data-confirm="The updated hearing schedule will replace the current details." data-confirm-button="Yes, Reschedule Hearing" data-sicms-processing-label="Rescheduling Hearing..." data-sicms-processing-modal="true"><i class="bi bi-check2"></i> Save Changes</button>
                 <a class="btn btn-secondary" href="index.php"><i class="bi bi-x"></i> Cancel</a>
             </div>
         </form>
     </main>
         </div>
     </div>
+<script>
+document.querySelector('.hearing-form-panel button[type="submit"]')?.addEventListener('click', event => {
+    const form = event.currentTarget.form;
+    const schedule = form?.querySelector('[name="hearing_datetime"]');
+    const venue = form?.querySelector('[name="venue"]');
+    const missing = !schedule?.value ? schedule : !venue?.value.trim() ? venue : null;
+    if (missing) {
+        event.preventDefault();
+        const text = missing === schedule ? 'Please provide the new hearing date and time.' : 'Please provide the hearing venue.';
+        window.DARISAlert?.toast('warning', 'Hearing Schedule Incomplete', text);
+        missing.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        window.setTimeout(() => missing.focus(), 180);
+        return;
+    }
+    const formatted = new Date(schedule.value).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+    event.currentTarget.dataset.confirm = `The current hearing schedule will change to ${formatted}.`;
+});
+</script>
 </body>
 
 </html>

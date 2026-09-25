@@ -13,6 +13,8 @@ $viewData = $controller->archivedIndex();
 $user = $viewData['user'];
 $cases = $viewData['cases'];
 $filters = $viewData['filters'];
+$message = $viewData['message'];
+$errors = $viewData['errors'];
 
 function h($value) {
     return htmlspecialchars((string) $value);
@@ -41,6 +43,16 @@ function h($value) {
             <?php $pageTitle = 'Archived Cases'; require __DIR__ . '/../layout/topbar.php'; ?>
 
         <main class="case-wrap">
+            <?php if (!empty($message)): ?>
+                <div class="alert alert-success"><?= h($message) ?></div>
+            <?php endif; ?>
+            <?php if (!empty($errors)): ?>
+                <div class="alert alert-danger">
+                    <?php foreach ($errors as $error): ?>
+                        <div><?= h($error) ?></div>
+                    <?php endforeach; ?>
+                </div>
+            <?php endif; ?>
             <section class="filter-panel">
                 <form id="caseFilters" method="GET" action="index.php">
                     <div class="filter-grid">
@@ -240,15 +252,18 @@ function h($value) {
                 const button = event.target.closest('[data-swal-confirm]');
                 if (!button) return;
                 event.preventDefault();
-                const confirmText = button.dataset.swalConfirm || 'Unarchive this case?';
-                Swal.fire({
+                const caseNumber = button.closest('tr')?.querySelector('td')?.textContent?.trim() || 'This case';
+                const options = {
                     icon: 'question',
-                    title: confirmText,
+                    title: 'Restore this case?',
+                    text: `${caseNumber} will return to active cases with its previous status.`,
                     showCancelButton: true,
-                    confirmButtonText: 'Yes, unarchive',
+                    confirmButtonText: 'Restore Case',
                     cancelButtonText: 'Cancel',
-                    reverseButtons: true
-                }).then((result) => {
+                    reverseButtons: true,
+                    allowOutsideClick: false
+                };
+                (window.DARISAlert?.fire(options) || Swal.fire(options)).then((result) => {
                     if (result.isConfirmed) {
                         button.form.requestSubmit(button);
                     }

@@ -131,6 +131,14 @@ class Notification extends Model {
         return $stmt->execute();
     }
 
+    public static function belongsToAccount($notificationId, $accountId) {
+        $stmt = self::$conn->prepare('SELECT 1 FROM notifications WHERE notification_id = ? AND account_id = ? LIMIT 1');
+        if (!$stmt) return false;
+        $stmt->bind_param('ii', $notificationId, $accountId);
+        $stmt->execute();
+        return (bool) $stmt->get_result()->fetch_row();
+    }
+
     public static function markAllAsRead($accountId) {
         $now = date('Y-m-d H:i:s');
         $stmt = self::$conn->prepare("UPDATE notifications SET is_read = 1, read_at = ? WHERE account_id = ? AND is_read = 0");

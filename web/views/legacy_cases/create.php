@@ -502,7 +502,7 @@ $hearingTemplate = function () {
 
                 <div class="form-actions">
                     <a class="btn btn-secondary" href="<?= h(app_route('cases.index')) ?>">Cancel</a>
-                    <button class="btn btn-primary" type="submit">Save Migrated Case</button>
+                    <button class="btn btn-primary" type="submit" data-confirm-title="Digitize Case?" data-confirm="This historical case and its available records will be created in DARIS." data-confirm-button="Yes, Digitize Case" data-sicms-processing-label="Digitizing Case..." data-sicms-processing-modal="true">Save Migrated Case</button>
                 </div>
             </form>
         </main>
