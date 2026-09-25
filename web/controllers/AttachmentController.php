@@ -6,6 +6,7 @@ require_once __DIR__ . '/../models/ReformationReport.php';
 require_once __DIR__ . '/../models/CounterStatement.php';
 require_once __DIR__ . '/../models/AuditLog.php';
 require_once __DIR__ . '/../helpers/Security.php';
+require_once __DIR__ . '/../services/GoogleDriveService.php';
 
 class AttachmentController {
     private $user;
@@ -33,6 +34,25 @@ class AttachmentController {
         if (!$file || !$this->canAccess($file)) {
             http_response_code(403);
             exit('Access denied.');
+        }
+
+        if (($file['storage_provider'] ?? 'local') === 'google_drive' && !empty($file['drive_file_id'])) {
+            $contents = (new GoogleDriveService())->download($file['drive_file_id']);
+            if ($contents === null) {
+                http_response_code(404);
+                exit('Attachment not found in Google Drive.');
+            }
+            $inlineTypes = ['application/pdf', 'image/jpeg', 'image/png'];
+            $disposition = $mode === 'download' || !in_array($file['mime_type'], $inlineTypes, true) ? 'attachment' : 'inline';
+            $filename = preg_replace('/[^A-Za-z0-9._ -]/', '_', basename($file['original_filename'])) ?: 'attachment';
+            AuditLog::record($this->user, 'Attachment Access', ucfirst($disposition) . ' access to ' . $filename . ' for ' . $file['case_number'] . '.');
+            header('Content-Type: ' . $file['mime_type']);
+            header('Content-Length: ' . strlen($contents));
+            header('Content-Disposition: ' . $disposition . '; filename="' . addcslashes($filename, '"\\') . '"');
+            header('X-Content-Type-Options: nosniff');
+            header('Cache-Control: private, no-store, max-age=0');
+            echo $contents;
+            exit;
         }
 
         $storageRoot = realpath(dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'storage' . DIRECTORY_SEPARATOR . 'evidence');

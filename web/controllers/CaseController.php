@@ -649,8 +649,10 @@ class CaseController {
                 ? (int) ($approval['requested_by_account_id'] ?? $actorAccountId)
                 : $actorAccountId;
 
-            if (in_array($this->roleKey(), ['sdr-staff', 'sdru-staff'], true)) {
-                $_SESSION['case_errors'] = ['Your role allows viewing cases only. Case actions are reserved for managerial staff.'];
+            $isViewOnlyStaff = in_array($this->roleKey(), ['sdr-staff', 'sdru-staff'], true);
+            $staffAllowedActions = ['classify', 'case_update', 'resolve', 'reopen', 'archive', 'unarchive', 'escalate', 'withdraw_escalation'];
+            if ($isViewOnlyStaff && !in_array($action, $staffAllowedActions, true)) {
+                $_SESSION['case_errors'] = ['Your role cannot perform this case action.'];
                 header('Location: ' . $this->caseRedirect($complaintId));
                 exit;
             }

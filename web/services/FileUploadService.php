@@ -102,8 +102,13 @@ class FileUploadService {
     }
 
     public static function saveToEvidence(array $files) {
+        require_once __DIR__ . '/GoogleDriveService.php';
         $savedFiles = [];
         $uploadDir = dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'storage' . DIRECTORY_SEPARATOR . 'evidence';
+        $drive = new GoogleDriveService();
+        $driveEnabled = $drive->isAvailable();
+
+        self::ensureStorageColumns();
 
         if (!is_dir($uploadDir) && !mkdir($uploadDir, 0755, true) && !is_dir($uploadDir)) {
             throw new Exception('Unable to create the evidence directory.');
@@ -138,6 +143,23 @@ class FileUploadService {
                 $storedFilename = date('YmdHis') . '_' . bin2hex(random_bytes(12)) . '.' . $extension;
                 $destination = $uploadDir . DIRECTORY_SEPARATOR . $storedFilename;
 
+                if ($driveEnabled) {
+                    $driveFile = $drive->upload($tmpName, basename($name), mime_content_type($tmpName));
+                    if ($driveFile) {
+                        $savedFiles[] = [
+                            'original_filename' => basename($name),
+                            'stored_filename' => '',
+                            'file_path' => '',
+                            'mime_type' => mime_content_type($tmpName),
+                            'file_size' => (int) $file['size'],
+                            'storage_provider' => 'google_drive',
+                            'drive_file_id' => $driveFile['drive_file_id'],
+                            'drive_web_view_link' => $driveFile['drive_web_view_link'],
+                        ];
+                        continue;
+                    }
+                }
+
                 if (!move_uploaded_file($tmpName, $destination)) {
                     throw new Exception('Unable to save uploaded file.');
                 }
@@ -148,6 +170,9 @@ class FileUploadService {
                     'file_path' => 'storage/evidence/' . $storedFilename,
                     'mime_type' => mime_content_type($destination),
                     'file_size' => (int) filesize($destination),
+                    'storage_provider' => 'local',
+                    'drive_file_id' => null,
+                    'drive_web_view_link' => null,
                 ];
             }
         } catch (Throwable $exception) {
@@ -156,6 +181,26 @@ class FileUploadService {
         }
 
         return $savedFiles;
+    }
+
+    private static function ensureStorageColumns() {
+        require_once __DIR__ . '/../config/Database.php';
+        $db = (new Database())->getConnection();
+        if (!$db) return;
+        $columns = [
+            'storage_provider' => "ALTER TABLE complaint_evidence ADD COLUMN storage_provider VARCHAR(30) NOT NULL DEFAULT 'local'",
+            'drive_file_id' => "ALTER TABLE complaint_evidence ADD COLUMN drive_file_id VARCHAR(255) NULL",
+            'drive_web_view_link' => "ALTER TABLE complaint_evidence ADD COLUMN drive_web_view_link TEXT NULL",
+        ];
+        foreach ($columns as $column => $sql) {
+            $check = $db->prepare("SHOW COLUMNS FROM complaint_evidence LIKE ?");
+            if (!$check) continue;
+            $check->bind_param('s', $column);
+            $check->execute();
+            $exists = $check->get_result()->num_rows > 0;
+            $check->close();
+            if (!$exists) $db->query($sql);
+        }
     }
 
     private static function evidenceFilePath($relativePath) {

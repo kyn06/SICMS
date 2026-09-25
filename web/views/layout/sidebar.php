@@ -26,6 +26,11 @@ try {
     if (savedTheme === 'dark') document.documentElement.dataset.theme = 'dark';
 } catch (error) {}
 </script>
+<link rel="stylesheet" href="<?= h(app_url('node_modules/@eonasdan/tempus-dominus/dist/css/tempus-dominus.min.css')) ?>">
+<script src="<?= h(app_url('web/views/layout/theme.js')) ?>?v=20260926a" defer></script>
+<script src="<?= h(app_url('node_modules/@popperjs/core/dist/umd/popper.min.js')) ?>" defer></script>
+<script src="<?= h(app_url('node_modules/@eonasdan/tempus-dominus/dist/js/tempus-dominus.min.js')) ?>" defer></script>
+<script src="<?= h(app_url('web/views/layout/date-time-picker.js')) ?>?v=20260926a" defer></script>
 <aside class="sidebar" id="app-sidebar">
     <div class="brand">
         <img src="<?= h(app_url('public/assets/clsulogo.png')) ?>" alt="CLSU logo">

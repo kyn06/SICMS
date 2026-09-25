@@ -1,6 +1,33 @@
 Options -Indexes
 RewriteEngine On
 
+# Never expose deployment files, source/configuration files, or database dumps.
+<FilesMatch "^(\.env|\.env\..*|composer\.(json|lock|phar)|package(-lock)?\.json|.*\.(sql|log|ini|local|example))$">
+	Require all denied
+</FilesMatch>
+<IfModule mod_headers.c>
+	Header always set X-Content-Type-Options "nosniff"
+	Header always set X-Frame-Options "SAMEORIGIN"
+	Header always set Referrer-Policy "strict-origin-when-cross-origin"
+	Header always set Permissions-Policy "camera=(), microphone=(), geolocation=()"
+</IfModule>
+
+# Clean application URLs. The PHP view paths remain internal to Apache.
+RewriteRule ^dashboard/?$ index.php [L,QSA]
+RewriteRule ^accounts/?$ web/views/accounts/index.php [L,QSA]
+RewriteRule ^cases/?$ web/views/cases/index.php [L,QSA]
+RewriteRule ^cases/(index\.php|show\.php)$ web/views/cases/$1 [L,QSA]
+RewriteRule ^archived-cases/?$ web/views/archived_cases/index.php [L,QSA]
+RewriteRule ^reports/?$ web/views/reports/index.php [L,QSA]
+RewriteRule ^messages/?$ web/views/messages/index.php [L,QSA]
+RewriteRule ^settings/?$ web/views/settings/index.php [L,QSA]
+RewriteRule ^hearings/?$ web/views/hearings/index.php [L,QSA]
+RewriteRule ^audit-logs/?$ web/views/audit_logs/index.php [L,QSA]
+RewriteRule ^notifications/?$ web/views/notifications/index.php [L,QSA]
+
+# Relative assets used by views loaded through clean URLs.
+RewriteRule ^layout/(.*)$ web/views/layout/$1 [L]
+
 # Compatibility for activation links sent before email URLs were generated
 # from the configured SICMS application root.
 RewriteRule ^web/web/(.*)$ /SICMS/web/$1 [R=302,L,NE]

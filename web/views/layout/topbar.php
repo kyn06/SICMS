@@ -101,24 +101,6 @@ document.querySelector('.sidebar-toggle')?.addEventListener('click', function ()
     this.setAttribute('aria-expanded', open ? 'true' : 'false');
 });
 
-const themeToggle = document.querySelector('.theme-toggle');
-const updateThemeToggle = () => {
-    const dark = document.documentElement.dataset.theme === 'dark';
-    if (!themeToggle) return;
-    themeToggle.setAttribute('aria-label', dark ? 'Enable light mode' : 'Enable dark mode');
-    themeToggle.title = dark ? 'Enable light mode' : 'Enable dark mode';
-    themeToggle.innerHTML = `<i class="bi bi-${dark ? 'sun' : 'moon-stars'}" aria-hidden="true"></i>`;
-};
-themeToggle?.addEventListener('click', () => {
-    const dark = document.documentElement.dataset.theme !== 'dark';
-    document.documentElement.dataset.theme = dark ? 'dark' : 'light';
-    try {
-        localStorage.setItem('sicms-theme', dark ? 'dark' : 'light');
-        document.cookie = `sicms-theme=${dark ? 'dark' : 'light'}; path=/; max-age=31536000; SameSite=Lax`;
-    } catch (error) {}
-    updateThemeToggle();
-});
-updateThemeToggle();
 </script>
 <script>
 window.SICMS_NOTIFY = {

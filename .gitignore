@@ -1,0 +1,8 @@
+.env
+.env.*
+!.env.example
+node_modules/
+storage/evidence/*
+storage/message_attachments/*
+storage/outbound_emails/*
+storage/profile_pics/*

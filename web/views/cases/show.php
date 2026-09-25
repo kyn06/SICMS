@@ -48,6 +48,7 @@ $caseStatusIcon = $statusMeta[$caseStatus]['icon'] ?? 'bi-tag';
 $caseUpdatedAt = $case['updated_at'] ?? $case['submitted_at'] ?? null;
 $viewerRoleKey = strtolower(str_replace(['_', ' '], '-', $user['role'] ?? ''));
 $viewOnlyStaffRoles = ['sdr-staff', 'sdru-staff'];
+$isViewOnlyStaff = in_array($viewerRoleKey, $viewOnlyStaffRoles, true);
 $isReformationCoordinator = $viewerRoleKey === 'reformation-coordinator';
 $isHeadViewer = in_array($viewerRoleKey, ['head-of-sdru', 'sdru-head'], true);
 $canManageCase = !in_array($viewerRoleKey, $viewOnlyStaffRoles, true)
@@ -67,7 +68,7 @@ if (!$isReformationCoordinator) {
     $caseRefreshTargets .= ',#case-updates,#updateModalOverlay';
 }
 if ($canManageRespondentAccounts) {
-    $caseRefreshTargets .= ',#forward-respondent,#forwardModalOverlay';
+    $caseRefreshTargets .= ',#forwardModalOverlay';
 }
 $released = !empty($case['respondent_released_at']);
 $visibility = CaseRecord::respondentVisibility($complaintId);
@@ -102,6 +103,60 @@ function person_name($first, $last) {
     $name = trim(($first ?? '') . ' ' . ($last ?? ''));
     return $name !== '' ? $name : 'Unassigned';
 }
+
+function timeline_title($action) {
+    return [
+        'Resolved Case' => 'Resolved',
+        'Rejected Complaint' => 'Rejected',
+        'Escalated Case' => 'Escalated',
+        'Archived Case' => 'Archived',
+        'Unarchived Case' => 'Unarchived',
+    ][$action] ?? $action;
+}
+
+function timeline_person(array $item) {
+    return person_name($item['actor_first_name'] ?? '', $item['actor_last_name'] ?? '');
+}
+
+function timeline_date_range($newest, $oldest = null) {
+    $newestTimestamp = strtotime((string) $newest);
+    $oldestTimestamp = strtotime((string) ($oldest ?: $newest));
+    if ($newestTimestamp === false || $oldestTimestamp === false) return '';
+
+    if (date('Y-m-d', $newestTimestamp) === date('Y-m-d', $oldestTimestamp)) {
+        if ($newestTimestamp === $oldestTimestamp) return date('M d, Y · h:i A', $newestTimestamp);
+        return date('M d, Y · h:i', $oldestTimestamp) . '–' . date('h:i A', $newestTimestamp);
+    }
+
+    return date('M d, Y · h:i A', $oldestTimestamp) . '–' . date('M d, Y · h:i A', $newestTimestamp);
+}
+
+$timelineItems = [];
+$counterStatementGroup = null;
+foreach ($history as $historyItem) {
+    if (($historyItem['action'] ?? '') === 'Counter-Statement Submitted') {
+        if ($counterStatementGroup === null) {
+            $counterStatementGroup = [
+                'action' => 'Counter-Statement Submitted',
+                'created_at' => $historyItem['created_at'],
+                'oldest_at' => $historyItem['created_at'],
+                'count' => 0,
+                'actors' => [],
+            ];
+            $timelineItems[] = &$counterStatementGroup;
+        }
+        $counterStatementGroup['oldest_at'] = $historyItem['created_at'];
+        $counterStatementGroup['count']++;
+        $actor = timeline_person($historyItem);
+        if ($actor !== 'Unassigned' && !in_array($actor, $counterStatementGroup['actors'], true)) {
+            $counterStatementGroup['actors'][] = $actor;
+        }
+        continue;
+    }
+
+    $timelineItems[] = $historyItem;
+}
+unset($counterStatementGroup);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -948,6 +1003,110 @@ function person_name($first, $last) {
         min-height: 80px;
     }
 
+    .forward-modal {
+        width: min(640px, 100%);
+    }
+
+    .forward-intro {
+        color: #536052;
+        font-size: 13px;
+        line-height: 1.55;
+        margin: 0;
+    }
+
+    .forward-intro strong {
+        color: #263d2b;
+    }
+
+    .forward-section {
+        border-top: 1px solid #e5ece3;
+        margin-top: 18px;
+        padding-top: 16px;
+    }
+
+    .forward-section-title {
+        color: #123c1b;
+        font-size: 13px;
+        margin: 0 0 4px;
+    }
+
+    .forward-section-copy {
+        color: #637162;
+        font-size: 12px;
+        line-height: 1.45;
+        margin: 0 0 10px;
+    }
+
+    .forward-respondent-list,
+    .forward-permission-list {
+        display: grid;
+        gap: 8px;
+    }
+
+    .forward-respondent-card,
+    .forward-permission-card,
+    .forward-always-card {
+        align-items: flex-start;
+        background: #f8fbf7;
+        border: 1px solid #dce7d9;
+        border-radius: 8px;
+        display: flex;
+        gap: 10px;
+        padding: 10px 12px;
+    }
+
+    .forward-respondent-card input,
+    .forward-permission-card input {
+        flex: 0 0 auto;
+        margin-top: 3px;
+        width: 15px;
+    }
+
+    .forward-respondent-card strong,
+    .forward-permission-card strong,
+    .forward-always-card strong {
+        color: #263d2b;
+        display: block;
+        font-size: 13px;
+    }
+
+    .forward-respondent-meta,
+    .forward-permission-copy,
+    .forward-always-copy {
+        color: #637162;
+        display: block;
+        font-size: 12px;
+        line-height: 1.45;
+        margin-top: 2px;
+    }
+
+    .forward-respondent-meta a {
+        color: #1c6dd0;
+    }
+
+    .forward-note {
+        color: #637162;
+        font-size: 11.5px;
+        line-height: 1.45;
+        margin: 8px 0 0;
+    }
+
+    .forward-notice {
+        background: #fffdf5;
+        border: 1px solid #ead9a5;
+        border-left: 4px solid #b57600;
+        border-radius: 8px;
+        color: #6a614c;
+        font-size: 12px;
+        line-height: 1.5;
+        margin-top: 12px;
+        padding: 11px 12px;
+    }
+
+    .forward-notice strong {
+        color: #4f452e;
+    }
+
     .case-modal-label {
         display: block;
         font-size: 12px;
@@ -1142,7 +1301,7 @@ function person_name($first, $last) {
 
             <main class="case-wrap case-detail-view">
                 <nav class="case-section-nav" aria-label="Case details sections">
-                    <a href="#case-overview">Overview</a><a href="#complaint-details">Complaint</a><?php if (!$isReformationCoordinator): ?><a href="#counter-statements">Statements</a><?php endif; ?><a href="#case-evidence">Evidence</a><?php if (!$isReformationCoordinator): ?><a href="#hearings">Hearings</a><?php endif; ?><?php if (!$isReformationCoordinator): ?><a href="#case-messages">Messages</a><?php endif; ?><?php if (!$isReformationCoordinator): ?><a href="#case-updates">Updates</a><?php endif; ?><?php if (!in_array($viewerRoleKey, ['sdr-staff', 'sdru-staff'], true)): ?><a href="#case-actions">Actions</a><?php endif; ?><a href="#case-timeline">Timeline</a>
+                    <a href="#case-overview">Overview</a><a href="#complaint-details">Complaint</a><?php if (!$isReformationCoordinator): ?><a href="#counter-statements">Statements</a><?php endif; ?><a href="#case-evidence">Evidence</a><?php if (!$isReformationCoordinator): ?><a href="#hearings">Hearings</a><?php endif; ?><?php if (!$isReformationCoordinator): ?><a href="#case-messages">Messages</a><?php endif; ?><?php if (!$isReformationCoordinator): ?><a href="#case-updates">Updates</a><?php endif; ?><a href="#case-actions">Actions</a><a href="#case-timeline">Timeline</a>
                 </nav>
                 <div style="margin-bottom:14px"><a class="btn btn-secondary"
                         href="<?= h(app_route('cases.index')) ?>"><i class="bi bi-arrow-left"></i> Back to Case
@@ -1229,7 +1388,7 @@ function person_name($first, $last) {
                             <h2>Case Overview</h2>
                             <div class="case-summary-grid">
                                 <div class="case-summary-item"><div class="label">Classification</div><div class="value"><?= h($case['case_classification'] ?: 'Unclassified') ?></div></div>
-                                <div class="case-summary-item"><div class="label"><?= $isReformationCoordinator ? 'Reformation Coordinator' : 'Discipline Coordinator' ?></div><div class="value"><?= h($isReformationCoordinator ? person_name($case['reformation_coordinator_first_name'], $case['reformation_coordinator_last_name']) : person_name($case['coordinator_first_name'], $case['coordinator_last_name'])) ?></div></div>
+                                <div class="case-summary-item"><div class="label"><?= $isReformationCoordinator || !empty($case['assigned_reformation_coordinator_account_id']) ? 'Reformation Coordinator' : 'Discipline Coordinator' ?></div><div class="value"><?= h($isReformationCoordinator || !empty($case['assigned_reformation_coordinator_account_id']) ? person_name($case['reformation_coordinator_first_name'], $case['reformation_coordinator_last_name']) : person_name($case['coordinator_first_name'], $case['coordinator_last_name'])) ?></div></div>
                                 <div class="case-summary-item"><div class="label">Submitted</div><div class="value"><?= h(date('M d, Y', strtotime($case['submitted_at']))) ?></div></div>
                             </div>
                         </section>
@@ -1824,7 +1983,54 @@ function person_name($first, $last) {
 
                     <aside>
                         <?php $caseStatus = $case['status'] ?? ''; $caseLocked = in_array($caseStatus, ['Resolved', 'Reformation in Progress', 'Reformation Completed', 'Escalated', 'Archived'], true); ?>
-                        <?php if (!in_array($viewerRoleKey, ['sdr-staff', 'sdru-staff'], true)): ?>
+                        <?php if ($isViewOnlyStaff): ?>
+                        <section class="panel case-content-section" id="case-actions">
+                            <h2>Case Actions</h2>
+                            <p class="muted" style="margin-bottom:10px"><i class="bi bi-shield-lock"></i> Staff access is limited to classification, case workflow updates, and case outcomes.</p>
+
+                            <div class="case-action-group">
+                                <h3 class="case-action-label">Case Classification</h3>
+                                <form class="action-form" method="POST" action="show.php?id=<?= (int) $case['complaint_id'] ?>" data-ajax-target="<?= h($caseRefreshTargets) ?>" data-ajax-reset="true">
+                                    <?= Security::csrfField() ?>
+                                    <select name="classification" id="caseClassification" required <?= $caseLocked ? 'disabled title="This case is closed."' : '' ?>>
+                                        <option value="">Select classification</option>
+                                        <?php foreach ($classificationOptions as $classification): ?>
+                                        <option value="<?= h($classification) ?>" <?= ($case['case_classification'] ?? '') === $classification ? 'selected' : '' ?>><?= h($classification) ?></option>
+                                        <?php endforeach; ?>
+                                        <option value="Others">Others (specify)</option>
+                                    </select>
+                                    <input type="text" name="classification_other" id="caseClassificationOther" placeholder="Specify the case classification" maxlength="100" hidden <?= $caseLocked ? 'disabled' : '' ?>>
+                                    <button class="btn btn-assign" type="submit" name="case_action" value="classify" <?= $caseLocked ? 'disabled title="This case is closed."' : '' ?> data-swal-action="classify" data-sicms-processing-label="Saving Classification...">Save Classification</button>
+                                </form>
+                            </div>
+
+                            <div class="case-action-group">
+                                <h3 class="case-action-label">Case Workflow</h3>
+                                <button type="button" class="btn btn-assign" id="openUpdateModal" <?= in_array($caseStatus, ['Escalated', 'Archived'], true) ? 'disabled title="This case can no longer be updated."' : '' ?>><i class="bi bi-plus-circle"></i> Add Case Update</button>
+                            </div>
+
+                            <div class="case-action-group">
+                                <h3 class="case-action-label">Case Outcome</h3>
+                                <form class="action-form" method="POST" action="show.php?id=<?= (int) $case['complaint_id'] ?>" data-ajax-target="<?= h($caseRefreshTargets) ?>">
+                                    <?= Security::csrfField() ?>
+                                    <div class="outcome-field"><textarea name="outcome" id="caseOutcome" placeholder="Record the final outcome/resolution of this case (required for Resolve)."></textarea></div>
+                                    <div class="button-row two">
+                                        <button class="btn btn-resolve" type="submit" name="case_action" value="<?= $caseStatus === 'Resolved' ? 'reopen' : 'resolve' ?>" <?= ($caseStatus === 'Under Investigation') ? 'data-swal-confirm="Mark this case as resolved?"' : (($caseStatus === 'Resolved') ? 'data-swal-confirm="Unresolve this case? Its status will return to Under Investigation."' : 'disabled title="Available once the case is Under Investigation."') ?>><i class="bi <?= $caseStatus === 'Resolved' ? 'bi-arrow-counterclockwise' : 'bi-check-lg' ?>"></i> <?= $caseStatus === 'Resolved' ? 'Unresolve Case' : 'Mark as Resolved' ?></button>
+                                        <?php if ($caseStatus === 'Archived'): ?>
+                                            <button class="btn btn-archive" type="submit" name="case_action" value="unarchive" data-swal-confirm="Unarchive this case? Its previous status will be restored.">Unarchive Case</button>
+                                        <?php else: ?>
+                                            <button class="btn btn-archive" type="submit" name="case_action" value="archive" <?= in_array($caseStatus, ['Resolved', 'Reformation in Progress', 'Reformation Completed', 'Escalated'], true) ? 'data-swal-confirm="Archive this case? It will be moved to Archived Cases."' : 'disabled title="Available once the case is Resolved or Escalated."' ?>>Archive Case</button>
+                                        <?php endif; ?>
+                                    </div>
+                                </form>
+                                <form class="action-form" method="POST" action="show.php?id=<?= (int) $case['complaint_id'] ?>" data-ajax-target="<?= h($caseRefreshTargets) ?>">
+                                    <?= Security::csrfField() ?>
+                                    <textarea name="remarks" placeholder="Reason for escalation (required to escalate)."></textarea>
+                                    <button class="btn btn-escalate" type="submit" name="case_action" value="<?= $caseStatus === 'Escalated' ? 'withdraw_escalation' : 'escalate' ?>" <?= ($caseStatus === 'Under Investigation') ? 'data-swal-confirm="Mark this case as escalated?"' : (($caseStatus === 'Escalated') ? 'data-swal-confirm="Withdraw the escalation?"' : 'disabled title="Available once the case is Under Investigation."') ?>><i class="bi <?= $caseStatus === 'Escalated' ? 'bi-arrow-counterclockwise' : 'bi-arrow-up-circle' ?>"></i> <?= $caseStatus === 'Escalated' ? 'Withdraw Escalation' : 'Mark as Escalated' ?></button>
+                                </form>
+                            </div>
+                        </section>
+                        <?php elseif (!$isReformationCoordinator): ?>
                         <?php if ($isReformationCoordinator): ?>
                         <section class="panel case-content-section" id="case-actions">
                             <h2><i class="bi bi-arrow-repeat"></i> Reformation Panel</h2>
@@ -1839,6 +2045,16 @@ function person_name($first, $last) {
                                     <?= in_array($caseStatus, ['Resolved', 'Reformation in Progress'], true) ? '' : 'disabled title="Reformation begins once the case is resolved."' ?>><i class="bi bi-journal-text"></i> Add Progress Update</button>
                                 <button type="button" class="btn btn-secondary" id="openReformationReportModal" style="margin-top:8px; width:100%"><i class="bi bi-upload"></i> Upload Reformation Report</button>
                             </div>
+
+                            <?php if ($canManageRespondentAccounts): ?>
+                            <div class="case-action-group">
+                                <h3 class="case-action-label">Respondent Access</h3>
+                                <button type="button" class="btn btn-assign" id="openForwardModal"
+                                    <?= !$hasLinkedAccounts ? 'disabled title="No linked respondent accounts yet. Link a respondent first, then come back here to forward the case."' : '' ?>>
+                                    <i class="bi bi-send"></i> Forward Case to Respondent
+                                </button>
+                            </div>
+                            <?php endif; ?>
 
                             <div class="case-action-group">
                                 <h3 class="case-action-label">Completion</h3>
@@ -1934,6 +2150,13 @@ function person_name($first, $last) {
                                 <?php endif; ?>
                                 <button type="button" class="btn btn-assign" id="openUpdateModal"
                                     <?= in_array($caseStatus, ['Escalated', 'Archived'], true) ? 'disabled title="This case is ' . ($caseStatus === 'Escalated' ? 'escalated' : 'archived') . ' and can no longer be updated."' : '' ?>><i class="bi bi-plus-circle"></i> Add Case Update</button>
+                                <button type="button"
+                                class="btn btn-assign"
+                                id="openForwardModal"
+                                style="width:100%"
+                                <?= !$hasLinkedAccounts ? 'disabled title="No linked respondent accounts yet. Link a respondent first, then come back here to forward the case."' : '' ?>>
+                                <i class="bi bi-send"></i> Forward
+                            </button>
                             </div>
 
                             <div class="case-action-group">
@@ -1969,51 +2192,27 @@ function person_name($first, $last) {
                         <?php endif; ?>
                         <?php endif; ?>
 
-                        <?php if ($canManageRespondentAccounts): ?>
-                        <section class="panel" id="forward-respondent">
-                            <h2><i class="bi bi-send"></i> Forward Case Information to Respondent</h2>
-                            <?php if ($released): ?>
-                                <p class="muted" style="font-size:12px;margin:0 0 12px">Permitted case information was released to the respondent(s) on <?= h(date('M d, Y h:i A', strtotime($case['respondent_released_at']))) ?>. Respondents see only what is checked when forwarding; evidence, witnesses, and internal notes are never shown to them.</p>
-                            <?php else: ?>
-                                <p class="muted" style="font-size:12px;margin:0 0 12px">The respondent(s) can only view the case once you forward it. Evidence, witnesses, and internal notes are never shown to respondents.</p>
-                            <?php endif; ?>
-                            <button type="button"
-                                class="btn btn-assign"
-                                id="openForwardModal"
-                                style="width:100%"
-                                <?= !$hasLinkedAccounts ? 'disabled title="No linked respondent accounts yet. Link a respondent first, then come back here to forward the case."' : '' ?>>
-                                <i class="bi bi-send"></i> Forward
-                            </button>
-                            <?php if (!$hasLinkedAccounts): ?>
-                                <p class="muted" style="font-size:11px;margin:6px 0 0">No linked respondent accounts yet. Link a respondent first, then come back here to forward the case.</p>
-                            <?php endif; ?>
-                        </section>
-                        <?php endif; ?>
-
                         <section class="panel case-content-section" id="case-timeline">
                             <h2>Timeline</h2>
                             <div class="timeline-scroll">
                             <?php if (empty($history)): ?>
                             <p class=" muted">No case history yet.</p>
                             <?php else: ?>
-                            <?php foreach ($history as $item): ?>
+                            <?php foreach ($timelineItems as $item): ?>
                             <div class="timeline-item">
-                                <strong><?= h($item['action']) ?></strong>
-                                <div class="muted"><?= h(date('M d, Y h:i A', strtotime($item['created_at']))) ?></div>
-                                <div class="value">
-                                    <?= h($item['previous_status']) ?><?= $item['new_status'] ? ' to ' . h($item['new_status']) : '' ?>
-                                </div>
-                                <?php if (!empty($item['assigned_coordinator_account_id'])): ?>
-                                <div class="value">Coordinator:
-                                    <?= h(person_name($item['coordinator_first_name'], $item['coordinator_last_name'])) ?>
-                                </div>
+                                <strong><?= h(timeline_title($item['action'] ?? '')) ?></strong>
+                                <div class="muted"><?= h(timeline_date_range($item['created_at'], $item['oldest_at'] ?? null)) ?></div>
+                                <?php if (($item['action'] ?? '') === 'Counter-Statement Submitted'): ?>
+                                    <div class="value"><?= (int) $item['count'] ?> submission<?= (int) $item['count'] === 1 ? '' : 's' ?><?php if (!empty($item['actors'])): ?> · <?= h(implode(' · ', $item['actors'])) ?><?php endif; ?></div>
+                                <?php elseif (($item['action'] ?? '') === 'Assigned Reformation Coordinator'): ?>
+                                    <div class="value"><?= h(person_name($item['reformation_coordinator_first_name'] ?? '', $item['reformation_coordinator_last_name'] ?? '')) ?></div>
+                                <?php elseif (in_array(($item['action'] ?? ''), ['Assigned Coordinator', 'Forwarded to Respondent'], true)): ?>
+                                    <div class="value">Coordinator: <?= h(person_name($item['coordinator_first_name'] ?? '', $item['coordinator_last_name'] ?? '')) ?> · <?= h(timeline_person($item)) ?></div>
+                                <?php elseif (($item['action'] ?? '') === 'Resolved Case'): ?>
+                                    <div class="value">Outcome: <?= h(trim((string) ($case['outcome'] ?? '')) ?: 'Done') ?> · <?= h(timeline_person($item)) ?></div>
+                                <?php else: ?>
+                                    <div class="value"><?= h(timeline_person($item)) ?></div>
                                 <?php endif; ?>
-                                <?php if (!empty($item['remarks'])): ?>
-                                <div class="value"><?= nl2br(h($item['remarks'])) ?></div>
-                                <?php endif; ?>
-                                <div class="muted">By
-                                    <?= h(person_name($item['actor_first_name'], $item['actor_last_name'])) ?>
-                                </div>
                             </div>
                             <?php endforeach; ?>
                             <?php endif; ?>
@@ -2281,11 +2480,11 @@ function person_name($first, $last) {
 
     <?php if ($canManageRespondentAccounts): ?>
     <div class="case-modal-overlay" id="forwardModalOverlay">
-        <div class="case-modal" role="dialog" aria-modal="true" aria-labelledby="forwardModalTitle">
+        <div class="case-modal forward-modal" role="dialog" aria-modal="true" aria-labelledby="forwardModalTitle">
             <div class="case-modal-header">
                 <div>
                     <h3 id="forwardModalTitle"><i class="bi bi-send"></i> Forward Case Information to Respondent</h3>
-                    <p>Click the linked respondent(s) to receive the case and select which information they may see. Re-forwarding updates the permitted sections.</p>
+                    <p class="forward-intro"><strong>Respondent Access</strong><br>Respondents can only view the information selected below. <strong>Evidence, witnesses, and internal notes are never shown to respondents.</strong></p>
                 </div>
                 <button class="case-modal-close" type="button" data-close-modal aria-label="Close">&times;</button>
             </div>
@@ -2293,35 +2492,59 @@ function person_name($first, $last) {
                 <?= Security::csrfField() ?>
                 <input type="hidden" name="case_action" value="forward_to_respondents">
                 <div class="case-modal-body">
-                    <label class="case-modal-label">Linked Respondent(s) to Receive the Case</label>
-                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 16px">
+                    <section class="forward-section" style="border-top:0;margin-top:0;padding-top:0">
+                    <h4 class="forward-section-title">Linked Respondent(s)</h4>
+                    <p class="forward-section-copy">Select the respondent(s) who should receive access to this case.</p>
+                    <div class="forward-respondent-list">
                     <?php foreach ($linkedForwardAccounts as $ra): ?>
-                    <label style="display:flex;gap:8px;align-items:flex-start;font-weight:400">
-                        <input type="checkbox" name="respondent_ids[]" value="<?= (int) $ra['linked_account_id'] ?>" checked style="margin-top:1px">
+                    <label class="forward-respondent-card">
+                        <input type="checkbox" name="respondent_ids[]" value="<?= (int) $ra['linked_account_id'] ?>" checked>
                         <span>
-                            <?= h($ra['full_name']) ?><?php if (!empty($ra['student_no'])): ?> <span class="muted"><?= h($ra['student_no']) ?></span><?php endif; ?>
-                            <br>
-                            <span class="muted" style="font-size:11px"><?= h($ra['account_email']) ?> &middot; Linked &amp; active</span>
+                            <strong><?= h(strtoupper($ra['full_name'])) ?></strong>
+                            <span class="forward-respondent-meta"><?php if (!empty($ra['student_no'])): ?><?= h($ra['student_no']) ?> &middot; <?php endif; ?><a href="mailto:<?= h($ra['account_email']) ?>"><?= h($ra['account_email']) ?></a></span>
+                            <span class="forward-respondent-meta"><em>Linked &amp; Active</em></span>
                         </span>
                     </label>
                     <?php endforeach; ?>
                     </div>
-                    <p class="muted" style="font-size:11px;margin:6px 0 14px">Only ticked respondent(s) will receive the case. Untick a respondent to leave the case hidden from them.</p>
-                    <label class="case-modal-label" for="respondent_extra_email">Additional Respondent Email (optional)</label>
-                    <input type="email" id="respondent_extra_email" name="respondent_extra_email" class="form-control" placeholder="e.g. respondent@example.com" style="margin-top:6px" value="<?= h($_POST['respondent_extra_email'] ?? '') ?>">
-                    <p class="muted" style="font-size:11px;margin:6px 0 14px">A copy of the case notice will also be sent to this typed email address.</p>
-                    <label class="case-modal-label">Permitted Respondent Information</label>
-                    <?php foreach ($visibilityLabels as $key => $label): ?>
-                        <?php if ($key === 'complaint_details') continue; ?>
-                        <label style="display:flex;gap:8px;align-items:center;font-weight:400;font-size:13px;margin:3px 0">
-                            <input type="checkbox" name="respondent_visibility[]" value="<?= h($key) ?>" <?= $visibility[$key] ? 'checked' : '' ?>>
-                            <?= h($label) ?>
-                        </label>
-                    <?php endforeach; ?>
-                    <p class="muted" style="font-size:11px;margin:4px 0 0">Complaint Details (narrative) is always included as the basis of the respondent&rsquo;s counter-statement.</p>
-                    <div class="notice" style="font-size:12px;margin:12px 0 0;background:#fffdf5;border:1px solid #ead9a5;border-left:4px solid #b57600;border-radius:8px;color:#6a614c;padding:12px 14px">
-                        <i class="bi bi-info-circle"></i> The selected respondent(s) will be sent the case through <strong>Gmail</strong> and receive an <strong>in-app notification inside DARIS</strong>, so they can review the case and file their counter-statement.
+                    <p class="forward-note">Only selected respondent(s) will receive the case.</p>
+                    </section>
+
+                    <section class="forward-section">
+                    <label class="forward-section-title" for="respondent_extra_email">Additional Respondent Email <em>(Optional)</em></label>
+                    <input type="email" id="respondent_extra_email" name="respondent_extra_email" class="form-control" placeholder="e.g. respondent@example.com" value="<?= h($_POST['respondent_extra_email'] ?? '') ?>">
+                    <p class="forward-note">A copy of the case notification will also be sent to this email address.</p>
+                    </section>
+
+                    <section class="forward-section">
+                    <h4 class="forward-section-title">Information They Can View</h4>
+                    <div class="forward-permission-list">
+                    <label class="forward-permission-card">
+                        <input type="checkbox" name="respondent_visibility[]" value="incident" <?= !empty($visibility['incident']) ? 'checked' : '' ?>>
+                        <span><strong>Incident Details</strong><span class="forward-permission-copy">Incident date, time, and location</span></span>
+                    </label>
+                    <label class="forward-permission-card">
+                        <input type="checkbox" name="respondent_visibility[]" value="hearings" <?= !empty($visibility['hearings']) ? 'checked' : '' ?>>
+                        <span><strong>Scheduled Hearings</strong></span>
+                    </label>
+                    <label class="forward-permission-card">
+                        <input type="checkbox" name="respondent_visibility[]" value="final_information" <?= !empty($visibility['final_information']) ? 'checked' : '' ?>>
+                        <span><strong>Final Information</strong><span class="forward-permission-copy">Outcome, action taken, and remarks</span></span>
+                    </label>
                     </div>
+                    </section>
+
+                    <section class="forward-section">
+                    <h4 class="forward-section-title">Always Included</h4>
+                    <div class="forward-always-card">
+                        <span><strong>Complaint Details (Narrative)</strong><span class="forward-always-copy">Included as the basis of the respondent&rsquo;s counter-statement.</span></span>
+                    </div>
+                    </section>
+
+                    <div class="forward-notice"><strong><i class="bi bi-send"></i> Delivery</strong><br>The selected respondent(s) will receive the case through <strong>Gmail</strong> and an <strong>in-app notification in DARIS</strong>. They can then review the permitted information and submit their counter-statement.</div>
+                    <?php if ($released): ?>
+                    <div class="forward-notice"><strong><i class="bi bi-arrow-repeat"></i> Re-forwarding</strong><br>Re-forwarding the case will update the respondent&rsquo;s permitted information based on the selections above.</div>
+                    <?php endif; ?>
                 </div>
                 <div class="case-modal-actions">
                     <button type="button" class="btn btn-secondary" data-close-modal>Cancel</button>

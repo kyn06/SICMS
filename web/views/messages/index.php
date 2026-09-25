@@ -161,6 +161,8 @@ function preview_text($text) {
         .attachment-link { color: #123c1b; display: block; font-size: 12px; font-weight: 700; margin-top: 8px; text-decoration: none; }
         .message-time { color: #747e71; font-size: 11px; margin: 4px 6px 0; }
         .message-row.outgoing .message-time { text-align: right; }
+        .message-receipt { color: #687365; font-size: 11px; margin-left: 6px; }
+        .message-receipt.is-read { color: #1a8c2b; font-weight: 700; }
         .empty-state { color: #667162; padding: 40px 20px; text-align: center; }
         .composer { align-items: flex-end; background: #fff; border-top: 1px solid #dce5da; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; padding: 14px 18px; }
         .attachment-btn, .send-btn { border: 0; border-radius: 999px; cursor: pointer; font: inherit; height: 42px; width: 42px; }
@@ -623,13 +625,16 @@ function preview_text($text) {
 
                 const isOutgoing = Number(message.sender_account_id) === Number(currentUserId);
                 const attachment = message.attachment ? `<a class="attachment-link" href="../../../${escapeHtml(message.attachment)}" target="_blank">View attachment</a>` : '';
+                const receipt = isOutgoing
+                    ? `<span class="message-receipt${Number(message.is_read) === 1 ? ' is-read' : ''}">${Number(message.is_read) === 1 ? 'Read' : 'Sent'}</span>`
+                    : '';
 
                 return `
                     ${separator}
                     <div class="message-row ${isOutgoing ? 'outgoing' : 'incoming'}">
                         <div class="bubble-wrap">
                             <div class="message-bubble">${escapeHtml(message.message)}${attachment}</div>
-                            <div class="message-time">${escapeHtml(messageTime(message.created_at))}</div>
+                            <div class="message-time">${escapeHtml(messageTime(message.created_at))}${receipt}</div>
                         </div>
                     </div>
                 `;
