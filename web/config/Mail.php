@@ -9,4 +9,6 @@ return [
     'from_email' => getenv('DARIS_MAIL_FROM') ?: getenv('SICMS_MAIL_FROM') ?: '',
     'from_name' => getenv('DARIS_MAIL_FROM_NAME') ?: 'DARIS - Discipline and Reformation Information System',
     'app_url' => rtrim(getenv('DARIS_APP_URL') ?: getenv('SICMS_APP_URL') ?: 'http://localhost/daris', '/'),
+    'timeout_seconds' => (int) (getenv('DARIS_MAIL_TIMEOUT') ?: 4),
+    'request_budget_seconds' => (int) (getenv('DARIS_MAIL_REQUEST_BUDGET') ?: 8),
 ];

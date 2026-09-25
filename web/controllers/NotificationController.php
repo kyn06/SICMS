@@ -66,11 +66,47 @@ class NotificationController {
 
     private function handleAction() {
         $action = $_POST['notification_action'] ?? '';
+        $isAjax = strtolower((string) ($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '')) === 'xmlhttprequest'
+            || strpos((string) ($_SERVER['HTTP_ACCEPT'] ?? ''), 'application/json') !== false;
+        $success = false;
 
         if ($action === 'mark_one') {
-            Notification::markAsRead((int) ($_POST['notification_id'] ?? 0), (int) $this->user['account_id']);
+            $notificationId = (int) ($_POST['notification_id'] ?? 0);
+            if ($notificationId <= 0) {
+                if ($isAjax) {
+                    http_response_code(422);
+                    header('Content-Type: application/json; charset=utf-8');
+                    echo json_encode(['success' => false, 'message' => 'Please select a valid notification.']);
+                    exit;
+                }
+            } elseif (!Notification::belongsToAccount($notificationId, (int) $this->user['account_id'])) {
+                if ($isAjax) {
+                    http_response_code(404);
+                    header('Content-Type: application/json; charset=utf-8');
+                    echo json_encode(['success' => false, 'message' => 'That notification was not found.']);
+                    exit;
+                }
+            } else {
+                $success = Notification::markAsRead($notificationId, (int) $this->user['account_id']);
+            }
         } elseif ($action === 'mark_all') {
-            Notification::markAllAsRead((int) $this->user['account_id']);
+            $success = Notification::markAllAsRead((int) $this->user['account_id']);
+        } elseif ($isAjax) {
+            http_response_code(422);
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode(['success' => false, 'message' => 'Invalid notification action.']);
+            exit;
+        }
+
+        if ($isAjax) {
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode([
+                'success' => (bool) $success,
+                'message' => $success ? ($action === 'mark_all' ? 'All notifications marked as read.' : 'Notification marked as read.') : 'Unable to update the notification.',
+                'unread' => Notification::unreadCount((int) $this->user['account_id']),
+                'notification_id' => (int) ($_POST['notification_id'] ?? 0),
+            ]);
+            exit;
         }
 
         header('Location: index.php');

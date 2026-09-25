@@ -251,7 +251,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $birthday  = trim($_POST['birthday'] ?? '');
         $studentNumber = trim($_POST['student_number'] ?? '');
         $college   = trim($_POST['college'] ?? '');
-        $course    = trim($_POST['course'] ?? '');
+        $course    = Courses::canonical($_POST['course'] ?? '');
         $section   = trim($_POST['section'] ?? '');
 
         if ($firstName === '') {
@@ -316,8 +316,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             if ($course === '') {
                 $fieldErrors['course'][] = 'Course is required.';
-            } elseif (!in_array($course, Courses::all(), true)) {
-                $fieldErrors['course'][] = 'Please select a valid course.';
+            } elseif (!Courses::belongsToCollege($course, $college)) {
+                $fieldErrors['course'][] = 'Please select a course offered by the selected college.';
             }
 
             $validSections = array_merge(...array_values(Courses::sections()));
@@ -379,6 +379,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $old = $old ?: $user;
+$old['course'] = Courses::canonical($old['course'] ?? '');
 $hasPassword = !empty($user['password_hash']);
 
 $calSuccess = $calSuccess ?? null;
@@ -570,7 +571,7 @@ $loginSessions = LoginSession::forAccount((int) $user['account_id'], session_id(
                                     <div class="settings-field">
                                         <label for="college">College <span class="required">*</span></label>
                                         <select id="college" name="college" required>
-                                            <option value="">Select your college</option>
+                                            <option value="">Select College</option>
                                             <?php foreach (Colleges::all() as $collegeOption): ?>
                                                 <option value="<?= h($collegeOption) ?>" <?= ($old['college'] ?? '') === $collegeOption ? 'selected' : '' ?>>
                                                     <?= h($collegeOption) ?>
@@ -580,10 +581,10 @@ $loginSessions = LoginSession::forAccount((int) $user['account_id'], session_id(
                                         <?= field_error_html($fieldErrors, 'college') ?>
                                     </div>
                                     <div class="settings-field">
-                                        <label for="course">Course <span class="required">*</span></label>
-                                        <select id="course" name="course" required>
-                                            <option value="">Select your course</option>
-                                            <?php foreach (Courses::all() as $courseOption): ?>
+                                        <label for="course">Course/Program <span class="required">*</span></label>
+                                        <select id="course" name="course" required <?= empty($old['college']) ? 'disabled' : '' ?>>
+                                            <option value=""><?= empty($old['college']) ? 'Select a college first' : 'Select Course/Program' ?></option>
+                                            <?php foreach (Courses::forCollege($old['college'] ?? '') as $courseOption): ?>
                                                 <option value="<?= h($courseOption) ?>" <?= ($old['course'] ?? '') === $courseOption ? 'selected' : '' ?>>
                                                     <?= h($courseOption) ?>
                                                 </option>
@@ -595,8 +596,8 @@ $loginSessions = LoginSession::forAccount((int) $user['account_id'], session_id(
                                 <div class="settings-field-row">
                                     <div class="settings-field">
                                         <label for="section">Section <span class="required">*</span></label>
-                                        <select id="section" name="section" required>
-                                            <option value="">Select your section</option>
+                                        <select id="section" name="section" required <?= empty($old['course']) ? 'disabled' : '' ?>>
+                                            <option value="">Select Section</option>
                                             <?php foreach (Courses::sections() as $yearLabel => $sections): ?>
                                                 <optgroup label="<?= h($yearLabel) ?>">
                                                     <?php foreach ($sections as $sectionOption): ?>
@@ -620,7 +621,7 @@ $loginSessions = LoginSession::forAccount((int) $user['account_id'], session_id(
                         <?php endif; ?>
 
                         <div class="settings-actions">
-                            <button type="submit" class="btn btn-primary"><i class="bi bi-check2"></i> Save Changes</button>
+                            <button type="submit" class="btn btn-primary" data-sicms-processing-label="Saving Changes..." data-sicms-processing-modal="true"><i class="bi bi-check2"></i> Save Changes</button>
                         </div>
                     </form>
                     </div>
@@ -722,7 +723,7 @@ $loginSessions = LoginSession::forAccount((int) $user['account_id'], session_id(
                         </div>
 
                         <div class="settings-actions">
-                            <button type="submit" class="btn btn-primary"><i class="bi bi-check2"></i> Confirm</button>
+                            <button type="submit" class="btn btn-primary" data-sicms-processing-label="Saving Changes..." data-sicms-processing-modal="true"><i class="bi bi-check2"></i> Confirm</button>
                         </div>
                     </form>
                     </div>
@@ -733,7 +734,7 @@ $loginSessions = LoginSession::forAccount((int) $user['account_id'], session_id(
                             <h3 class="settings-group-title"><i class="bi bi-plug"></i> Integrations &amp; Data</h3>
                             <p class="settings-group-desc">Connect your Google account so hearings are scheduled automatically and case emails are sent from your own Gmail.</p>
                         </div>
-                        <form method="POST" action="<?= h(app_url('web/views/settings/index.php')) ?>" class="settings-form settings-password-form settings-group-form" data-confirm="<?= $calConnected ? 'Disconnect your Google account? Existing calendar events will not be removed, and case emails will fall back to the system mailbox.' : '' ?>">
+                        <form method="POST" action="<?= h(app_url('web/views/settings/index.php')) ?>" class="settings-form settings-password-form settings-group-form" data-confirm-title="Disconnect Google account?" data-confirm="<?= $calConnected ? 'Existing calendar events will remain, but future synchronization and connected email features will stop.' : '' ?>" data-confirm-button="Yes, disconnect" data-confirm-icon="warning">
                         <?= Security::csrfField() ?>
                         <input type="hidden" name="action" value="disconnect_calendar">
 
@@ -806,7 +807,7 @@ $loginSessions = LoginSession::forAccount((int) $user['account_id'], session_id(
                                 <span>Last login: <?= h(date('M d, Y h:i A', strtotime($loginSession['last_login_at']))) ?></span>
                             </div>
                             <?php if ((int) $loginSession['is_current'] !== 1): ?>
-                            <form method="POST" action="<?= h(app_url('web/views/settings/index.php')) ?>" data-no-ajax="true" data-confirm="Log out this device?"><input type="hidden" name="csrf_token" value="<?= h(Security::csrfToken()) ?>"><input type="hidden" name="action" value="logout_device"><input type="hidden" name="session_id" value="<?= h($loginSession['session_id']) ?>"><button class="btn btn-danger" type="submit"><i class="bi bi-box-arrow-right"></i> Log Out</button></form>
+                            <form method="POST" action="<?= h(app_url('web/views/settings/index.php')) ?>" data-no-ajax="true" data-confirm-title="Log out this device?" data-confirm="This DARIS session will be revoked on the selected device." data-confirm-button="Yes, log out device" data-confirm-icon="warning"><input type="hidden" name="csrf_token" value="<?= h(Security::csrfToken()) ?>"><input type="hidden" name="action" value="logout_device"><input type="hidden" name="session_id" value="<?= h($loginSession['session_id']) ?>"><button class="btn btn-danger" type="submit" data-sicms-processing-label="Logging out device..."><i class="bi bi-box-arrow-right"></i> Log Out</button></form>
                             <?php endif; ?>
                         </div>
                         <?php $deviceIndex++; endforeach; ?>
@@ -824,6 +825,40 @@ $loginSessions = LoginSession::forAccount((int) $user['account_id'], session_id(
     <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script>
+        (function () {
+            var college = document.getElementById('college');
+            var course = document.getElementById('course');
+            var section = document.getElementById('section');
+            var programsByCollege = <?= json_encode(Courses::byCollege(), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+
+            if (!college || !course || !section) return;
+
+            function loadPrograms(preserveSelection) {
+                var previous = preserveSelection ? course.value : '';
+                var programs = programsByCollege[college.value] || [];
+                course.replaceChildren(new Option(programs.length ? 'Select Course/Program' : 'Select a college first', ''));
+                programs.forEach(function (program) {
+                    course.add(new Option(program, program));
+                });
+                course.disabled = programs.length === 0;
+                if (previous && programs.includes(previous)) course.value = previous;
+            }
+
+            college.addEventListener('change', function () {
+                loadPrograms(false);
+                section.value = '';
+                section.disabled = true;
+            });
+
+            course.addEventListener('change', function () {
+                section.value = '';
+                section.disabled = course.value === '';
+            });
+
+            loadPrograms(true);
+            section.disabled = course.value === '';
+        })();
+
         var loadMoreBtn = document.getElementById('settings-device-load-more');
         if (loadMoreBtn) {
             loadMoreBtn.addEventListener('click', function () {
@@ -908,7 +943,7 @@ $loginSessions = LoginSession::forAccount((int) $user['account_id'], session_id(
                 var file = fileInput.files[0];
 
                 if (!/^image\/(jpeg|png|webp)$/.test(file.type)) {
-                    Swal.fire({ icon: 'error', title: 'Invalid file', text: 'Please choose a JPG, PNG, or WebP image.' });
+                    window.DARISAlert?.toast('warning', 'Invalid File', 'Please choose a JPG, PNG, or WebP image.');
                     fileInput.value = '';
                     return;
                 }
@@ -941,6 +976,30 @@ $loginSessions = LoginSession::forAccount((int) $user['account_id'], session_id(
                 uploadForm.submit();
             });
         })();
+    </script>
+    <script>
+    window.addEventListener('load', () => {
+        <?php if ($success): ?>window.DARISAlert?.toast('success', 'Changes Saved', 'Your account settings have been updated successfully.');<?php endif; ?>
+        <?php if (!empty($errors)): ?>window.DARISAlert?.toast('error', 'Unable to Save Changes', <?= json_encode(implode(' ', array_map('strval', $errors))) ?>, { timer: 7000 });<?php endif; ?>
+        <?php if ($pwSuccess): ?>window.DARISAlert?.toast('success', 'Password Updated', <?= json_encode((string) $pwSuccess) ?>);<?php endif; ?>
+        <?php if (!empty($pwErrors)): ?>window.DARISAlert?.toast('error', 'Unable to Update Password', <?= json_encode(implode(' ', array_map('strval', $pwErrors))) ?>, { timer: 7000 });<?php endif; ?>
+        <?php if ($calMessage || $calSuccess): ?>window.DARISAlert?.toast('success', 'Calendar Settings Updated', <?= json_encode((string) ($calMessage ?: $calSuccess)) ?>);<?php endif; ?>
+        <?php if ($calError): ?>window.DARISAlert?.toast('error', 'Unable to Update Calendar Settings', <?= json_encode(implode(' ', array_map('strval', (array) $calError))) ?>, { timer: 7000 });<?php endif; ?>
+    }, { once: true });
+
+    document.querySelectorAll('form.settings-form[data-sicms-validate]').forEach(form => {
+        form.querySelectorAll('button[type="submit"], input[type="submit"]').forEach(button => {
+            button.addEventListener('click', event => {
+                const missing = Array.from(form.querySelectorAll('[required]')).find(control => !control.checkValidity());
+                if (!missing) return;
+                event.preventDefault();
+                const label = form.querySelector(`label[for="${missing.id}"]`)?.textContent?.replace('*', '').trim();
+                window.DARISAlert?.toast('warning', 'Required Information Missing', `Please complete ${label || 'the required account information'} before saving.`);
+                missing.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                window.setTimeout(() => missing.focus(), 180);
+            });
+        });
+    });
     </script>
 </body>
 

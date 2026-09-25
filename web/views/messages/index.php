@@ -863,7 +863,15 @@ function preview_text($text) {
         messageForm.addEventListener('submit', async event => {
             event.preventDefault();
 
-            if (!selectedConversationId || messageInput.value.trim() === '' || recipientInput.value === '') {
+            if (!selectedConversationId || recipientInput.value === '') {
+                recipientNote.textContent = 'Please select a conversation before sending a message.';
+                recipientNote.classList.add('recipient-error');
+                return;
+            }
+            if (messageInput.value.trim() === '') {
+                recipientNote.textContent = 'Please enter a message before sending.';
+                recipientNote.classList.add('recipient-error');
+                messageInput.focus();
                 return;
             }
 

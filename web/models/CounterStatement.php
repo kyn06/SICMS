@@ -15,6 +15,20 @@ require_once 'AuditLog.php';
  */
 class CounterStatement extends Model {
     protected static $table = 'counter_statements';
+
+    private static $draftVersionReady = false;
+
+    public static function ensureDraftVersionColumn() {
+        if (self::$draftVersionReady) return true;
+        $result = self::$conn->query("SHOW COLUMNS FROM counter_statements LIKE 'draft_version'");
+        if ($result && $result->num_rows > 0) {
+            self::$draftVersionReady = true;
+            return true;
+        }
+        $ok = self::$conn->query("ALTER TABLE counter_statements ADD COLUMN draft_version INT UNSIGNED NOT NULL DEFAULT 0 AFTER content");
+        self::$draftVersionReady = (bool) $ok;
+        return self::$draftVersionReady;
+    }
     protected static $primaryKey = 'counter_statement_id';
 
     /* Full statement incl. complainant/case auth columns for access checks. */
@@ -136,6 +150,7 @@ class CounterStatement extends Model {
 
     /* Draft-or-later for a respondent link; creates the row on first access. */
     public static function ensureDraft($complaintId, $respondentId, $respondentAccountId) {
+        self::ensureDraftVersionColumn();
         $existing = self::forRespondentCase($complaintId, $respondentId);
         if ($existing && $existing['status'] === 'Draft') {
             return $existing;
@@ -169,6 +184,24 @@ class CounterStatement extends Model {
         $updatedAt = date('Y-m-d H:i:s');
         $stmt->bind_param('ssii', $content, $updatedAt, $counterStatementId, $respondentAccountId);
         return $stmt->execute() && $stmt->affected_rows > 0;
+    }
+
+    public static function saveDraftVersioned($counterStatementId, $respondentAccountId, $content, $expectedVersion) {
+        if (!self::ensureDraftVersionColumn()) return ['status' => 'error'];
+        $stmt = self::$conn->prepare(
+            "UPDATE counter_statements
+             SET content = ?, draft_version = draft_version + 1, updated_at = NOW()
+             WHERE counter_statement_id = ? AND respondent_account_id = ? AND status = 'Draft' AND draft_version = ?"
+        );
+        if (!$stmt) return ['status' => 'error'];
+        $expectedVersion = (int) $expectedVersion;
+        $stmt->bind_param('siii', $content, $counterStatementId, $respondentAccountId, $expectedVersion);
+        if (!$stmt->execute()) return ['status' => 'error'];
+        if ($stmt->affected_rows !== 1) {
+            $current = self::find($counterStatementId);
+            return ['status' => 'conflict', 'version' => (int) ($current['draft_version'] ?? 0)];
+        }
+        return ['status' => 'saved', 'version' => $expectedVersion + 1, 'updated_at' => date('Y-m-d H:i:s')];
     }
 
     public static function submit($counterStatementId, $respondentAccountId) {

@@ -159,6 +159,12 @@ class CaseRecord extends Model {
             $types .= 'i';
         }
 
+        if (!empty($filters['assigned_reformation_coordinator_account_id'])) {
+            $sql .= " AND c.assigned_reformation_coordinator_account_id = ?";
+            $params[] = (int) $filters['assigned_reformation_coordinator_account_id'];
+            $types .= 'i';
+        }
+
         $sql .= " ORDER BY c.updated_at DESC";
 
         $stmt = self::$conn->prepare($sql);
@@ -600,8 +606,14 @@ class CaseRecord extends Model {
 
         try {
             $now = date('Y-m-d H:i:s');
-            $stmt = self::$conn->prepare("UPDATE complaints SET status = ?, updated_at = ? WHERE complaint_id = ?");
-            $stmt->bind_param("ssi", $newStatus, $now, $complaintId);
+            if ($newStatus === 'Under Investigation'
+                && in_array($case['status'] ?? '', ['Resolved', 'Reformation in Progress', 'Reformation Completed'], true)) {
+                $stmt = self::$conn->prepare("UPDATE complaints SET status = ?, updated_at = ?, assigned_reformation_coordinator_account_id = NULL, reformation_started_at = NULL, reformation_completed_at = NULL WHERE complaint_id = ?");
+                $stmt->bind_param("ssi", $newStatus, $now, $complaintId);
+            } else {
+                $stmt = self::$conn->prepare("UPDATE complaints SET status = ?, updated_at = ? WHERE complaint_id = ?");
+                $stmt->bind_param("ssi", $newStatus, $now, $complaintId);
+            }
             $stmt->execute();
 
             self::createHistory([
@@ -749,6 +761,10 @@ class CaseRecord extends Model {
         $sql = "SELECT r.*, c.case_number, c.status AS case_status, c.case_source
                 FROM complaint_respondents r
                 INNER JOIN complaints c ON c.complaint_id = r.complaint_id
+                INNER JOIN accounts respondent_account
+                    ON respondent_account.account_id = r.account_id
+                    AND respondent_account.role = 'student'
+                    AND respondent_account.status = 'active'
                 WHERE r.complaint_id = ? AND r.account_id = ? AND (c.case_source IS NULL OR c.case_source <> 'Legacy')
                 LIMIT 1";
         $stmt = self::$conn->prepare($sql);
@@ -790,6 +806,10 @@ class CaseRecord extends Model {
                 FROM complaints c
                 INNER JOIN complaint_respondents r
                     ON r.complaint_id = c.complaint_id AND r.account_id = ?
+                INNER JOIN accounts respondent_account
+                    ON respondent_account.account_id = r.account_id
+                    AND respondent_account.role = 'student'
+                    AND respondent_account.status = 'active'
                 WHERE (c.case_source IS NULL OR c.case_source <> 'Legacy')
                 ORDER BY c.created_at DESC";
         $stmt = self::$conn->prepare($sql);
@@ -837,7 +857,7 @@ class CaseRecord extends Model {
         $sql = "SELECT a.account_id, a.email, a.first_name, a.last_name
                 FROM complaint_respondents r
                 INNER JOIN accounts a ON a.account_id = r.account_id
-                WHERE r.complaint_id = ? AND a.status = 'active'
+                WHERE r.complaint_id = ? AND a.status = 'active' AND a.role = 'student'
                 ORDER BY r.respondent_id ASC";
         $stmt = self::$conn->prepare($sql);
         if (!$stmt) return [];

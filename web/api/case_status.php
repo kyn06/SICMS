@@ -44,6 +44,14 @@ try {
         exit(json_encode(['success' => false, 'message' => 'Case not found.']));
     }
 
+    if (($role === 'coordinator'
+            && (int) ($case['assigned_coordinator_account_id'] ?? 0) !== (int) $user['account_id'])
+        || ($role === 'reformation-coordinator'
+            && (int) ($case['assigned_reformation_coordinator_account_id'] ?? 0) !== (int) $user['account_id'])) {
+        http_response_code(403);
+        exit(json_encode(['success' => false, 'message' => 'Access denied.']));
+    }
+
     exit(json_encode([
         'success' => true,
         'status' => $case['status'] ?? '',

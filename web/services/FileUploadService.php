@@ -81,6 +81,7 @@ class FileUploadService {
 
             if ((int) ($file['size'] ?? 0) > self::MAX_BYTES) {
                 $errors[] = $name . ' exceeds the 5MB file limit.';
+                continue;
             }
 
             $extension = strtolower(pathinfo($name, PATHINFO_EXTENSION));
@@ -104,38 +105,133 @@ class FileUploadService {
         $savedFiles = [];
         $uploadDir = dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'storage' . DIRECTORY_SEPARATOR . 'evidence';
 
-        if (!is_dir($uploadDir)) {
-            mkdir($uploadDir, 0755, true);
+        if (!is_dir($uploadDir) && !mkdir($uploadDir, 0755, true) && !is_dir($uploadDir)) {
+            throw new Exception('Unable to create the evidence directory.');
         }
 
-        foreach (self::normalizeUploadedFiles($files) as $file) {
-            $name = (string) ($file['name'] ?? '');
-            if ($name === '') {
-                continue;
+        try {
+            foreach (self::normalizeUploadedFiles($files) as $file) {
+                $name = (string) ($file['name'] ?? '');
+                if ($name === '') {
+                    continue;
+                }
+                if ((int) ($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+                    throw new Exception('The uploaded file could not be read.');
+                }
+                if ((int) ($file['size'] ?? 0) > self::MAX_BYTES) {
+                    throw new Exception('The uploaded file exceeds the 5MB file limit.');
+                }
+
+                $extension = strtolower(pathinfo($name, PATHINFO_EXTENSION));
+                if (!in_array($extension, self::ALLOWED_EXTENSIONS, true)) {
+                    throw new Exception('The uploaded file has an invalid file type.');
+                }
+
+                $tmpName = (string) ($file['tmp_name'] ?? '');
+                if ($tmpName === '' || !is_uploaded_file($tmpName)) {
+                    throw new Exception('Invalid uploaded file.');
+                }
+                if (!in_array(mime_content_type($tmpName), self::ALLOWED_MIME_TYPES, true)) {
+                    throw new Exception('The uploaded file has an invalid file content type.');
+                }
+
+                $storedFilename = date('YmdHis') . '_' . bin2hex(random_bytes(12)) . '.' . $extension;
+                $destination = $uploadDir . DIRECTORY_SEPARATOR . $storedFilename;
+
+                if (!move_uploaded_file($tmpName, $destination)) {
+                    throw new Exception('Unable to save uploaded file.');
+                }
+
+                $savedFiles[] = [
+                    'original_filename' => basename($name),
+                    'stored_filename' => $storedFilename,
+                    'file_path' => 'storage/evidence/' . $storedFilename,
+                    'mime_type' => mime_content_type($destination),
+                    'file_size' => (int) filesize($destination),
+                ];
             }
-
-            $tmpName = (string) ($file['tmp_name'] ?? '');
-            if ($tmpName === '' || !is_uploaded_file($tmpName)) {
-                throw new Exception('Invalid uploaded file.');
-            }
-
-            $extension = strtolower(pathinfo($name, PATHINFO_EXTENSION));
-            $storedFilename = date('YmdHis') . '_' . bin2hex(random_bytes(12)) . '.' . $extension;
-            $destination = $uploadDir . DIRECTORY_SEPARATOR . $storedFilename;
-
-            if (!move_uploaded_file($tmpName, $destination)) {
-                throw new Exception('Unable to save uploaded file.');
-            }
-
-            $savedFiles[] = [
-                'original_filename' => basename($name),
-                'stored_filename' => $storedFilename,
-                'file_path' => 'storage/evidence/' . $storedFilename,
-                'mime_type' => mime_content_type($destination),
-                'file_size' => (int) ($file['size'] ?? 0),
-            ];
+        } catch (Throwable $exception) {
+            self::removeSavedFiles($savedFiles);
+            throw $exception;
         }
 
         return $savedFiles;
+    }
+
+    private static function evidenceFilePath($relativePath) {
+        $relativePath = trim((string) $relativePath);
+        if ($relativePath === '') return null;
+
+        $root = dirname(__DIR__, 2);
+        $base = realpath($root . DIRECTORY_SEPARATOR . 'storage' . DIRECTORY_SEPARATOR . 'evidence');
+        $path = realpath($root . DIRECTORY_SEPARATOR . str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $relativePath));
+        if ($base === false || $path === false) return null;
+
+        $basePrefix = rtrim($base, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
+        if (strpos(strtolower($path), strtolower($basePrefix)) !== 0) return null;
+
+        return $path;
+    }
+
+    public static function validateStoredFiles(array $files) {
+        $validated = [];
+        foreach ($files as $file) {
+            if (!is_array($file)) throw new Exception('Invalid stored upload metadata.');
+
+            $metadataPath = trim((string) ($file['file_path'] ?? ''));
+            $path = self::evidenceFilePath($metadataPath);
+            if ($path === null || !is_file($path)) throw new Exception('The approved upload is no longer available.');
+
+            $storedFilename = basename($path);
+            if ($storedFilename === '' || $storedFilename !== basename((string) ($file['stored_filename'] ?? $storedFilename))) {
+                throw new Exception('The approved upload path does not match the stored file metadata.');
+            }
+
+            $expectedRelativePath = 'storage/evidence/' . $storedFilename;
+            $normalizedPath = str_replace('\\', '/', $metadataPath);
+            $normalizedExpected = str_replace('\\', '/', $expectedRelativePath);
+            if ($normalizedPath !== $normalizedExpected) {
+                throw new Exception('The approved upload path is invalid.');
+            }
+
+            $originalFilename = basename((string) ($file['original_filename'] ?? $storedFilename));
+            if ($originalFilename === '' || $originalFilename !== basename($originalFilename)) {
+                throw new Exception('The approved upload has an invalid original filename.');
+            }
+            $extension = strtolower(pathinfo($originalFilename, PATHINFO_EXTENSION));
+            if (!in_array($extension, self::ALLOWED_EXTENSIONS, true)) throw new Exception('The approved upload has an invalid file type.');
+
+            $mimeType = mime_content_type($path);
+            if ($mimeType === false || !in_array($mimeType, self::ALLOWED_MIME_TYPES, true)) throw new Exception('The approved upload has an invalid file content type.');
+
+            if (array_key_exists('mime_type', $file) && trim((string) $file['mime_type']) !== '' && strcasecmp((string) $file['mime_type'], $mimeType) !== 0) {
+                throw new Exception('The approved upload metadata does not match the stored file.');
+            }
+
+            $actualSize = (int) filesize($path);
+            if (array_key_exists('file_size', $file) && (int) $file['file_size'] !== $actualSize) {
+                throw new Exception('The approved upload file size does not match the stored file.');
+            }
+
+            $validated[] = [
+                'original_filename' => $originalFilename,
+                'stored_filename' => $storedFilename,
+                'file_path' => $expectedRelativePath,
+                'mime_type' => $mimeType,
+                'file_size' => $actualSize,
+            ];
+        }
+        return $validated;
+    }
+
+    public static function removeSavedFiles(array $files) {
+        foreach ($files as $file) {
+            if (is_array($file) && array_key_exists('file_path', $file)) {
+                $path = self::evidenceFilePath($file['file_path']);
+                if ($path !== null && is_file($path)) @unlink($path);
+                continue;
+            }
+            if (is_array($file)) self::removeSavedFiles($file);
+        }
     }
 }

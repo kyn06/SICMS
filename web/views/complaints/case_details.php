@@ -162,18 +162,24 @@ function stage_done($status, $stage) {
                                 var submitting = false;
                                 document.querySelector('[data-complaint-response-guide]').addEventListener('click', function () {
                                     if (!window.Swal) { form.querySelector('textarea[name="complaint_response"]').focus(); return; }
-                                    Swal.fire({ icon: 'info', title: 'Respond to Statement', text: 'You can submit your response to the statement. Keep it focused on the case.', showCancelButton: true, confirmButtonText: 'Continue', cancelButtonText: 'Cancel', reverseButtons: true }).then(function (result) {
-                                        if (result.isConfirmed) form.querySelector('textarea[name="complaint_response"]').focus();
-                                    });
+                                    window.DARISAlert?.toast('info', 'Respond to Statement', 'Write a focused response to the respondent’s counter-statement below.');
+                                    form.querySelector('textarea[name="complaint_response"]').focus();
                                 });
                                 submitBtn.addEventListener('click', function (e) {
                                     action.value = 'submit_complaint_response';
-                                    if (!(form.querySelector('textarea[name="complaint_response"]').value || '').trim()) return;
+                                    var responseField = form.querySelector('textarea[name="complaint_response"]');
+                                    if (!(responseField.value || '').trim()) {
+                                        e.preventDefault();
+                                        window.DARISAlert?.toast('warning', 'Response Required', 'Please write your response before submitting it.');
+                                        responseField.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                        window.setTimeout(function () { responseField.focus(); }, 180);
+                                        return;
+                                    }
                                     if (submitting) return;
                                     e.preventDefault();
-                                    var continueSubmit = function () { submitting = true; form.requestSubmit(submitBtn); };
-                                    if (!window.Swal) { if (window.confirm("Submit your response to the respondent's counter-statement? You will not be able to edit it afterward.")) continueSubmit(); return; }
-                                    Swal.fire({ icon: 'question', title: 'Submit response?', text: 'You will not be able to edit it afterward.', showCancelButton: true, confirmButtonText: 'Submit', cancelButtonText: 'Cancel', reverseButtons: true }).then(function (result) { if (result.isConfirmed) continueSubmit(); });
+                                    var continueSubmit = function () { submitting = true; submitBtn.dataset.sicmsProcessingLabel = 'Submitting Response...'; submitBtn.dataset.sicmsProcessingModal = 'true'; form.requestSubmit(submitBtn); };
+                                    if (!window.Swal) return;
+                                    (window.DARISAlert?.fire({ icon: 'question', title: 'Submit Response?', text: 'Your response will be added to the case and cannot be edited afterward.', showCancelButton: true, confirmButtonText: 'Yes, Submit Response', cancelButtonText: 'Cancel', reverseButtons: true }) || Swal.fire({ icon: 'question', title: 'Submit Response?', showCancelButton: true })).then(function (result) { if (result.isConfirmed) continueSubmit(); });
                                 });
                             })();
                         </script>
@@ -238,7 +244,9 @@ function stage_done($status, $stage) {
 </div>
 <?php if ($complaintResponseInfo && strpos((string) $complaintResponseInfo, 'submitted') !== false): ?>
 <script>
-Swal.fire({ icon: 'success', title: 'Response submitted', text: 'Your response has been added to the case successfully.', confirmButtonText: 'OK' });
+window.addEventListener('load', function () {
+    window.DARISAlert?.toast('success', 'Response Submitted', 'Your response has been added to the case successfully.');
+}, { once: true });
 </script>
 <?php endif; ?>
 </body>

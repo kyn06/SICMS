@@ -31,13 +31,46 @@ class CaseApproval extends Model {
         return $stmt->get_result()->fetch_assoc() ?: null;
     }
 
+    public static function findPendingForCaseAction($complaintId, $requestedBy, $actionType) {
+        $stmt = self::$conn->prepare("SELECT * FROM case_approvals WHERE complaint_id = ? AND requested_by_account_id = ? AND action_type = ? AND status = 'Pending' ORDER BY approval_id DESC LIMIT 1");
+        if (!$stmt) return null;
+        $complaintId = (int) $complaintId;
+        $requestedBy = (int) $requestedBy;
+        $stmt->bind_param('iis', $complaintId, $requestedBy, $actionType);
+        $stmt->execute();
+        return $stmt->get_result()->fetch_assoc() ?: null;
+    }
+
+    public static function findPendingForRequester($complaintId, $requestedBy) {
+        $stmt = self::$conn->prepare("SELECT * FROM case_approvals WHERE complaint_id = ? AND requested_by_account_id = ? AND status = 'Pending' ORDER BY approval_id DESC LIMIT 1");
+        if (!$stmt) return null;
+        $complaintId = (int) $complaintId;
+        $requestedBy = (int) $requestedBy;
+        $stmt->bind_param('ii', $complaintId, $requestedBy);
+        $stmt->execute();
+        return $stmt->get_result()->fetch_assoc() ?: null;
+    }
+
+    public static function lockForReview($approvalId) {
+        $approvalId = (int) $approvalId;
+        if ($approvalId <= 0) return false;
+        $lockName = 'daris_case_approval_' . $approvalId;
+        $stmt = self::$conn->prepare('SELECT GET_LOCK(?, 10) AS acquired');
+        if (!$stmt) return false;
+        $stmt->bind_param('s', $lockName);
+        if (!$stmt->execute()) return false;
+        $row = $stmt->get_result()->fetch_assoc();
+        return isset($row['acquired']) && (int) $row['acquired'] === 1;
+    }
+
     public static function createForCase($complaintId, $requestedBy, $actionType, $actionLabel, array $payload) {
+        $payloadJson = json_encode($payload, JSON_THROW_ON_ERROR);
         return self::create([
             'complaint_id' => (int) $complaintId,
             'requested_by_account_id' => (int) $requestedBy,
             'action_type' => $actionType,
             'action_label' => $actionLabel,
-            'payload' => json_encode($payload),
+            'payload' => $payloadJson,
             'status' => 'Pending',
             'created_at' => date('Y-m-d H:i:s'),
         ]);
@@ -57,9 +90,38 @@ class CaseApproval extends Model {
     public static function description(array $approval) {
         $payload = json_decode($approval['payload'] ?? '', true) ?: [];
         $parts = [];
-        foreach (['details', 'remarks', 'outcome', 'activity', 'progress_status', 'classification', 'respondent_type', 'respondent_name', 'respondent_age', 'respondent_gender', 'respondent_student_no', 'respondent_employee_no', 'respondent_college', 'respondent_course', 'respondent_section', 'respondent_course_year', 'respondent_position', 'respondent_department', 'respondent_affiliation', 'respondent_contact', 'respondent_email', 'respondent_address', 'respondent_details', 'hearing_datetime', 'venue'] as $key) {
-            if (!empty($payload[$key])) {
-                $parts[] = ucwords(str_replace('_', ' ', $key)) . ': ' . trim((string) $payload[$key]);
+        $keys = [
+            'details', 'remarks', 'outcome', 'activity', 'activity_name', 'progress_status',
+            'classification', 'classification_other', 'update_type', 'revision_fields',
+            'coordinator_account_id', 'reformation_coordinator_account_id', 'respondent_type',
+            'respondent_name', 'respondent_age', 'respondent_gender', 'respondent_student_no',
+            'respondent_employee_no', 'respondent_college', 'respondent_course', 'respondent_section',
+            'respondent_course_year', 'respondent_position', 'respondent_department',
+            'respondent_affiliation', 'respondent_contact', 'respondent_email', 'respondent_address',
+            'respondent_details', 'report_title', 'hearing_datetime', 'venue',
+        ];
+        foreach ($keys as $key) {
+            if (!array_key_exists($key, $payload)) continue;
+            $value = $payload[$key];
+            if ($key === 'classification' && strcasecmp((string) $value, 'Others') === 0) {
+                $value = trim((string) ($payload['classification_other'] ?? '')) ?: $value;
+            }
+            if (is_array($value)) {
+                $value = implode(', ', array_map(static fn($item) => is_scalar($item) ? (string) $item : '', $value));
+            }
+            $value = trim((string) $value);
+            if ($value === '') continue;
+            $parts[] = ucwords(str_replace('_', ' ', $key)) . ': ' . $value;
+        }
+        if (!empty($payload['_approval_files']) && is_array($payload['_approval_files'])) {
+            $filenames = [];
+            array_walk_recursive($payload['_approval_files'], function ($file) use (&$filenames) {
+                if (is_array($file) && !empty($file['original_filename'])) {
+                    $filenames[] = basename((string) $file['original_filename']);
+                }
+            });
+            if (!empty($filenames)) {
+                $parts[] = 'Attachments: ' . implode(', ', array_unique($filenames));
             }
         }
         return implode(' · ', $parts) ?: 'Coordinator requested this action for the case.';

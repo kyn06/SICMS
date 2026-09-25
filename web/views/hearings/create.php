@@ -114,7 +114,7 @@ function field_error_html($fieldErrors, $field) {
                 </div>
             </div>
             <div class="actions">
-                <button class="btn btn-primary" type="submit"><i class="bi bi-calendar-check"></i> Schedule Hearing</button>
+                <button class="btn btn-primary" type="submit" data-confirm-title="Schedule Hearing?" data-confirm="The hearing will be scheduled using the selected date and time." data-confirm-button="Yes, Schedule Hearing" data-sicms-processing-label="Scheduling Hearing..." data-sicms-processing-modal="true"><i class="bi bi-calendar-check"></i> Schedule Hearing</button>
                 <a class="btn btn-secondary" href="index.php"><i class="bi bi-x"></i> Cancel</a>
             </div>
         </form>
@@ -123,6 +123,25 @@ function field_error_html($fieldErrors, $field) {
     </div>
     <script>
     (()=>{const btn=document.getElementById('generateMeetBtn');if(!btn)return;const form=btn.closest('form'),hint=document.getElementById('meetFieldHint'),link=document.getElementById('google_meet_link'),eventId=document.getElementById('google_event_id');btn.addEventListener('click',async()=>{if(!form)return;hint.textContent='';btn.disabled=true;btn.innerHTML='<i class="bi bi-hourglass-split"></i> Creating...';try{const res=await fetch('create_meet.php',{method:'POST',headers:{'X-Requested-With':'XMLHttpRequest'},body:new URLSearchParams(new FormData(form))});const data=await res.json();if(!data.success)throw new Error(data.message||'Could not create Meet link.');link.value=data.meet_link||'';eventId.value=data.google_event_id||'';hint.textContent='Meet link generated and will be attached to the calendar event when you schedule.';hint.className='meet-field-hint ok';}catch(err){hint.textContent=err.message;hint.className='meet-field-hint err';}finally{btn.disabled=false;btn.innerHTML='<i class="bi bi-camera-video"></i> Generate Meet Link';}});})();
+    </script>
+    <script>
+    document.querySelector('.hearing-form-panel button[type="submit"]')?.addEventListener('click', event => {
+        const form = event.currentTarget.form;
+        const schedule = form?.querySelector('[name="hearing_datetime"]');
+        const caseField = form?.querySelector('[name="complaint_id"]');
+        const venue = form?.querySelector('[name="venue"]');
+        const missing = !caseField?.value ? caseField : !schedule?.value ? schedule : !venue?.value.trim() ? venue : null;
+        if (missing) {
+            event.preventDefault();
+            const text = missing === schedule ? 'Please provide the hearing date and time before scheduling.' : missing === caseField ? 'Please select a case before scheduling the hearing.' : 'Please provide the hearing venue before scheduling.';
+            window.DARISAlert?.toast('warning', 'Hearing Schedule Incomplete', text);
+            missing.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            window.setTimeout(() => missing.focus(), 180);
+            return;
+        }
+        const formatted = new Date(schedule.value).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+        event.currentTarget.dataset.confirm = `Schedule this hearing for ${formatted}?`;
+    });
     </script>
 </body>
 

@@ -357,6 +357,9 @@
     };
 
     document.querySelectorAll('form[data-sicms-validate]').forEach(wireValidation);
+    document.addEventListener('daris:ajax-success', () => {
+        document.querySelectorAll('form[data-sicms-validate]').forEach(wireValidation);
+    });
 
     window.SICMSValidation = {
         run: (form) => {
@@ -384,6 +387,128 @@
         clearTimeout(notice.hideTimer);
         notice.hideTimer = setTimeout(() => notice.classList.remove('show'), 3500);
     };
+
+    const ensureSweetAlert = async () => {
+        if (window.Swal) return window.Swal;
+        await new Promise((resolve, reject) => {
+            const existing = document.querySelector('script[data-sicms-swal]');
+            if (existing) {
+                existing.addEventListener('load', resolve, { once: true });
+                existing.addEventListener('error', reject, { once: true });
+                return;
+            }
+            const script = document.createElement('script');
+            script.src = 'https://cdn.jsdelivr.net/npm/sweetalert2@11';
+            script.dataset.sicmsSwal = 'true';
+            script.onload = resolve;
+            script.onerror = reject;
+            document.head.appendChild(script);
+        });
+        return window.Swal;
+    };
+
+    const sweetAlertDefaults = {
+        width: 520,
+        position: 'center',
+        backdrop: false,
+        buttonsStyling: false,
+        reverseButtons: true,
+        customClass: {
+            popup: 'dar-is-swal',
+            title: 'dar-is-swal-title',
+            htmlContainer: 'dar-is-swal-copy',
+            actions: 'dar-is-swal-actions',
+            confirmButton: 'dar-is-swal-button dar-is-swal-confirm',
+            cancelButton: 'dar-is-swal-button dar-is-swal-cancel',
+            denyButton: 'dar-is-swal-button dar-is-swal-danger',
+            validationMessage: 'dar-is-swal-validation',
+        },
+    };
+
+    const fireDarAlert = async (options = {}) => {
+        const Swal = await ensureSweetAlert();
+        if (!Swal) throw new Error('SweetAlert2 did not load.');
+        return Swal.fire({ ...sweetAlertDefaults, ...options,
+            position: 'center',
+            backdrop: false,
+            customClass: { ...sweetAlertDefaults.customClass, ...(options.customClass || {}) }
+        });
+    };
+
+    const confirmImportantAction = async ({ title, text, confirmText = 'Yes, continue', icon = 'question' }) => {
+        try {
+            const Swal = await ensureSweetAlert();
+            if (!Swal) throw new Error('SweetAlert2 did not load.');
+            const result = await fireDarAlert({
+                icon,
+                title: title || 'Confirm action',
+                text: text || '',
+                showCancelButton: true,
+                confirmButtonText: confirmText,
+                cancelButtonText: 'Cancel',
+                reverseButtons: true,
+                allowOutsideClick: false,
+            });
+            return result.isConfirmed;
+        } catch (error) {
+            showAjaxNotice('Unable to open the confirmation dialog. Please try again.', 'error');
+            return false;
+        }
+    };
+
+    window.SICMSConfirm = confirmImportantAction;
+    window.DARISAlert = {
+        fire: fireDarAlert,
+        confirm: confirmImportantAction,
+        toast: async (icon, title, text, options = {}) => {
+            const Swal = await ensureSweetAlert();
+            if (!Swal) throw new Error('SweetAlert2 did not load.');
+            return Swal.fire({
+                toast: true,
+                position: 'top',
+                icon,
+                title,
+                text,
+                timer: icon === 'error' ? 6500 : 4800,
+                timerProgressBar: true,
+                showConfirmButton: false,
+                showCloseButton: true,
+                backdrop: false,
+                allowOutsideClick: true,
+                allowEscapeKey: true,
+                customClass: {
+                    popup: 'dar-is-toast',
+                    title: 'dar-is-toast-title',
+                    htmlContainer: 'dar-is-toast-copy',
+                    timerProgressBar: 'dar-is-toast-progress',
+                },
+                ...options,
+                position: 'top',
+                backdrop: false,
+            });
+        },
+        processing: (title, text = 'Please wait while DARIS completes this action.') => fireDarAlert({
+            title,
+            text,
+            allowEscapeKey: false,
+            allowOutsideClick: false,
+            showConfirmButton: false,
+            didOpen: () => window.Swal?.showLoading(),
+        }),
+        success: (title, text, options = {}) => fireDarAlert({ icon: 'success', title, text, confirmButtonText: 'Done', ...options }),
+        error: (title, text, options = {}) => fireDarAlert({ icon: 'error', title, text, confirmButtonText: 'Try Again', ...options }),
+        closeProcessing: () => window.Swal?.close(),
+    };
+
+    try {
+        const pendingToast = JSON.parse(sessionStorage.getItem('daris-pending-toast') || 'null');
+        if (pendingToast?.title) {
+            sessionStorage.removeItem('daris-pending-toast');
+            window.setTimeout(() => window.DARISAlert.toast(pendingToast.icon || 'success', pendingToast.title, pendingToast.text || ''), 80);
+        }
+    } catch (error) {
+        sessionStorage.removeItem('daris-pending-toast');
+    }
 
     const setProcessingState = (form, submitter) => {
         const label = submitter?.dataset.sicmsProcessingLabel || form.dataset.sicmsProcessingLabel;
@@ -422,6 +547,22 @@
         renderAjaxDocument(await response.text(), response.url);
     };
 
+    const refreshAjaxTargets = (html, selectorList) => {
+        const parsed = new DOMParser().parseFromString(html, 'text/html');
+        const selectors = String(selectorList || '').split(',').map((selector) => selector.trim()).filter(Boolean);
+        if (!selectors.length) return false;
+        const replacements = [];
+        selectors.forEach((selector) => {
+            const current = document.querySelector(selector);
+            const incoming = parsed.querySelector(selector);
+            if (current && incoming) replacements.push([current, incoming]);
+        });
+        if (replacements.length !== selectors.length) return false;
+        replacements.forEach(([current, incoming]) => current.replaceWith(incoming));
+        document.querySelectorAll('form[data-sicms-validate]').forEach(wireValidation);
+        return true;
+    };
+
     const applyNotificationsRead = (unread) => {
         document.querySelectorAll('details.dropdown, details.profile-dropdown').forEach((dropdown) => {
             if (!dropdown.querySelector('button[name="notification_action"][value="mark_all"]')) return;
@@ -452,6 +593,7 @@
             const payload = await response.json().catch(() => null);
             if (!response.ok || !payload?.success) throw new Error(payload?.message || 'Unable to mark notifications as read.');
             applyNotificationsRead(payload.unread ?? 0);
+            document.dispatchEvent(new CustomEvent('daris:notifications-read', { detail: { unread: payload.unread ?? 0, all: true } }));
             showAjaxNotice('All notifications marked as read.');
         } catch (error) {
             showAjaxNotice(error.message || 'Unable to mark notifications as read.', 'error');
@@ -463,12 +605,37 @@
         const form = event.target;
         if (!(form instanceof HTMLFormElement) || event.defaultPrevented) return;
         const method = String(form.method || 'get').toLowerCase();
-        if (form.dataset.noAjax === 'true' || form.target || !['get', 'post'].includes(method)) return;
+        if (form.target || !['get', 'post'].includes(method)) return;
 
-        event.preventDefault();
         const submitter = event.submitter;
         const confirmation = submitter?.dataset.confirm || form.dataset.confirm;
-        if (confirmation && !window.confirm(confirmation)) return;
+        const bypassAjax = form.dataset.noAjax === 'true';
+        if (!confirmation && bypassAjax) return;
+
+        event.preventDefault();
+        if (confirmation) {
+            const confirmed = await confirmImportantAction({
+                title: submitter?.dataset.confirmTitle || form.dataset.confirmTitle || 'Confirm action',
+                text: confirmation,
+                confirmText: submitter?.dataset.confirmButton || form.dataset.confirmButton || 'Yes, continue',
+                icon: submitter?.dataset.confirmIcon || form.dataset.confirmIcon || 'question',
+            });
+            if (!confirmed) return;
+        }
+
+        if (bypassAjax) {
+            if (submitter?.name) {
+                const submittedValue = document.createElement('input');
+                submittedValue.type = 'hidden';
+                submittedValue.name = submitter.name;
+                submittedValue.value = submitter.value;
+                form.appendChild(submittedValue);
+            }
+            Array.from(form.querySelectorAll('button[type="submit"], input[type="submit"]')).forEach(control => { control.disabled = true; });
+            setProcessingState(form, submitter);
+            form.submit();
+            return;
+        }
 
         const data = new FormData(form);
         if (submitter?.name && !data.has(submitter.name)) data.append(submitter.name, submitter.value);
@@ -476,6 +643,10 @@
         controls.forEach(control => { control.disabled = true; });
         form.classList.add('sicms-ajax-loading');
         const restoreProcessingState = setProcessingState(form, submitter);
+        const processingLabel = submitter?.dataset.sicmsProcessingLabel || form.dataset.sicmsProcessingLabel;
+        if (processingLabel && (submitter?.dataset.sicmsProcessingModal === 'true' || form.dataset.sicmsProcessingModal === 'true')) {
+            window.DARISAlert?.processing(processingLabel);
+        }
 
         try {
             let requestUrl = window.location.href;
@@ -495,7 +666,7 @@
             if (contentType.includes('application/json')) {
                 const payload = await response.json();
                 if (!response.ok || payload.success === false) throw new Error(payload.message || 'The request could not be completed.');
-                showAjaxNotice(payload.message || 'Changes saved successfully.');
+                window.DARISAlert?.toast('success', payload.title || 'Changes Saved', payload.message || 'Your changes were saved successfully.');
                 if (payload.redirect) await refreshAjaxPage(payload.redirect);
                 else await refreshAjaxPage();
                 return;
@@ -510,9 +681,64 @@
                 console.error('AJAX form failure', requestUrl, response.status, html.slice(0, 500));
                 throw new Error(message);
             }
+            let successTitle = '';
+            let successMessage = '';
+            try {
+                const parsed = new DOMParser().parseFromString(html, 'text/html');
+                const flash = parsed.querySelector('.alert-success, .alert-error, .alert-danger');
+                if (flash?.textContent.trim()) {
+                    const action = submitter?.value || '';
+                    const successTitles = {
+                        classify: 'Classification Saved', reject: 'Complaint Rejected', return: 'Returned for Revision',
+                        assign: 'Coordinator Assigned', assign_reformation: 'Coordinator Assigned', resolve: 'Case Resolved',
+                        reopen: 'Case Reopened', unarchive: 'Case Restored', reformation_activity: 'Reformation Update Saved',
+                        reformation_report_upload: 'Report Uploaded', case_update: 'Case Update Added',
+                        reformation_completed: 'Reformation Completed', proceed_counter_statement: 'Investigation Started',
+                        request_counter_revision: 'Counter-Statement Returned', forward_counter_statement: 'Counter-Statement Forwarded',
+                        upload_counter_evidence: 'Evidence Uploaded', remove_counter_evidence: 'Evidence Removed',
+                        cancel: 'Hearing Cancelled', complete: 'Hearing Completed',
+                    };
+                    const isError = flash.matches('.alert-error, .alert-danger');
+                    successTitle = successTitles[action] || (isError ? 'Unable to Complete Action' : 'Changes Saved');
+                    successMessage = flash.textContent.trim();
+                    if (!form.dataset.ajaxTarget) {
+                        sessionStorage.setItem('daris-pending-toast', JSON.stringify({
+                            icon: isError ? 'error' : 'success',
+                            title: successTitle,
+                            text: successMessage,
+                        }));
+                    }
+                }
+            } catch (error) {}
+            const returnedDocument = new DOMParser().parseFromString(html, 'text/html');
+            const returnedError = returnedDocument.querySelector('.alert-error, .alert-danger');
+            if (returnedError?.textContent.trim()) {
+                throw new Error(returnedError.textContent.trim());
+            }
+            if (form.dataset.ajaxTarget && refreshAjaxTargets(html, form.dataset.ajaxTarget)) {
+                if (form.dataset.ajaxReset === 'true') {
+                    form.reset();
+                    form.querySelectorAll('[name="update_type"], [name="respondent_type"], [name="classification"]').forEach(control => {
+                        control.dispatchEvent(new Event('change', { bubbles: true }));
+                    });
+                }
+                controls.forEach(control => { control.disabled = false; });
+                form.classList.remove('sicms-ajax-loading');
+                restoreProcessingState();
+                if (form.dataset.ajaxClose) {
+                    const overlay = document.querySelector(form.dataset.ajaxClose);
+                    overlay?.classList.remove('show', 'open');
+                    if (overlay) overlay.hidden = true;
+                }
+                window.DARISAlert?.closeProcessing?.();
+                window.DARISAlert?.toast('success', successTitle || (submitter?.value === 'case_update' ? 'Case Update Added' : 'Changes Saved'), successMessage || (submitter?.value === 'case_update' ? 'The new update is now shown in Case Updates.' : 'The affected section has been updated.'));
+                document.dispatchEvent(new CustomEvent('daris:ajax-success', { detail: { action: submitter?.value || '', form } }));
+                return;
+            }
             renderAjaxDocument(html, response.url);
         } catch (error) {
-            showAjaxNotice(error.message || 'The request could not be completed.', 'error');
+            window.DARISAlert?.closeProcessing?.();
+            window.DARISAlert?.toast('error', 'Unable to Complete Action', error.message || 'The request could not be completed. Please try again.', { timer: 7000 });
             controls.forEach(control => { control.disabled = false; });
             form.classList.remove('sicms-ajax-loading');
             restoreProcessingState();

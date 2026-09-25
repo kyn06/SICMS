@@ -255,13 +255,13 @@ function account_role_label($role) {
     <?php if (!empty($message)): ?>
     <script>
         window.addEventListener('DOMContentLoaded', () => {
-            Swal.fire({ icon: 'success', title: <?= json_encode((string) $message) ?>, timer: 2200, showConfirmButton: false });
+            window.DARISAlert?.toast('success', 'Account Saved', <?= json_encode((string) $message) ?>);
         });
     </script>
     <?php elseif (!empty($errors)): ?>
     <script>
         window.addEventListener('DOMContentLoaded', () => {
-            Swal.fire({ icon: 'error', title: 'Please review the details', html: <?= json_encode(implode('<br>', array_map('htmlspecialchars', array_map('strval', $errors)))) ?> });
+            window.DARISAlert?.toast('error', 'Please Review the Details', <?= json_encode(implode(' ', array_map('strval', $errors))) ?>, { timer: 7000 });
         });
     </script>
     <?php endif; ?>
@@ -284,11 +284,17 @@ function account_role_label($role) {
             modalForm.addEventListener('submit', e => {
                 e.preventDefault();
                 const invalid = (window.SICMSValidation && !SICMSValidation.run(modalForm)) || !modalForm.checkValidity();
-                if (invalid) { modalForm.reportValidity(); return; }
+                if (invalid) {
+                    const firstInvalid = modalForm.querySelector(':invalid');
+                    window.DARISAlert?.toast('warning', 'Required Information Missing', 'Please complete the highlighted account information before continuing.');
+                    firstInvalid?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    window.setTimeout(() => firstInvalid?.focus(), 180);
+                    return;
+                }
                 const name = `${modalForm.first_name.value} ${modalForm.last_name.value}`.trim();
                 const role = modalForm.role.options[modalForm.role.selectedIndex]?.textContent || '';
                 overlay.style.zIndex = '1';
-                Swal.fire({
+                (window.DARISAlert?.fire({
                     icon: 'question',
                     title: 'Create this account?',
                     html: `<strong>${String(name).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]))}</strong><br>${String(modalForm.email.value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]))}<br><em>${String(role).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]))}</em>`,
@@ -297,7 +303,17 @@ function account_role_label($role) {
                     cancelButtonText: 'Go back',
                     confirmButtonColor: '#1a8c2b',
                     reverseButtons: true
-                }).then(result => { overlay.style.zIndex = ''; if (result.isConfirmed) modalForm.submit(); });
+                }) || Swal.fire({ icon: 'question', title: 'Create this account?', showCancelButton: true })).then(result => {
+                    overlay.style.zIndex = '';
+                    if (!result.isConfirmed) return;
+                    const submitButton = modalForm.querySelector('button[type="submit"]');
+                    if (submitButton) {
+                        submitButton.disabled = true;
+                        submitButton.innerHTML = '<span class="sicms-processing-spinner" aria-hidden="true"></span> Creating account...';
+                    }
+                    window.DARISAlert?.processing('Creating Account...');
+                    modalForm.submit();
+                });
             });
 
             const passwordInput = modalForm.querySelector('#password');
@@ -362,18 +378,21 @@ function account_role_label($role) {
             if (!box || box.disabled) return;
             const enable = box.checked;
             const name = box.dataset.name || 'this account';
-            const ask = await Swal.fire({
+            const confirmOptions = {
                 icon: 'warning',
-                title: enable ? 'Enable this account?' : 'Disable this account?',
-                text: enable ? `${name} will regain access to DARIS.` : `${name} will no longer be able to sign in.`,
+                title: enable ? `Reactivate ${name}?` : `Deactivate ${name}?`,
+                text: enable ? `${name} will regain access to DARIS.` : `${name} will no longer be able to access DARIS until the account is reactivated.`,
                 showCancelButton: true,
-                confirmButtonText: enable ? 'Yes, enable' : 'Yes, disable',
+                confirmButtonText: enable ? 'Reactivate User' : 'Deactivate User',
                 cancelButtonText: 'Cancel',
                 confirmButtonColor: enable ? '#1a8c2b' : '#c0392b',
                 reverseButtons: true
-            });
+            };
+            const ask = await (window.DARISAlert?.fire(confirmOptions) || Swal.fire(confirmOptions));
             if (!ask.isConfirmed) { box.checked = !enable; return; }
             try {
+                box.disabled = true;
+                window.DARISAlert?.processing(enable ? 'Reactivating User...' : 'Deactivating User...');
                 const fd = new FormData();
                 fd.set('action', 'toggle_status');
                 fd.set('ajax', '1');
@@ -386,10 +405,12 @@ function account_role_label($role) {
                 const pill = box.closest('tr')?.querySelector('.status');
                 if (pill) { pill.textContent = data.status; pill.dataset.status = String(data.status).toLowerCase(); }
                 Object.entries(data.summary || {}).forEach(([key,value]) => { const node=document.querySelector(`[data-user-summary="${key}"]`); if(node) node.textContent=value; });
-                Swal.fire({ icon: 'success', title: data.message, timer: 1600, showConfirmButton: false });
+                window.DARISAlert?.toast('success', enable ? 'Account Reactivated' : 'Account Deactivated', enable ? `${name} can now access DARIS.` : `${name}'s account has been deactivated.`);
             } catch (err) {
                 box.checked = !enable;
-                Swal.fire({ icon: 'error', title: 'Update failed', text: String(err.message || err) });
+                window.DARISAlert?.toast('error', 'Unable to Update User', 'The account status was not changed. Please try again.', { timer: 7000 });
+            } finally {
+                box.disabled = false;
             }
         });
     })();

@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../../controllers/ComplaintController.php';
 require_once __DIR__ . '/../../helpers/Courses.php';
+require_once __DIR__ . '/../../helpers/Colleges.php';
 
 $controller = new ComplaintController();
 $viewData = $controller->handleRevisionRequest((int) ($_GET['id'] ?? 0));
@@ -19,6 +20,60 @@ $allowed = array_values(array_intersect(
     ['complaint_details', 'incident_date', 'incident_time', 'incident_location', 'respondents', 'witnesses', 'evidence'],
     (array) ($revision['revision_fields'] ?? [])
 ));
+
+if (!empty($old['respondent_name']) && is_array($old['respondent_name'])) {
+    $respondents = [];
+    foreach ($old['respondent_name'] as $index => $name) {
+        $course = Courses::canonical($old['respondent_course'][$index] ?? '');
+        $section = trim((string) ($old['respondent_section'][$index] ?? ''));
+        $respondents[] = [
+            'respondent_type' => $old['respondent_type'][$index] ?? 'Student',
+            'full_name' => $name,
+            'age' => $old['respondent_age'][$index] ?? '',
+            'gender' => $old['respondent_gender'][$index] ?? '',
+            'student_no' => $old['respondent_student_no'][$index] ?? '',
+            'college' => $old['respondent_college'][$index] ?? '',
+            'course' => $course,
+            'section' => $section,
+            'course_year' => Courses::combine($course, $section),
+            'employee_no' => $old['respondent_employee_no'][$index] ?? '',
+            'position' => $old['respondent_position'][$index] ?? '',
+            'office_department' => $old['respondent_department'][$index] ?? '',
+            'affiliation' => $old['respondent_affiliation'][$index] ?? '',
+            'contact_info' => $old['respondent_contact'][$index] ?? '',
+            'email' => $old['respondent_email'][$index] ?? '',
+            'address' => $old['respondent_address'][$index] ?? '',
+            'details' => $old['respondent_details'][$index] ?? '',
+        ];
+    }
+}
+
+if (!empty($old['witness_name']) && is_array($old['witness_name'])) {
+    $witnesses = [];
+    foreach ($old['witness_name'] as $index => $name) {
+        $course = Courses::canonical($old['witness_course'][$index] ?? '');
+        $section = trim((string) ($old['witness_section'][$index] ?? ''));
+        $witnesses[] = [
+            'person_type' => $old['witness_type'][$index] ?? 'Student',
+            'full_name' => $name,
+            'age' => $old['witness_age'][$index] ?? '',
+            'gender' => $old['witness_gender'][$index] ?? '',
+            'student_no' => $old['witness_student_no'][$index] ?? '',
+            'college' => $old['witness_college'][$index] ?? '',
+            'course' => $course,
+            'section' => $section,
+            'course_year' => Courses::combine($course, $section),
+            'employee_no' => $old['witness_employee_no'][$index] ?? '',
+            'position' => $old['witness_position'][$index] ?? '',
+            'office_department' => $old['witness_department'][$index] ?? '',
+            'affiliation' => $old['witness_affiliation'][$index] ?? '',
+            'contact_info' => $old['witness_contact'][$index] ?? '',
+            'email' => $old['witness_email'][$index] ?? '',
+            'address' => $old['witness_address'][$index] ?? '',
+            'statement' => $old['witness_statement'][$index] ?? '',
+        ];
+    }
+}
 
 function h($value) {
     return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
@@ -183,7 +238,7 @@ $oldTime = $oldIncident ? date('H:i', $oldIncident) : '';
                                 $personType = trim((string) ($person['respondent_type'] ?? ''));
                                 if (!in_array($personType, ['Student', 'Employee', 'Private Individual', 'Other'], true)) $personType = 'Student';
                                 $program = Courses::split($person['course_year'] ?? '');
-                                $rCourse = trim((string) ($person['course'] ?? $program['course']));
+                                $rCourse = Courses::canonical($person['course'] ?? $program['course']);
                                 $rSection = trim((string) ($person['section'] ?? $program['section']));
                                 ?>
 
@@ -251,22 +306,30 @@ $oldTime = $oldIncident ? date('H:i', $oldIncident) : '';
 
                                         <div class="field" data-respondent-types="Student" <?= $personType === 'Student' ? '' : 'hidden' ?>>
                                             <label>College <span class="optional">if applicable</span></label>
-                                            <input
+                                            <select
                                                 name="respondent_college[]"
-                                                value="<?= h($person['college'] ?? '') ?>"
-                                                <?= editable('respondents', $allowed) ? '' : 'readonly' ?>
+                                                <?= editable('respondents', $allowed) ? '' : 'disabled' ?>
                                                 <?= $personType === 'Student' ? '' : 'disabled' ?>
                                             >
+                                                <option value="">Select College</option>
+                                                <?php foreach (Colleges::all() as $college): ?>
+                                                    <option value="<?= h($college) ?>" <?= ($person['college'] ?? '') === $college ? 'selected' : '' ?>><?= h($college) ?></option>
+                                                <?php endforeach; ?>
+                                            </select>
                                         </div>
 
                                         <div class="field" data-respondent-types="Student" <?= $personType === 'Student' ? '' : 'hidden' ?>>
                                             <label>Course/Program <span class="optional">if applicable</span></label>
-                                            <input
+                                            <select
                                                 name="respondent_course[]"
-                                                value="<?= h($rCourse) ?>"
-                                                <?= editable('respondents', $allowed) ? '' : 'readonly' ?>
+                                                <?= editable('respondents', $allowed) ? '' : 'disabled' ?>
                                                 <?= $personType === 'Student' ? '' : 'disabled' ?>
                                             >
+                                                <option value=""><?= empty($person['college']) ? 'Select a college first' : 'Select Course/Program' ?></option>
+                                                <?php foreach (Courses::forCollege($person['college'] ?? '') as $course): ?>
+                                                    <option value="<?= h($course) ?>" <?= $rCourse === $course ? 'selected' : '' ?>><?= h($course) ?></option>
+                                                <?php endforeach; ?>
+                                            </select>
                                         </div>
 
                                         <div class="field" data-respondent-types="Student" <?= $personType === 'Student' ? '' : 'hidden' ?>>
@@ -432,7 +495,7 @@ $oldTime = $oldIncident ? date('H:i', $oldIncident) : '';
                                 <?php
                                 $personType = ($person['person_type'] ?? '') ?: 'Student';
                                 $program = Courses::split($person['course_year'] ?? '');
-                                $witnessCourse = trim((string) ($person['course'] ?? $program['course']));
+                                $witnessCourse = Courses::canonical($person['course'] ?? $program['course']);
                                 $witnessSection = trim((string) ($person['section'] ?? $program['section']));
                                 ?>
 
@@ -516,12 +579,16 @@ $oldTime = $oldIncident ? date('H:i', $oldIncident) : '';
 
                                             <label>College <span class="optional">if applicable</span></label>
 
-                                            <input
+                                            <select
                                                 name="witness_college[]"
-                                                value="<?= h($person['college'] ?? '') ?>"
-                                                <?= editable('witnesses', $allowed) ? '' : 'readonly' ?>
+                                                <?= editable('witnesses', $allowed) ? '' : 'disabled' ?>
                                                 <?= $personType === 'Student' ? '' : 'disabled' ?>
                                             >
+                                                <option value="">Select College</option>
+                                                <?php foreach (Colleges::all() as $college): ?>
+                                                    <option value="<?= h($college) ?>" <?= ($person['college'] ?? '') === $college ? 'selected' : '' ?>><?= h($college) ?></option>
+                                                <?php endforeach; ?>
+                                            </select>
 
                                         </div>
 
@@ -529,12 +596,16 @@ $oldTime = $oldIncident ? date('H:i', $oldIncident) : '';
 
                                             <label>Course/Program <span class="optional">if applicable</span></label>
 
-                                            <input
+                                            <select
                                                 name="witness_course[]"
-                                                value="<?= h($witnessCourse) ?>"
-                                                <?= editable('witnesses', $allowed) ? '' : 'readonly' ?>
+                                                <?= editable('witnesses', $allowed) ? '' : 'disabled' ?>
                                                 <?= $personType === 'Student' ? '' : 'disabled' ?>
                                             >
+                                                <option value=""><?= empty($person['college']) ? 'Select a college first' : 'Select Course/Program' ?></option>
+                                                <?php foreach (Courses::forCollege($person['college'] ?? '') as $course): ?>
+                                                    <option value="<?= h($course) ?>" <?= $witnessCourse === $course ? 'selected' : '' ?>><?= h($course) ?></option>
+                                                <?php endforeach; ?>
+                                            </select>
 
                                         </div>
 
@@ -791,6 +862,10 @@ $oldTime = $oldIncident ? date('H:i', $oldIncident) : '';
                                 class="btn btn-primary"
                                 id="submitRevision"
                                 type="submit"
+                                data-confirm-title="Submit revised complaint?"
+                                data-confirm="Your revised complaint will be sent back to SDRU for verification."
+                                data-confirm-button="Yes, submit revision"
+                                data-sicms-processing-label="Submitting revision..."
                             >
                                 <i class="bi bi-send-check"></i>
                                 Submit Revised Complaint
@@ -811,6 +886,8 @@ $oldTime = $oldIncident ? date('H:i', $oldIncident) : '';
     <script>
         const form = document.getElementById('revisionForm');
         const submit = document.getElementById('submitRevision');
+        const colleges = <?= json_encode(Colleges::all(), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+        const programsByCollege = <?= json_encode(Courses::byCollege(), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
 
         const personFieldSets = {
             respondents: [
@@ -819,8 +896,8 @@ $oldTime = $oldIncident ? date('H:i', $oldIncident) : '';
                 ['age', 'Age', '', 'number'],
                 ['gender', 'Gender', '', 'select'],
                 ['student_no', 'Student Number', '', 'text', 'Student'],
-                ['college', 'College', '', 'text', 'Student'],
-                ['course', 'Course/Program', '', 'text', 'Student'],
+                ['college', 'College', '', 'collegeSelect', 'Student'],
+                ['course', 'Course/Program', '', 'courseSelect', 'Student'],
                 ['section', 'Section', '', 'text', 'Student'],
                 ['employee_no', 'Employee Number', '', 'text', 'Employee'],
                 ['position', 'Position', '', 'text', 'Employee'],
@@ -838,8 +915,8 @@ $oldTime = $oldIncident ? date('H:i', $oldIncident) : '';
                 ['age', 'Age', '', 'number'],
                 ['gender', 'Gender', '', 'select'],
                 ['student_no', 'Student Number', '', 'text', 'Student'],
-                ['college', 'College', '', 'text', 'Student'],
-                ['course', 'Course/Program', '', 'text', 'Student'],
+                ['college', 'College', '', 'collegeSelect', 'Student'],
+                ['course', 'Course/Program', '', 'courseSelect', 'Student'],
                 ['section', 'Section', '', 'text', 'Student'],
                 ['employee_no', 'Employee Number', '', 'text', 'Employee'],
                 ['position', 'Position', '', 'text', 'Employee'],
@@ -900,6 +977,10 @@ $oldTime = $oldIncident ? date('H:i', $oldIncident) : '';
                                             <option value="Other">Other</option>
                                         </select>
                                     `;
+                                } else if (controlType === 'collegeSelect') {
+                                    control = `<select name="${prefix}_college[]"><option value="">Select College</option>${colleges.map(college => `<option value="${college}">${college}</option>`).join('')}</select>`;
+                                } else if (controlType === 'courseSelect') {
+                                    control = `<select name="${prefix}_course[]" disabled><option value="">Select a college first</option></select>`;
                                 } else {
                                     const inputType = ['number', 'date', 'email'].includes(controlType) ? controlType : 'text';
                                     const placeholder = (type === 'respondents' && key === 'details')
@@ -990,12 +1071,34 @@ $oldTime = $oldIncident ? date('H:i', $oldIncident) : '';
                     control.required = visible && requiredNames.includes(control.name);
                 });
             });
+            syncWitnessPrograms(item, true);
+        }
+
+        function syncWitnessPrograms(item, preserveSelection = false) {
+            const college = item?.querySelector('[name="witness_college[]"]');
+            const course = item?.querySelector('[name="witness_course[]"]');
+            if (!college || !course) return;
+            const previous = preserveSelection ? course.value : '';
+            const programs = programsByCollege[college.value] || [];
+            course.replaceChildren(new Option(programs.length ? 'Select Course/Program' : 'Select a college first', ''));
+            programs.forEach(program => course.add(new Option(program, program)));
+            course.disabled = college.disabled || programs.length === 0;
+            if (previous && programs.includes(previous)) course.value = previous;
+            if (!preserveSelection) {
+                const section = item.querySelector('[name="witness_section[]"]');
+                if (section) section.value = '';
+            }
         }
 
         document.querySelectorAll('#witnesses').forEach(list => {
             list.addEventListener('change', event => {
                 if (event.target.matches('[name="witness_type[]"]')) {
                     updateWitnessFields(event.target.closest('.repeat-item'));
+                } else if (event.target.matches('[name="witness_college[]"]')) {
+                    syncWitnessPrograms(event.target.closest('.repeat-item'), false);
+                } else if (event.target.matches('[name="witness_course[]"]')) {
+                    const section = event.target.closest('.repeat-item')?.querySelector('[name="witness_section[]"]');
+                    if (section) section.value = '';
                 }
             });
         });
@@ -1024,12 +1127,33 @@ $oldTime = $oldIncident ? date('H:i', $oldIncident) : '';
                     control.required = visible && requiredNames.includes(control.name);
                 });
             });
+            syncRespondentPrograms(item, true);
+        }
+
+        function syncRespondentPrograms(item, preserveSelection = false) {
+            const college = item?.querySelector('[name="respondent_college[]"]');
+            const course = item?.querySelector('[name="respondent_course[]"]');
+            if (!college || !course) return;
+            const previous = preserveSelection ? course.value : '';
+            const programs = programsByCollege[college.value] || [];
+            course.replaceChildren(new Option(programs.length ? 'Select Course/Program' : 'Select a college first', ''));
+            programs.forEach(program => course.add(new Option(program, program)));
+            course.disabled = college.disabled || programs.length === 0;
+            if (previous && programs.includes(previous)) course.value = previous;
+            if (!preserveSelection) {
+                const section = item.querySelector('[name="respondent_section[]"]');
+                const combined = item.querySelector('[name="respondent_course_year[]"]');
+                if (section) section.value = '';
+                if (combined) combined.value = '';
+            }
         }
 
         document.querySelectorAll('#respondents').forEach(list => {
             list.addEventListener('change', event => {
                 if (event.target.matches('[name="respondent_type[]"]')) {
                     updateRespondentFields(event.target.closest('.repeat-item'));
+                } else if (event.target.matches('[name="respondent_college[]"]')) {
+                    syncRespondentPrograms(event.target.closest('.repeat-item'), false);
                 }
             });
         });
@@ -1070,13 +1194,6 @@ $oldTime = $oldIncident ? date('H:i', $oldIncident) : '';
             toggleUnknown(checkbox.name === 'respondent_unknown' ? 'respondents' : 'witnesses', checkbox);
         });
 
-        form.addEventListener('submit', () => {
-            submit.disabled = true;
-            submit.innerHTML = `
-                <i class="bi bi-hourglass-split"></i>
-                Submitting...
-            `;
-        });
     </script>
 
 </body>

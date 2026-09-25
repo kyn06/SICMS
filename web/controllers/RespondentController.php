@@ -131,15 +131,43 @@ class RespondentController {
         $case = CaseRecord::findCase($complaintId);
         $caseActive = $case && in_array($case['status'], ['Under Investigation', 'Returned for Revision'], true);
         $caseLabel = $case['case_number'] ?? ('Case #' . $complaintId);
+        $isAutoSave = $action === 'autosave_counter_statement';
+        $jsonResponse = function ($status, array $payload) {
+            http_response_code($status);
+            header('Content-Type: application/json; charset=UTF-8');
+            echo json_encode($payload);
+            exit;
+        };
 
         try {
             if (!$caseActive) {
+                if ($isAutoSave) $jsonResponse(409, ['success' => false, 'message' => 'This case is no longer editable.']);
                 $_SESSION['counter_errors'] = ['This case is closed. Counter-statements can no longer be edited.'];
                 header('Location: case_show.php?id=' . $complaintId);
                 exit;
             }
 
             $statement = CounterStatement::forRespondentCase($complaintId, $respondentId);
+
+            if ($isAutoSave) {
+                if (!$statement || $statement['status'] !== 'Draft' || (int) $statement['respondent_account_id'] !== $accountId) {
+                    $jsonResponse(409, ['success' => false, 'message' => 'There is no editable counter-statement draft on this case.']);
+                }
+                $content = trim((string) ($_POST['statement_content'] ?? ''));
+                $result = CounterStatement::saveDraftVersioned(
+                    (int) $statement['counter_statement_id'],
+                    $accountId,
+                    $content,
+                    (int) ($_POST['draft_version'] ?? 0)
+                );
+                if ($result['status'] === 'conflict') {
+                    $jsonResponse(409, ['success' => false, 'conflict' => true, 'message' => 'A newer draft exists. Refresh before making more changes.']);
+                }
+                if ($result['status'] !== 'saved') {
+                    $jsonResponse(500, ['success' => false, 'message' => 'Draft could not be saved.']);
+                }
+                $jsonResponse(200, ['success' => true, 'version' => $result['version'], 'updated_at' => $result['updated_at']]);
+            }
 
             if ($action === 'save_draft' || $action === 'submit_counter_statement') {
                 if (!$statement || $statement['status'] !== 'Draft') {
@@ -241,6 +269,7 @@ class RespondentController {
                 $_SESSION['counter_errors'] = ['Invalid action.'];
             }
         } catch (Throwable $exception) {
+            if ($isAutoSave) $jsonResponse(500, ['success' => false, 'message' => 'Unable to save your draft. Please try again.']);
             $_SESSION['counter_errors'] = ['Unable to update your counter-statement. Please try again.'];
         }
 
