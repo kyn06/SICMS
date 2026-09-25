@@ -4,14 +4,19 @@ date_default_timezone_set('Asia/Manila');
 
 class Database{
     
-    private $host = "127.0.0.1";
-    private $port = 3307;
-    private $username= "root";
-    private $password = "";
-    private $database = "daris";
+    private $host;
+    private $port;
+    private $username;
+    private $password;
+    private $database;
     private $conn;
 
     public function __construct(){
+        $this->host = getenv('SICMS_DB_HOST') ?: '127.0.0.1';
+        $this->port = (int) (getenv('SICMS_DB_PORT') ?: 3307);
+        $this->username = getenv('SICMS_DB_USER') ?: 'root';
+        $this->password = getenv('SICMS_DB_PASSWORD') ?: '';
+        $this->database = getenv('SICMS_DB_NAME') ?: 'daris';
         $this->conn = mysqli_init();
         mysqli_options($this->conn, MYSQLI_OPT_CONNECT_TIMEOUT, 3);
 

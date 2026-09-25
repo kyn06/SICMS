@@ -302,6 +302,7 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <base href="<?= h(app_base_url()) ?>/">
     <title>Dashboard | DARIS</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="web/views/layout/style.css">
@@ -1497,28 +1498,6 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
                 </div>
 
                 <aside class="side-stack">
-                    <?php if ($canViewAnalytics): ?>
-                    <section class="panel">
-                        <div class="section-title"><i class="bi bi-clock-history"></i> Recent Activity</div>
-                        <div class="activity-list">
-                            <?php if (empty($recentActivities)): ?>
-                            <div class="empty-state">No recent activity found.</div>
-                            <?php endif; ?>
-
-                            <?php foreach ($recentActivities as $activity): ?>
-                            <article class="activity-item">
-                                <div class="activity-check"><i class="bi bi-check2"></i></div>
-                                <div>
-                                    <div class="activity-title"><?= h($activity['action']) ?></div>
-                                    <div class="activity-description"><?= h($activity['description']) ?></div>
-                                    <div class="activity-time"><?= h(format_time_ago($activity['created_at'])) ?></div>
-                                </div>
-                            </article>
-                            <?php endforeach; ?>
-                        </div>
-                    </section>
-                    <?php endif; ?>
-
                     <?php if ($canViewHearings): ?>
                     <section class="panel">
                         <div class="section-title"><i class="bi bi-calendar-event"></i> Upcoming Hearings</div>
@@ -1555,6 +1534,28 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
                                 href="<?= h(app_route('hearings.index')) ?>">View All Hearings</a></div>
                     </section>
                     <?php endif; ?>
+                    <?php if ($canViewAnalytics): ?>
+                    <section class="panel">
+                        <div class="section-title"><i class="bi bi-clock-history"></i> Recent Activity</div>
+                        <div class="activity-list">
+                            <?php if (empty($recentActivities)): ?>
+                            <div class="empty-state">No recent activity found.</div>
+                            <?php endif; ?>
+
+                            <?php foreach ($recentActivities as $activity): ?>
+                            <article class="activity-item">
+                                <div class="activity-check"><i class="bi bi-check2"></i></div>
+                                <div>
+                                    <div class="activity-title"><?= h($activity['action']) ?></div>
+                                    <div class="activity-description"><?= h($activity['description']) ?></div>
+                                    <div class="activity-time"><?= h(format_time_ago($activity['created_at'])) ?></div>
+                                </div>
+                            </article>
+                            <?php endforeach; ?>
+                        </div>
+                    </section>
+                    <?php endif; ?>
+
                     <?php if ($isCoordinator): ?>
                     <section class="panel">
                         <div class="section-title"><i class="bi bi-bell"></i> Recent Notifications</div>
@@ -2047,24 +2048,6 @@ if (($_GET['ajax'] ?? '') === 'dashboard') {
         applyDashboardFilters(true);
     });
 
-    const dashboardThemeToggle = document.querySelector('.theme-toggle');
-    const updateDashboardThemeToggle = () => {
-        const dark = document.documentElement.dataset.theme === 'dark';
-        if (!dashboardThemeToggle) return;
-        dashboardThemeToggle.setAttribute('aria-label', dark ? 'Enable light mode' : 'Enable dark mode');
-        dashboardThemeToggle.title = dark ? 'Enable light mode' : 'Enable dark mode';
-        dashboardThemeToggle.innerHTML = `<i class="bi bi-${dark ? 'sun' : 'moon-stars'}" aria-hidden="true"></i>`;
-    };
-    dashboardThemeToggle?.addEventListener('click', () => {
-        const dark = document.documentElement.dataset.theme !== 'dark';
-        document.documentElement.dataset.theme = dark ? 'dark' : 'light';
-        try {
-            localStorage.setItem('sicms-theme', dark ? 'dark' : 'light');
-            document.cookie = `sicms-theme=${dark ? 'dark' : 'light'}; path=/; max-age=31536000; SameSite=Lax`;
-        } catch (error) {}
-        updateDashboardThemeToggle();
-    });
-    updateDashboardThemeToggle();
     </script>
     <script src="<?= h(app_url('web/views/layout/system.js')) ?>?v=20260922a" defer></script>
 </body>

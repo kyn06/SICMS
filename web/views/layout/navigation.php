@@ -30,7 +30,7 @@ $navGroups = [
     'MAIN' => [
         ['route' => 'dashboard', 'label' => 'Dashboard', 'icon' => 'bi-speedometer2', 'roles' => ['*']],
         ['route' => 'cases.index', 'label' => 'Case Management', 'icon' => 'bi-folder2-open', 'roles' => ['admin', 'sdr-staff', 'sdru-staff', 'coordinator', 'reformation-coordinator', 'head-of-sdru', 'sdru-head']],
-        ['route' => 'reports.index', 'label' => 'Reports', 'icon' => 'bi-bar-chart-line', 'roles' => ['admin', 'sdr-staff', 'sdru-staff', 'head-of-sdru', 'sdru-head']],
+        ['route' => 'reports.index', 'label' => 'Reports', 'icon' => 'bi-bar-chart-line', 'roles' => ['admin', 'sdr-staff', 'sdru-staff', 'coordinator', 'reformation-coordinator', 'head-of-sdru', 'sdru-head']],
         ['route' => 'complaints.create', 'label' => 'Submit Complaint', 'icon' => 'bi-send-plus', 'roles' => ['student']],
         ['route' => 'complaints.my_cases', 'label' => 'Track My Cases', 'icon' => 'bi-folder-check', 'roles' => ['student']],
         ['route' => 'respondent.cases', 'label' => 'Complaint Cases', 'icon' => 'bi-folder-check', 'roles' => ['respondent']],

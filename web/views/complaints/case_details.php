@@ -66,7 +66,7 @@ function stage_done($status, $stage) {
         .timeline-note { color: #6a7768; font-size: 11px; margin-top: 2px; }
         .mini-item { background: #f9fbf8; border: 1px solid #e0e8de; border-radius: 8px; padding: 12px; }
         .remarks, .hearing-item { border-left: 4px solid #1a8c2b; }
-        .empty-state { color: #6a7768; font-size: 13px; padding: 16px; text-align: center; }
+        .empty-state { color: #6a7768; font-size: 13px; padding: 16px; text-align: center; } 
         .back-row { margin-top: 4px; }
         .next-action { background:#f4faf2; border:1px solid #cfe2cb; border-radius:8px; margin:0 0 16px; padding:12px 14px; }
         .next-action strong { color:#19311c; display:block; font-size:13px; }

@@ -3,27 +3,27 @@
 date_default_timezone_set('Asia/Manila');
 
 $routes = [
-    'dashboard' => 'index.php',
-    'accounts.index' => 'web/views/accounts/index.php',
+    'dashboard' => 'dashboard/',
+    'accounts.index' => 'accounts/',
     'complaints.create' => 'web/views/complaints/create.php',
     'complaints.my_cases' => 'web/views/complaints/my_cases.php',
     'complaints.revise' => 'web/views/complaints/revise.php',
     'complaints.attachment' => 'web/views/complaints/attachment.php',
-    'cases.index' => 'web/views/cases/index.php',
-    'archived_cases.index' => 'web/views/archived_cases/index.php',
+    'cases.index' => 'cases/',
+    'archived_cases.index' => 'archived-cases/',
     'legacy_cases.create' => 'web/views/legacy_cases/create.php',
     'legacy_cases.edit' => 'web/views/legacy_cases/edit.php',
     'legacy_cases.show' => 'web/views/legacy_cases/show.php',
-    'hearings.index' => 'web/views/hearings/index.php',
-    'reports.index' => 'web/views/reports/index.php',
-    'audit_logs.index' => 'web/views/audit_logs/index.php',
-    'notifications.index' => 'web/views/notifications/index.php',
-    'messages.index' => 'web/views/messages/index.php',
+    'hearings.index' => 'hearings/',
+    'reports.index' => 'reports/',
+    'audit_logs.index' => 'audit-logs/',
+    'notifications.index' => 'notifications/',
+    'messages.index' => 'messages/',
     'messages.send' => 'web/views/messages/send.php',
     'respondent.cases' => 'web/views/respondent/cases.php',
     'respondent.case_show' => 'web/views/respondent/case_show.php',
     'respondent.activate' => 'web/views/auth/activate.php',
-    'settings.index' => 'web/views/settings/index.php',
+    'settings.index' => 'settings/',
     'logout' => 'web/views/auth/logout.php',
 ];
 
@@ -52,6 +52,23 @@ function app_current_route() {
     $script = str_replace('\\', '/', $_SERVER['SCRIPT_NAME'] ?? '');
     $base = app_base_url();
     $path = ltrim(substr($script, strlen($base)), '/');
+
+    $cleanRoutes = [
+        'dashboard/' => 'dashboard',
+        'accounts/' => 'accounts.index',
+        'cases/' => 'cases.index',
+        'archived-cases/' => 'archived_cases.index',
+        'hearings/' => 'hearings.index',
+        'reports/' => 'reports.index',
+        'audit-logs/' => 'audit_logs.index',
+        'notifications/' => 'notifications.index',
+        'messages/' => 'messages.index',
+        'settings/' => 'settings.index',
+    ];
+
+    if (isset($cleanRoutes[$path])) {
+        return $cleanRoutes[$path];
+    }
 
     foreach ($routes as $name => $routePath) {
         if ($path === ltrim($routePath, '/')) {

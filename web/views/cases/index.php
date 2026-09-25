@@ -67,6 +67,13 @@ function respondents_label(array $case) {
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link rel="stylesheet" href="../layout/system.css?v=2">
     <style>
+    .case-section-nav { align-items: center; background: var(--bg-page, #f5f7f4); display: flex; gap: 8px; overflow-x: auto; padding: 0 0 16px; position: sticky; top: 0; z-index: 5; margin-top: 10px; }
+    .case-section-nav a,
+    .case-section-nav button { background: var(--surface-primary, #fff); border: 1px solid var(--border-primary, #dce5da); border-radius: 999px; color: var(--text-secondary, #123c1b); font-size: 12px; padding: 7px 10px; text-decoration: none; white-space: nowrap; }
+    .case-section-nav a:hover,
+    .case-section-nav button:hover { background: rgba(26, 157, 0, 0.08); }
+    .case-section-nav .status-filter { cursor: pointer; }
+    .case-list-section { scroll-margin-top: 58px; }
     #caseFilters {
         align-items: center;
         background: none;
@@ -107,6 +114,18 @@ function respondents_label(array $case) {
         outline: none !important;
         padding: 8px 0 !important;
         width: 100%;
+    }
+
+    .status-filter {
+        background: none;
+        border: 0;
+        cursor: pointer;
+        font: inherit;
+        padding: 0;
+    }
+
+    .status-filter:focus-visible {
+        text-decoration: underline;
     }
 
     .filters-toggle-btn {
@@ -358,9 +377,24 @@ function respondents_label(array $case) {
                     <div class="filter-error" role="alert"><?= h($filterError) ?></div>
                 <?php endif; ?>
             </section>
-
+            <nav class="case-section-nav" aria-label="Case management sections">
+                <?php if ($viewerRoleKey === 'reformation-coordinator'): ?>
+                    <button class="status-filter" type="button" data-status="" title="Show all reformation cases">All Cases</button>
+                    <?php foreach (['Reformation in Progress', 'Reformation Completed'] as $status): ?>
+                        <button class="status-filter" type="button" data-status="<?= h($status) ?>" title="Filter by <?= h($status) ?>"><?= h($status) ?></button>
+                    <?php endforeach; ?>
+                    <a href="#archived-cases">Archived Cases</a>
+                <?php else: ?>
+                <button class="status-filter" type="button" data-status="" title="Show all active cases">All Cases</button>
+                <?php foreach ($statuses as $status): ?>
+                    <button class="status-filter" type="button" data-status="<?= h($status) ?>" title="Filter by <?= h($status) ?>"><?= h($status) ?></button>
+                <?php endforeach; ?>
+                <a href="#migrated-cases">Migrated Cases</a>
+                <a href="#archived-cases">Archived Cases</a>
+                <?php endif; ?>
+            </nav>
             <?php if (in_array($viewerRoleKey, ['coordinator', 'reformation-coordinator'], true)): ?>
-            <section class="table-panel">
+            <section class="table-panel case-list-section" id="assigned-cases">
                     <div class="table-heading table-heading-row">
                         <h2><i class="bi bi-folder-check"></i> <?= $viewerRoleKey === 'reformation-coordinator' ? 'My Reformation Cases' : 'Assigned Cases' ?></h2>
                     </div>
@@ -388,7 +422,7 @@ function respondents_label(array $case) {
                                     <td><?= h($case['complainant_name']) ?></td>
                                     <td><?= h(respondents_label($case)) ?></td>
                                     <td><?= h($case['case_classification']) ?></td>
-                                    <td><span class="status"><?= h($case['status']) ?></span></td>
+                                    <td><button class="status status-filter" type="button" data-status="<?= h($case['status']) ?>" title="Filter by this status"><?= h($case['status']) ?></button></td>
                                     <td><?= h(date('M d, Y h:i A', strtotime($case['submitted_at']))) ?></td>
                                     <td>
                                         <div class="row-actions">
@@ -403,7 +437,7 @@ function respondents_label(array $case) {
             <?php endif; ?>
 
             <?php if (!in_array($viewerRoleKey, ['coordinator', 'reformation-coordinator'], true)): ?>
-            <section class="table-panel">
+            <section class="table-panel case-list-section" id="online-cases">
                     <div class="table-heading table-heading-row">
                         <h2><i class="bi bi-globe2"></i> Online Cases</h2>
                     </div>
@@ -431,7 +465,7 @@ function respondents_label(array $case) {
                                     <td><?= h($case['complainant_name']) ?></td>
                                     <td><?= h(respondents_label($case)) ?></td>
                                     <td><?= h($case['case_classification']) ?></td>
-                                    <td><span class="status"><?= h($case['status']) ?></span></td>
+                                    <td><button class="status status-filter" type="button" data-status="<?= h($case['status']) ?>" title="Filter by this status"><?= h($case['status']) ?></button></td>
                                     <td><?= h(date('M d, Y h:i A', strtotime($case['submitted_at']))) ?></td>
                                     <td>
                                         <div class="row-actions">
@@ -444,7 +478,7 @@ function respondents_label(array $case) {
                     </table>
             </section>
 
-            <section class="table-panel">
+            <section class="table-panel case-list-section" id="migrated-cases">
                 <div class="table-heading table-heading-row">
                     <h2><i class="bi bi-archive"></i> Migrated Cases</h2>
                     <?php if ($canEditMigrated): ?>
@@ -474,7 +508,7 @@ function respondents_label(array $case) {
                                 <td><?= h($case['complainant_name']) ?></td>
                                 <td><?= h($case['case_classification']) ?></td>
                                 <td><?= h(date('M d, Y', strtotime($case['original_case_date'] ?: $case['submitted_at']))) ?></td>
-                                <td><span class="status"><?= h($case['status']) ?></span></td>
+                                <td><button class="status status-filter" type="button" data-status="<?= h($case['status']) ?>" title="Filter by this status"><?= h($case['status']) ?></button></td>
                                 <td>
                                     <div class="row-actions">
                                         <a class="btn btn-primary" href="../legacy_cases/show.php?id=<?= (int) $case['complaint_id'] ?>"><i class="bi bi-eye"></i> View Details</a>
@@ -487,7 +521,7 @@ function respondents_label(array $case) {
             </section>
             <?php endif; ?>
 
-            <section class="table-panel">
+            <section class="table-panel case-list-section" id="archived-cases">
                 <div class="table-heading" style="margin-bottom:2px">
                     <h2><i class="bi bi-archive"></i> Archived Cases</h2>
                 </div>
@@ -563,6 +597,18 @@ function respondents_label(array $case) {
                 return cell;
             };
 
+            const appendStatusCell = (row, value) => {
+                const cell = document.createElement('td');
+                const status = document.createElement('button');
+                status.className = 'status status-filter';
+                status.type = 'button';
+                status.dataset.status = value ?? '';
+                status.title = 'Filter by this status';
+                status.textContent = value ?? '';
+                cell.appendChild(status);
+                row.appendChild(cell);
+            };
+
             const renderCases = (cases) => {
                 if (!table || !tableBody || !emptyState) return;
                 tableBody.replaceChildren();
@@ -579,12 +625,7 @@ function respondents_label(array $case) {
                     appendCell(row, item.complainant_name);
                     appendCell(row, respondentsLabel(item));
                     appendCell(row, item.case_classification);
-                    const statusCell = document.createElement('td');
-                    const status = document.createElement('span');
-                    status.className = 'status';
-                    status.textContent = item.status;
-                    statusCell.appendChild(status);
-                    row.appendChild(statusCell);
+                    appendStatusCell(row, item.status);
                     appendCell(row, formatDate(item.submitted_at));
                     const actionsCell = document.createElement('td');
                     const actionsDiv = document.createElement('div');
@@ -621,12 +662,7 @@ function respondents_label(array $case) {
                     appendCell(row, item.complainant_name);
                     appendCell(row, respondentsLabel(item));
                     appendCell(row, item.case_classification);
-                    const statusCell = document.createElement('td');
-                    const status = document.createElement('span');
-                    status.className = 'status';
-                    status.textContent = item.status;
-                    statusCell.appendChild(status);
-                    row.appendChild(statusCell);
+                    appendStatusCell(row, item.status);
                     appendCell(row, formatDate(item.submitted_at));
                     const actionsCell = document.createElement('td');
                     const actionsDiv = document.createElement('div');
@@ -662,12 +698,7 @@ function respondents_label(array $case) {
                     appendCell(row, item.complainant_name);
                     appendCell(row, item.case_classification);
                     appendCell(row, formatDateShort(item.original_case_date || item.submitted_at));
-                    const statusCell = document.createElement('td');
-                    const status = document.createElement('span');
-                    status.className = 'status';
-                    status.textContent = item.status;
-                    statusCell.appendChild(status);
-                    row.appendChild(statusCell);
+                    appendStatusCell(row, item.status);
                     const actionsCell = document.createElement('td');
                     const actionsDiv = document.createElement('div');
                     actionsDiv.className = 'row-actions';
@@ -774,6 +805,13 @@ function respondents_label(array $case) {
             });
             window.addEventListener('pageshow', updateCaseFilterButton);
             updateCaseFilterButton();
+
+            document.addEventListener('click', (event) => {
+                const statusFilter = event.target.closest('.status-filter');
+                if (!statusFilter || !form.elements.status) return;
+                form.elements.status.value = statusFilter.dataset.status || '';
+                updateCases();
+            });
 
             textInputs.forEach((input) => input.addEventListener('input', debounceSearch));
             selects.forEach((select) => select.addEventListener('change', updateCases));

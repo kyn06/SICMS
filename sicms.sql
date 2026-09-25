@@ -923,6 +923,9 @@ CREATE TABLE `reformation_reports` (
   `file_path` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `mime_type` varchar(120) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `file_size` int UNSIGNED NOT NULL,
+  `storage_provider` varchar(30) NOT NULL DEFAULT 'local',
+  `drive_file_id` varchar(255) DEFAULT NULL,
+  `drive_web_view_link` text DEFAULT NULL,
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

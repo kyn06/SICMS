@@ -657,6 +657,10 @@ class Report extends Model {
         $params = [];
         $types = '';
 
+        if (($filters['report_scope'] ?? '') === 'reformation') {
+            $where[] = "$alias.assigned_reformation_coordinator_account_id IS NOT NULL";
+        }
+
         if (!empty($filters['date_from'])) {
             $where[] = "COALESCE($alias.original_case_date, DATE($alias.submitted_at)) >= ?";
             $params[] = $filters['date_from'];

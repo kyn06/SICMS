@@ -659,7 +659,7 @@ function applied_filter_labels(array $filters, array $options) {
             <div class="export-group">
                 <a class="btn btn-primary" data-export="pdf" href="<?= h(query_with(['export' => 'pdf', 'csrf_token' => Security::csrfToken()])) ?>"><i class="bi bi-file-earmark-pdf"></i> Generate PDF</a>
                 <a class="btn btn-primary" data-export="excel" href="<?= h(query_with(['export' => 'excel', 'csrf_token' => Security::csrfToken()])) ?>"><i class="bi bi-file-earmark-spreadsheet"></i> Generate Excel</a>
-                <a class="btn btn-primary" data-export="print" href="<?= h(query_with(['export' => 'print', 'csrf_token' => Security::csrfToken()])) ?>" target="_blank"><i class="bi bi-printer"></i> Print Report</a>
+                <a class="btn btn-primary" data-export="print" href="<?= h(query_with(['export' => 'print', 'csrf_token' => Security::csrfToken()])) ?>" target="_blank"><i class="bi bi-printer"></i> Print Diagram</a>
             </div>
             <div class="pdf-columns-overlay" id="pdfColumnsOverlay" hidden>
                 <div class="pdf-columns-modal" role="dialog" aria-modal="true" aria-labelledby="pdfColumnsTitle">
@@ -1542,6 +1542,7 @@ function applied_filter_labels(array $filters, array $options) {
             url.searchParams.delete('pdf_columns[]');
             columns.forEach((column) => url.searchParams.append('pdf_columns[]', column));
             window.DARISAlert?.toast('info', 'Generating Report...', 'DARIS is preparing your PDF report.', { timer: 3000 });
+            closePdfColumns();
             window.location.assign(url.toString());
         });
 

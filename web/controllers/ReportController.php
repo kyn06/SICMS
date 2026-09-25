@@ -31,6 +31,10 @@ class ReportController {
 
     public function index() {
         $filters = Report::normalizeFilters($_GET);
+        $roleKey = strtolower(str_replace(['_', ' '], '-', $this->user['role'] ?? ''));
+        if ($roleKey === 'reformation-coordinator') {
+            $filters['report_scope'] = 'reformation';
+        }
         $errors = Report::validateFilters($_GET, $filters);
         $isAjax = ($_GET['ajax'] ?? '') === '1';
         $mode = ($_GET['report'] ?? 'analytics') === 'yearly' ? 'yearly' : 'analytics';

@@ -8,9 +8,12 @@ class CaseUpdate extends Model {
 
     public const TYPES = [
         'additional_details' => 'Update Respondent Details',
-        'additional_evidence' => 'Additional Evidence',
         'investigation_update' => 'Investigation Update',
+        'additional_evidence' => 'Additional Evidence',
         'clarification' => 'Clarification',
+        'warning' => 'Notice of Warning',
+        'settlement' => 'Settlement',
+        'agreement' => 'Agreement',
         'administrative' => 'Administrative Update',
         'other' => 'Other',
     ];
