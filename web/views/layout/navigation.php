@@ -24,7 +24,7 @@ $roleLabel = layout_role_label($user['role'] ?? '');
 $displayName = trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? '')) ?: ($user['email'] ?? 'User');
 $initials = strtoupper(substr($user['first_name'] ?? ($user['email'] ?? 'U'), 0, 1) . substr($user['last_name'] ?? '', 0, 1));
 $initials = trim($initials) ?: 'U';
-$currentRoute = app_current_route();
+$currentRoute = app_current_sidebar_route();
 
 $navGroups = [
     'MAIN' => [

@@ -96,7 +96,25 @@
     document.querySelectorAll('table').forEach(initializeTable);
     decorateStatuses();
 
-    const SICMS_PHONE_RE = /^[0-9+()\-\s.]{7,20}$/;
+    const SICMS_PHONE_ERROR = 'Enter a valid Philippine mobile number (e.g., 0917 123 4567).';
+    const phoneControl = (control) => control.dataset.sicmsPhone !== undefined
+        || /(?:^|_)(?:phone(?:_number)?|contact(?:_info)?)(?:\[\])?$/.test(control.name || '');
+    const normalizePhilippineMobile = (value) => {
+        const input = String(value || '').trim();
+        if (!input) return '';
+        if (!/^(?:\+63|0)[0-9 -]+$/.test(input)) return null;
+        let compact = input.replace(/[ -]/g, '');
+        if (compact.startsWith('+63')) compact = `0${compact.slice(3)}`;
+        return /^09\d{9}$/.test(compact) ? compact : null;
+    };
+    const personNameControl = (control) => /^(?:first_name|last_name|complainant_name|respondent_name|witness_name|account_first_name|account_last_name)(?:\[\])?$/.test(control.name || '');
+    const normalizePersonName = (value) => {
+        const name = String(value || '').trim().replace(/\s+/g, ' ');
+        if (!name) return '';
+        const letters = (name.match(/\p{L}/gu) || []).join('');
+        if (!letters || letters !== letters.toLocaleLowerCase()) return name;
+        return name.replace(/(^|[\s\-'’])(\p{L})/gu, (_, separator, letter) => separator + letter.toLocaleUpperCase());
+    };
 
     const cleanLabelText = (raw) => String(raw || '')
         .replace(/<[^>]*>/g, ' ')
@@ -144,7 +162,7 @@
         const dataset = control.dataset;
         return dataset.sicmsFuture !== undefined
             || dataset.sicmsPast !== undefined
-            || dataset.sicmsPhone !== undefined
+            || phoneControl(control)
             || dataset.sicmsMatch !== undefined
             || dataset.sicmsSizeMb !== undefined
             || dataset.sicmsAcceptExt !== undefined;
@@ -260,8 +278,8 @@
                 return validationError(control, `The ${lowerFirst(label)} cannot be in the past.`);
             }
         }
-        if (rules.sicmsPhone !== undefined && value && !SICMS_PHONE_RE.test(value)) {
-            return validationError(control, 'Please enter a valid phone number (digits, spaces, +, -, or parentheses).');
+        if (phoneControl(control) && value && normalizePhilippineMobile(value) === null) {
+            return validationError(control, SICMS_PHONE_ERROR);
         }
         if (rules.sicmsMatch && value) {
             const target = document.querySelector(rules.sicmsMatch);
@@ -352,7 +370,17 @@
                 event.preventDefault();
                 if (result.firstInvalid) result.firstInvalid.focus();
                 if (event.submitter) event.submitter.disabled = false;
+                return;
             }
+            form.querySelectorAll('input').forEach((control) => {
+                if (!renderable(control) || !control.value.trim()) return;
+                if (phoneControl(control)) {
+                    const normalized = normalizePhilippineMobile(control.value);
+                    if (normalized !== null) control.value = normalized;
+                } else if (personNameControl(control)) {
+                    control.value = normalizePersonName(control.value);
+                }
+            });
         });
     };
 
@@ -370,6 +398,8 @@
         valid: (control) => validateRuleControl(control),
         error: validationError,
         clear: clearValidationError,
+        normalizePhone: normalizePhilippineMobile,
+        normalizeName: normalizePersonName,
     };
 
     const showAjaxNotice = (message, type = 'success') => {

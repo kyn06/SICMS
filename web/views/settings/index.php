@@ -1,5 +1,7 @@
 <?php
 require_once __DIR__ . '/../../helpers/Security.php';
+require_once __DIR__ . '/../../helpers/PhoneNumber.php';
+require_once __DIR__ . '/../../helpers/PersonName.php';
 Security::startSession();
 
 require_once __DIR__ . '/../../config/Database.php';
@@ -242,10 +244,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
     } else {
-        $firstName = trim($_POST['first_name'] ?? '');
-        $lastName  = trim($_POST['last_name'] ?? '');
+        $firstName = PersonName::normalize($_POST['first_name'] ?? '');
+        $lastName  = PersonName::normalize($_POST['last_name'] ?? '');
         $email     = strtolower(trim((string) ($_POST['email'] ?? $user['email'] ?? '')));
-        $phone     = trim($_POST['phone_number'] ?? '');
+        $phoneInput = trim($_POST['phone_number'] ?? '');
+        $phone = PhoneNumber::normalize($phoneInput);
         $gender    = trim($_POST['gender'] ?? '');
         $address   = trim($_POST['address'] ?? '');
         $birthday  = trim($_POST['birthday'] ?? '');
@@ -279,12 +282,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
-        if ($phone !== '') {
-            if (strlen($phone) > 20) {
-                $fieldErrors['phone_number'][] = 'Phone number must be 20 characters or fewer.';
-            } elseif (!preg_match('/^[0-9+()\-\s.]{7,20}$/', $phone)) {
-                $fieldErrors['phone_number'][] = 'Please enter a valid phone number.';
-            }
+        if ($phone === null) {
+            $fieldErrors['phone_number'][] = PhoneNumber::ERROR_MESSAGE;
+            $phone = $phoneInput;
         }
 
         if ($gender !== '') {

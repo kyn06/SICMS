@@ -138,10 +138,14 @@ public static function record($user, $action, $description) {
         $types = '';
 
         if (!empty($filters['search'])) {
-            $where[] = "(user_name LIKE ? OR action LIKE ? OR description LIKE ? OR ip_address LIKE ?)";
+            $where[] = "(user_name LIKE ? OR user_role LIKE ?
+                        OR REPLACE(REPLACE(user_role, '-', ' '), '_', ' ') LIKE ?
+                        OR action LIKE ? OR description LIKE ? OR ip_address LIKE ? OR user_agent LIKE ?
+                        OR DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') LIKE ?
+                        OR DATE_FORMAT(created_at, '%b %d, %Y %h:%i %p') LIKE ?)";
             $like = '%' . $filters['search'] . '%';
-            array_push($params, $like, $like, $like, $like);
-            $types .= 'ssss';
+            array_push($params, $like, $like, $like, $like, $like, $like, $like, $like, $like);
+            $types .= 'sssssssss';
         }
 
         if (!empty($filters['account_id'])) {

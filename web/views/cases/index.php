@@ -128,6 +128,13 @@ function respondents_label(array $case) {
         text-decoration: underline;
     }
 
+    mark.search-match {
+        background: #fff19a;
+        border-radius: 2px;
+        color: inherit;
+        padding: 0 1px;
+    }
+
     .filters-toggle-btn {
         align-items: center;
         background: var(--surface-primary, #fff);
@@ -295,7 +302,7 @@ function respondents_label(array $case) {
                 <form id="caseFilters" method="GET" action="index.php" data-sicms-validate data-sicms-datefrom="date_from" data-sicms-dateto="date_to">
                     <div class="case-search-box">
                         <i class="bi bi-search"></i>
-                        <input id="caseSearch" name="search" type="text" placeholder="Search case number, complainant, or respondent..." value="<?= h($filters['search']) ?>">
+                        <input id="caseSearch" name="search" type="text" placeholder="Search number, name, status, classification, or date..." value="<?= h($filters['search']) ?>">
                     </div>
                     <button type="button" class="filters-toggle-btn" id="caseFiltersToggle" aria-expanded="false" aria-controls="caseFiltersPanel">
                         <i class="bi bi-funnel"></i> Filters
@@ -590,9 +597,31 @@ function respondents_label(array $case) {
                 return surnames.join(', ');
             };
 
+            const appendHighlightedText = (node, value) => {
+                const text = String(value ?? '');
+                const term = String(form.elements.search?.value ?? '').trim();
+                if (!term) {
+                    node.textContent = text;
+                    return;
+                }
+                const lowerText = text.toLocaleLowerCase();
+                const lowerTerm = term.toLocaleLowerCase();
+                let cursor = 0;
+                let index;
+                while ((index = lowerText.indexOf(lowerTerm, cursor)) !== -1) {
+                    node.append(document.createTextNode(text.slice(cursor, index)));
+                    const mark = document.createElement('mark');
+                    mark.className = 'search-match';
+                    mark.textContent = text.slice(index, index + term.length);
+                    node.append(mark);
+                    cursor = index + term.length;
+                }
+                node.append(document.createTextNode(text.slice(cursor)));
+            };
+
             const appendCell = (row, text) => {
                 const cell = document.createElement('td');
-                cell.textContent = text ?? '';
+                appendHighlightedText(cell, text);
                 row.appendChild(cell);
                 return cell;
             };
@@ -604,7 +633,7 @@ function respondents_label(array $case) {
                 status.type = 'button';
                 status.dataset.status = value ?? '';
                 status.title = 'Filter by this status';
-                status.textContent = value ?? '';
+                appendHighlightedText(status, value);
                 cell.appendChild(status);
                 row.appendChild(cell);
             };
@@ -619,7 +648,7 @@ function respondents_label(array $case) {
                     const link = document.createElement('a');
                     link.className = 'case-link';
                     link.href = `show.php?id=${encodeURIComponent(item.complaint_id)}`;
-                    link.textContent = item.case_number;
+                    appendHighlightedText(link, item.case_number);
                     numberCell.appendChild(link);
                     row.appendChild(numberCell);
                     appendCell(row, item.complainant_name);
@@ -656,7 +685,7 @@ function respondents_label(array $case) {
                     const link = document.createElement('a');
                     link.className = 'case-link';
                     link.href = `show.php?id=${encodeURIComponent(item.complaint_id)}`;
-                    link.textContent = item.case_number;
+                    appendHighlightedText(link, item.case_number);
                     numberCell.appendChild(link);
                     row.appendChild(numberCell);
                     appendCell(row, item.complainant_name);
@@ -692,7 +721,7 @@ function respondents_label(array $case) {
                     const link = document.createElement('a');
                     link.className = 'case-link';
                     link.href = `../legacy_cases/show.php?id=${encodeURIComponent(item.complaint_id)}`;
-                    link.textContent = item.case_number;
+                    appendHighlightedText(link, item.case_number);
                     numberCell.appendChild(link);
                     row.appendChild(numberCell);
                     appendCell(row, item.complainant_name);
@@ -805,6 +834,14 @@ function respondents_label(array $case) {
             });
             window.addEventListener('pageshow', updateCaseFilterButton);
             updateCaseFilterButton();
+
+            document.querySelectorAll('#caseTableBody td, #assignedCaseTableBody td, #migratedCaseTableBody td').forEach((cell) => {
+                if (cell.querySelector('.row-actions')) return;
+                const target = cell.querySelector('.case-link, .status-filter') || cell;
+                const value = target.textContent;
+                target.replaceChildren();
+                appendHighlightedText(target, value);
+            });
 
             document.addEventListener('click', (event) => {
                 const statusFilter = event.target.closest('.status-filter');

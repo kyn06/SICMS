@@ -2406,6 +2406,10 @@ unset($counterStatementGroup);
                         <option value="<?= h($value) ?>"><?= h($label) ?></option>
                         <?php endforeach; ?>
                     </select>
+                    <div id="caseUpdateTypeOtherWrap" hidden>
+                        <label class="case-modal-label" for="caseUpdateTypeOther">Please specify</label>
+                        <input id="caseUpdateTypeOther" name="update_type_other" type="text" maxlength="100" placeholder="Specify the update type" disabled>
+                    </div>
                     <div id="respondentUpdateFields" hidden>
                     <?php if (!empty($respondents)): ?>
                     <label class="case-modal-label" for="respondentId">Respondent</label>
@@ -2435,28 +2439,27 @@ unset($counterStatementGroup);
                     <?php endif; ?>
                     <div class="case-update-respondent-grid">
                         <input type="hidden" name="respondent_linked_account_id" value="">
-                        <select name="respondent_type"><option value="">Respondent Type</option><option>Student</option><option>Employee</option><option>Private Individual</option><option>Other</option></select>
-                        <input name="respondent_name" placeholder="Full Name">
-                        <input name="respondent_age" type="number" min="1" max="120" placeholder="Age">
-                        <select name="respondent_gender"><option value="">Gender</option><option>Male</option><option>Female</option></select>
-<div class="update-respondent-field" data-update-respondent-types="Student">
+                        <select name="respondent_type"><option value="">Respondent Type *</option><option>Student</option><option>Employee</option><option>Private Individual</option><option>Other</option></select>
+                        <input name="respondent_name" placeholder="Full Name *">
+                        <input name="respondent_email" type="email" placeholder="CLSU Email *">
+                        <div class="update-respondent-field" data-update-respondent-types="Student">
                             <div class="student-number-row">
-                                <input name="respondent_student_no" placeholder="Student Number">
+                                <input name="respondent_student_no" placeholder="Student Number *">
                                 <button type="button" class="btn btn-secondary btn-find-student" data-find-student>Find</button>
                             </div>
                         </div>
-                        <div class="update-respondent-field" data-update-respondent-types="Student"><input name="respondent_college" placeholder="College"></div>
-                        <div class="update-respondent-field" data-update-respondent-types="Student"><input name="respondent_course" placeholder="Course / Program"></div>
-                        <div class="update-respondent-field" data-update-respondent-types="Student"><input name="respondent_section" placeholder="Section"></div>
                         <div class="student-account-results" data-update-respondent-types="Student" data-student-results></div>
-                         <div class="update-respondent-field" data-update-respondent-types="Employee"><input name="respondent_employee_no" placeholder="Employee Number"></div>
-                         <div class="update-respondent-field" data-update-respondent-types="Employee"><input name="respondent_position" placeholder="Position"></div>
-                         <div class="update-respondent-field" data-update-respondent-types="Employee"><input name="respondent_department" placeholder="College / Office / Department"></div>
-                        <div class="update-respondent-field" data-update-respondent-types="Other"><input name="respondent_affiliation" placeholder="Affiliation / Organization"></div>
-                        <input name="respondent_contact" placeholder="Contact Number">
-                        <input name="respondent_email" type="email" placeholder="Email">
-                        <input name="respondent_address" placeholder="Address">
-                        <input name="respondent_details" placeholder="Other Details">
+                        <div class="update-respondent-field" data-update-respondent-types="Employee">
+                            <input name="respondent_employee_no" placeholder="Employee Number *">
+                        </div>
+                        <input name="respondent_age" type="number" min="1" max="120" placeholder="Age (Optional)">
+                        <select name="respondent_gender"><option value="">Gender (Optional)</option><option>Male</option><option>Female</option></select>
+                        <div class="update-respondent-field" data-update-respondent-types="Student"><input name="respondent_college" placeholder="College (Optional)"></div>
+                        <div class="update-respondent-field" data-update-respondent-types="Student"><input name="respondent_course" placeholder="Course / Program (Optional)"></div>
+                        <div class="update-respondent-field" data-update-respondent-types="Student"><input name="respondent_section" placeholder="Section (Optional)"></div>
+                        <input name="respondent_contact" placeholder="Contact Number (Optional)">
+                        <input name="respondent_address" placeholder="Address (Optional)">
+                        <input name="respondent_details" placeholder="Other Details (Optional)">
                     </div>
                     </div>
                     <div id="standardCaseUpdateFields">
@@ -2464,10 +2467,12 @@ unset($counterStatementGroup);
                     <textarea id="caseUpdateDetails" name="details" required
                         placeholder="Enter additional details, evidence notes, clarifications, investigation remarks, or administrative information for this case."></textarea>
                     </div>
+                    <div id="caseUpdateAttachmentWrap">
                     <label class="case-modal-label" for="caseUpdateAttachments">Attach Evidence (optional, max 5MB
                         per file: PDF, JPG, PNG, DOCX)</label>
                     <input id="caseUpdateAttachments" type="file" name="attachments[]" multiple
                         accept=".pdf,.jpg,.jpeg,.png,.docx" data-sicms-size-mb="5" data-sicms-accept-ext="pdf,jpg,jpeg,png,docx">
+                    </div>
                 </div>
                 <div class="case-modal-actions">
                     <button type="button" class="btn btn-secondary" data-close-modal>Cancel</button>
@@ -2587,6 +2592,8 @@ unset($counterStatementGroup);
         const archivedUrl = <?= json_encode(app_route('archived_cases.index'), $jsonEncodeFlags) ?>;
 
         let updateType = document.getElementById('caseUpdateType');
+        let updateTypeOtherWrap = document.getElementById('caseUpdateTypeOtherWrap');
+        let updateTypeOther = document.getElementById('caseUpdateTypeOther');
         let respondentFields = document.getElementById('respondentUpdateFields');
         let standardFields = document.getElementById('standardCaseUpdateFields');
         let respondentId = document.getElementById('respondentId');
@@ -2605,6 +2612,13 @@ unset($counterStatementGroup);
         syncRespondentTypeFields();
         const syncUpdateFields = () => {
             const isRespondentUpdate = updateType?.value === 'additional_details';
+            const isOtherUpdate = updateType?.value === 'other';
+            if (updateTypeOtherWrap) updateTypeOtherWrap.hidden = !isOtherUpdate;
+            if (updateTypeOther) {
+                updateTypeOther.disabled = !isOtherUpdate;
+                updateTypeOther.required = isOtherUpdate;
+                if (!isOtherUpdate) updateTypeOther.value = '';
+            }
             if (respondentFields) respondentFields.hidden = !isRespondentUpdate;
             if (standardFields) standardFields.hidden = isRespondentUpdate;
             if (respondentId) respondentId.required = isRespondentUpdate;
@@ -2799,6 +2813,8 @@ unset($counterStatementGroup);
             if (!modal || modal.dataset.caseUpdateBound === 'true') return;
             modal.dataset.caseUpdateBound = 'true';
             updateType = document.getElementById('caseUpdateType');
+            updateTypeOtherWrap = document.getElementById('caseUpdateTypeOtherWrap');
+            updateTypeOther = document.getElementById('caseUpdateTypeOther');
             respondentFields = document.getElementById('respondentUpdateFields');
             standardFields = document.getElementById('standardCaseUpdateFields');
             respondentId = document.getElementById('respondentId');

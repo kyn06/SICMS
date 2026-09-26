@@ -2,6 +2,7 @@
 
 require_once 'Model.php';
 require_once 'Notification.php';
+require_once __DIR__ . '/../helpers/PersonName.php';
 
 class CaseRecord extends Model {
     protected static $table = 'complaints';
@@ -85,13 +86,15 @@ class CaseRecord extends Model {
 
         if (!empty($filters['search'])) {
             $search = '%' . $filters['search'] . '%';
-            $sql .= " AND (c.case_number LIKE ? OR c.complainant_name LIKE ? OR EXISTS (
+            $sql .= " AND (c.case_number LIKE ? OR c.complainant_name LIKE ?
+                    OR c.status LIKE ? OR c.case_classification LIKE ?
+                    OR DATE_FORMAT(c.submitted_at, '%Y-%m-%d') LIKE ?
+                    OR DATE_FORMAT(c.submitted_at, '%M %e, %Y') LIKE ?
+                    OR DATE_FORMAT(c.submitted_at, '%b %e, %Y') LIKE ? OR EXISTS (
                         SELECT 1 FROM complaint_respondents rr WHERE rr.complaint_id = c.complaint_id AND rr.full_name LIKE ?
                     ))";
-            $params[] = $search;
-            $params[] = $search;
-            $params[] = $search;
-            $types .= 'sss';
+            array_push($params, $search, $search, $search, $search, $search, $search, $search, $search);
+            $types .= 'ssssssss';
         }
 
         if (!empty($filters['assigned_coordinator_account_id'])) {
@@ -221,6 +224,7 @@ class CaseRecord extends Model {
     }
 
     public static function createRespondent($complaintId, array $data) {
+        if (array_key_exists('full_name', $data)) $data['full_name'] = PersonName::normalize($data['full_name']);
         $stmt = self::$conn->prepare(
                 "INSERT INTO complaint_respondents
                     (complaint_id, respondent_type, full_name, gender, age, student_no, employee_no, college, office_department, course_year, position, affiliation, contact_info, email, address, details, created_at)
@@ -257,6 +261,7 @@ class CaseRecord extends Model {
     }
 
     public static function updateRespondent($respondentId, $complaintId, array $data) {
+        if (array_key_exists('full_name', $data)) $data['full_name'] = PersonName::normalize($data['full_name']);
         $allowed = ['respondent_type', 'full_name', 'gender', 'age', 'student_no', 'employee_no', 'college', 'office_department', 'course_year', 'position', 'affiliation', 'contact_info', 'email', 'address', 'details'];
         $changes = array_intersect_key($data, array_flip($allowed));
         if (empty($changes)) return false;
@@ -398,13 +403,15 @@ class CaseRecord extends Model {
 
         if (!empty($filters['search'])) {
             $search = '%' . $filters['search'] . '%';
-            $sql .= " AND (c.case_number LIKE ? OR c.complainant_name LIKE ? OR EXISTS (
+            $sql .= " AND (c.case_number LIKE ? OR c.complainant_name LIKE ?
+                    OR c.status LIKE ? OR c.case_classification LIKE ?
+                    OR DATE_FORMAT(COALESCE(c.original_case_date, c.submitted_at), '%Y-%m-%d') LIKE ?
+                    OR DATE_FORMAT(COALESCE(c.original_case_date, c.submitted_at), '%M %e, %Y') LIKE ?
+                    OR DATE_FORMAT(COALESCE(c.original_case_date, c.submitted_at), '%b %e, %Y') LIKE ? OR EXISTS (
                         SELECT 1 FROM complaint_respondents rr WHERE rr.complaint_id = c.complaint_id AND rr.full_name LIKE ?
                     ))";
-            $params[] = $search;
-            $params[] = $search;
-            $params[] = $search;
-            $types .= 'sss';
+            array_push($params, $search, $search, $search, $search, $search, $search, $search, $search);
+            $types .= 'ssssssss';
         }
 
         $sql .= " ORDER BY COALESCE(c.original_case_date, c.submitted_at) DESC, c.complaint_id DESC";

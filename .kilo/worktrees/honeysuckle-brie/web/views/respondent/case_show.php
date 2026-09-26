@@ -1,0 +1,442 @@
+<?php
+require_once __DIR__ . '/../../controllers/RespondentController.php';
+require_once __DIR__ . '/../../../routes.php';
+
+$controller = new RespondentController();
+$complaintId = (int) ($_GET['id'] ?? 0);
+$viewData = $controller->caseShow($complaintId);
+
+$user = $viewData['user'];
+$case = $viewData['case'];
+$link = $viewData['link'];
+$visibility = $viewData['visibility'];
+$statement = $viewData['statement'];
+$attachments = $viewData['attachments'];
+$counterErrors = $viewData['counterErrors'];
+$counterInfo = $viewData['counterInfo'];
+$hearings = $viewData['hearings'];
+$timeline = $viewData['timeline'];
+$caseActive = $viewData['caseActive'];
+$statementDraft = $statement && ($statement['status'] ?? '') === 'Draft';
+
+$controller->clearFlash();
+
+function h($value) { return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8'); }
+function status_class($status) { return strtolower(str_replace(' ', '-', $status)); }
+
+$pageTitle = 'Case Details';
+$caseStatus = $case['status'] ?? '';
+$isStudentAccount = strtolower((string) str_replace(['_', ' '], '-', (string) ($user['role'] ?? ''))) === 'student';
+$backHref = $isStudentAccount ? '../complaints/my_cases.php' : 'cases.php';
+
+$stageLabels = [
+    'Complaint Submitted' => 'Complaint Submitted',
+    'Under Investigation' => 'Investigation Started',
+    'Returned for Revision' => 'Counter-Statement Returned for Revision',
+    'Rejected Complaint' => 'Case Rejected',
+    'Resolved Case' => 'Case Resolved',
+    'Escalated Case' => 'Case Escalated',
+    'Archived Case' => 'Case Archived',
+    'Unarchived Case' => 'Case Reopened',
+    'Reformation in Progress' => 'Reformation in Progress',
+    'Reformation Completed' => 'Reformation Completed',
+    'Counter-Statement Submitted' => 'Counter-Statement Submitted',
+    'Counter-Statement Updated' => 'Counter-Statement Updated',
+    'Respondent Account Activated' => 'Respondent Invitation Activated',
+    'Forwarded to Respondent' => 'Case Forwarded to You',
+    'Coordinator Assigned' => 'Case Assigned to Coordinator',
+    'Hearing Scheduled' => 'Hearing Scheduled',
+    'Hearing Cancelled' => 'Hearing Cancelled',
+    'Hearing Completed' => 'Hearing Completed',
+];
+
+$stageLabel = fn($action) => $stageLabels[$action] ?? $action;
+
+$incidentDatetime = !empty($case['incident_datetime']) ? strtotime((string) $case['incident_datetime']) : null;
+$finalStatuses = ['Resolved', 'Reformation Completed', 'Archived', 'Rejected', 'Escalated'];
+$statementStatus = $statement ? ($statement['status'] ?? '') : '';
+$csRequired = !in_array($caseStatus, $finalStatuses, true) && $statementStatus !== 'Submitted';
+$hasFinalInfo = in_array($caseStatus, $finalStatuses, true)
+    || !empty($case['outcome'])
+    || !empty($case['action_taken'])
+    || !empty($case['resolution_date'])
+    || !empty($case['remarks_notes']);
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><?= h($case['case_number'] ?? 'Case Details') ?> | DARIS</title>
+    <link rel="stylesheet" href="../layout/style.css">
+    <link rel="stylesheet" href="../layout/system.css?v=5">
+    <link rel="stylesheet" href="../layout/sidebar.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <style>
+        body { align-items: stretch; background: var(--bg-page, #f5f7f4); color: var(--text-primary, #172017); display: block; justify-content: flex-start; padding: 0; }
+        .case-wrap { max-width: 100%; margin: 0 auto; padding: 24px; }
+        .case-head { align-items: center; background: var(--bg-sidebar, #123c1b); border-radius: 10px; color: #fff; display: flex; flex-wrap: wrap; gap: 14px; justify-content: space-between; padding: 18px 22px; }
+        .case-head h1 { font-size: 22px; margin: 0; }
+        .case-head .meta { color: rgba(255,255,255,0.8); font-size: 13px; margin-top: 3px; }
+        .panel { background: var(--surface-primary, #fff); border: 1px solid var(--border-primary, #dce5da); border-radius: 8px; box-shadow: var(--sicms-shadow, 0 4px 14px rgba(18,60,27,.06)); margin-top: 18px; padding: 18px 20px; }
+        .panel h2 { align-items: center; border-bottom: 1px solid var(--divider, #edf3ec); color: var(--text-secondary, #123c1b); display: flex; font-size: 15px; gap: 8px; margin: 0 0 14px; padding-bottom: 10px; }
+        .details-grid { display: grid; gap: 10px 18px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+        .label { color: var(--text-muted, #637060); font-size: 11px; font-weight: 800; letter-spacing: .4px; text-transform: uppercase; }
+        .value { color: var(--text-primary, #263225); font-size: 14px; margin-top: 2px; }
+        .full { grid-column: 1 / -1; }
+        .status-pill { border-radius: 999px; display: inline-flex; font-size: 11px; font-weight: 800; padding: 6px 9px; white-space: nowrap; }
+        .status-under-investigation { background: var(--status-info-bg, #e7f0ff); color: var(--status-info-text, #275ca8); }
+        .status-returned-for-revision { background: var(--status-warning-bg, #fff5d8); color: var(--status-warning-text, #825e00); }
+        .status-resolved { background: var(--status-success-bg, #e5f6e3); color: var(--status-success-text, #157000); }
+        .status-reformation-in-progress { background: var(--status-warning-bg, #fff4d6); color: var(--status-warning-text, #8a5a00); }
+        .status-reformation-completed { background: var(--status-success-bg, #e1f6ef); color: var(--status-success-text, #087f5b); }
+        .status-escalated { background: var(--status-warning-bg, #fdeee3); color: var(--status-warning-text, #c2410c); }
+        .status-rejected { background: var(--status-danger-bg, #fff0ef); color: var(--status-danger-text, #a92c23); }
+        .status-archived { background: var(--status-muted-bg, #edf0ed); color: var(--status-muted-text, #59635a); }
+        .status-counter-statement-required { background: var(--status-warning-bg, #fff4d6); color: var(--status-warning-text, #8a5a00); }
+        .cs-required-banner { align-items: center; background: var(--surface-soft, #fffdf5); border: 1px solid var(--status-warning-border, #ead9a5); border-left: 4px solid var(--status-warning-border, #b57600); border-radius: 8px; display: flex; flex-wrap: wrap; gap: 10px 16px; justify-content: space-between; margin-top: 16px; padding: 14px 16px; }
+        .cs-required-banner p { color: var(--text-muted, #6a614c); font-size: 13px; margin: 6px 0 0; }
+        .statement-box { background: var(--surface-secondary, #f8fbf7); border: 1px solid var(--border-primary, #dce7d9); border-radius: 8px; padding: 14px 16px; }
+        .next-action { align-items:center; background: var(--surface-accent, #f4faf2); border:1px solid var(--border-primary, #cfe2cb); border-radius:8px; display:flex; gap:12px; justify-content:space-between; margin:16px 0; padding:12px 14px; }
+        .next-action p { color: var(--text-primary, #3f4c3e); font-size:13px; margin:3px 0 0; }
+        .statement-evidence { border-top:1px solid var(--divider, #e6ede4); margin-top:16px; padding-top:14px; }
+        .statement-evidence h3 { color: var(--text-secondary, #284127); font-size:13px; margin:0 0 8px; }
+        .statement-locked { background: var(--surface-secondary, #f6f8f5); border: 1px solid var(--border-primary, #e2eae0); border-radius: 8px; color: var(--text-primary, #3f4c3e); padding: 14px 16px; }
+        .counter-draft-status { color:var(--text-muted, #617060); font-size:12px; margin-left:auto; align-self:center; }
+        .counter-draft-status.is-error { color:var(--status-danger-text, #a92c23); }
+        .statement-locked .statement-text { white-space: pre-wrap; }
+        .action-form { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
+        .form-group { display: flex; flex-direction: column; gap: 4px; }
+        .form-group label { color: var(--text-muted, #5c6a59); font-size: 12px; }
+        textarea { min-height: 170px; resize: vertical; }
+        .hearing-item { border-left: 4px solid var(--accent, #1a9d00); padding: 4px 12px; margin-bottom: 10px; }
+        .hearing-item.cancelled { border-left-color: var(--danger, #c0392b); }
+        .hearing-item.completed { border-left-color: var(--text-muted, #59635a); }
+        .timeline-item { border-left: 2px solid var(--divider, #cfe0cb); margin-left: 8px; padding: 0 0 14px 18px; position: relative; }
+        .timeline-item::before { background: var(--accent, #1a9d00); border-radius: 50%; content: ""; height: 10px; left: -6px; position: absolute; top: 4px; width: 10px; }
+        .timeline-action { color: var(--text-primary, #172017); font-size: 13px; font-weight: 700; }
+        .timeline-time { color: var(--text-muted, #84917f); font-size: 11px; }
+        .attach-row { align-items: center; display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+        .btn-remove { background: var(--status-danger-bg, #fff0ef); color: var(--status-danger-text, #a92c23); }
+        .btn-remove:hover { background: rgba(167, 34, 34, 0.12); }
+        .notice { background: var(--surface-soft, #fffdf5); border: 1px solid var(--status-warning-border, #ead9a5); border-left: 4px solid var(--status-warning-border, #b57600); border-radius: 8px; color: var(--text-muted, #6a614c); font-size: 13px; padding: 12px 14px; }
+        .statement-confirmed { align-items: flex-start; background: var(--status-success-bg, #eaf7e8); border: 1px solid rgba(26, 157, 0, 0.25); border-left: 4px solid var(--accent, #1a9d00); border-radius: 8px; display: flex; gap: 10px; margin-bottom: 14px; padding: 12px 14px; }
+        .statement-confirmed i { color: var(--status-success-text, #157000); font-size: 18px; margin-top: 1px; }
+    </style>
+</head>
+<body>
+<div class="dashboard-shell">
+    <?php require __DIR__ . '/../layout/sidebar.php'; ?>
+    <div class="app-content">
+        <?php require __DIR__ . '/../layout/topbar.php'; ?>
+        <main class="case-wrap case-detail-view">
+            <a class="text-button" href="<?= h($backHref) ?>" style="display:inline-block;margin-bottom:12px"><i class="bi bi-arrow-left"></i> Back to Complaint Cases</a>
+
+            <header class="case-head">
+                <div>
+                    <h1><?= h($case['case_number']) ?></h1>
+                    <div class="meta">Case forwarded to you</div>
+                </div>
+                <span class="status-pill status-<?= h(status_class($caseStatus)) ?>"><?= h($caseStatus) ?></span>
+            </header>
+
+            <nav class="case-detail-nav" aria-label="Case details sections">
+                <a href="#case-overview">Overview</a>
+                <?php if ($visibility['complaint_details']): ?><a href="#complaint-details">Complaint</a><?php endif; ?>
+                <a href="#counter-statement">My Statement</a>
+                <a href="#case-progress">Progress</a>
+                <?php if ($visibility['hearings']): ?><a href="#hearing">Hearing</a><?php endif; ?>
+                <?php if ($visibility['final_information']): ?><a href="#final-information">Final Information</a><?php endif; ?>
+            </nav>
+
+            <?php if ($csRequired): ?>
+            <section class="next-action" aria-label="Counter-statement required">
+                <div>
+                    <span class="status-pill status-counter-statement-required"><i class="bi bi-pencil-square"></i> Counter-Statement Required</span>
+                    <p>Review the complaint, then provide your response when ready.</p>
+                </div>
+            </section>
+            <?php endif; ?>
+
+            <?php if (!empty($counterErrors)): foreach ($counterErrors as $counterError): ?>
+                <div class="alert alert-danger" role="alert" style="margin-top:16px"><?= h($counterError) ?></div>
+            <?php endforeach; endif; ?>
+            <?php if (!empty($counterInfo)): ?>
+                <div class="alert alert-success" role="status" style="margin-top:16px"><?= h(is_array($counterInfo) ? implode(' ', $counterInfo) : $counterInfo) ?></div>
+            <?php endif; ?>
+
+            <section class="panel" id="case-overview">
+                <h2><i class="bi bi-folder2-open"></i> Case Overview</h2>
+                <div class="details-grid">
+                    <div><div class="label">Case Number</div><div class="value"><strong><?= h($case['case_number']) ?></strong></div></div>
+                    <div><div class="label">Case Status</div><div class="value"><?= h($caseStatus) ?></div></div>
+                    <div><div class="label">Classification</div><div class="value"><?= h($case['case_classification']) ?></div></div>
+                    <div><div class="label">Date Filed</div><div class="value"><?= h(date('M d, Y', strtotime($case['submitted_at']))) ?></div></div>
+                    <?php if ($visibility['incident']): ?>
+                    <?php if ($incidentDatetime): ?>
+                    <div><div class="label">Incident Date</div><div class="value"><?= h(date('M d, Y', $incidentDatetime)) ?></div></div>
+                    <div><div class="label">Incident Time</div><div class="value"><?= h(date('h:i A', $incidentDatetime)) ?></div></div>
+                    <?php endif; ?>
+                    <?php if (!empty($case['incident_location'])): ?>
+                    <div><div class="label">Incident Location</div><div class="value"><?= h($case['incident_location']) ?></div></div>
+                    <?php endif; ?>
+                    <?php endif; ?>
+                </div>
+            </section>
+
+            <?php if ($visibility['complaint_details']): ?>
+            <section class="panel" id="complaint-details">
+                <h2><i class="bi bi-chat-left-text"></i> Original Complaint / Statement</h2>
+                <?php if (!empty($case['complaint_details'])): ?>
+                    <div class="value" style="white-space:pre-wrap"><?= nl2br(h($case['complaint_details'])) ?></div>
+                <?php else: ?>
+                    <p class="muted">No complaint narrative was recorded for this case.</p>
+                <?php endif; ?>
+            </section>
+            <?php endif; ?>
+
+            <section class="panel" id="counter-statement">
+                <h2><i class="bi bi-pencil-square"></i> My Counter-Statement</h2>
+                <?php if ($caseActive && $statementDraft): ?>
+                    <p class="muted" style="font-size:12px;margin:0 0 8px">Your statement is saved as a draft until you submit it to the SDRU.</p>
+                    <form class="action-form" id="counterStatementForm" method="POST" action="case_show.php?id=<?= (int) $complaintId ?>" data-sicms-validate>
+                        <?= Security::csrfField() ?>
+                        <div class="form-group">
+                            <label for="statement_content">Your Counter-Statement</label>
+                            <textarea id="statement_content" name="statement_content" required placeholder="State your response to the complaint..."><?= h($statement['content'] ?? '') ?></textarea>
+                        </div>
+                        <div style="display:flex;gap:10px;flex-wrap:wrap">
+                            <button class="btn btn-secondary" id="saveCounterDraft" type="button"><i class="bi bi-save"></i> Save Draft</button>
+                            <button class="btn btn-primary" type="submit" name="case_action" value="submit_counter_statement" data-sicms-processing-label="Submitting statement..." data-swal-confirm="Submit this counter-statement to the SDRU? You will no longer be able to edit it unless the SDRU returns it for revision."><i class="bi bi-send"></i> Submit Counter-Statement</button>
+                            <span class="counter-draft-status" id="counterDraftStatus" role="status" aria-live="polite">Changes save automatically.</span>
+                        </div>
+                    </form>
+
+                    <div class="statement-evidence" id="evidence">
+                    <h3><i class="bi bi-paperclip"></i> Supporting Evidence for This Statement</h3>
+                    <p class="muted" style="font-size:12px;margin:0 0 10px">Evidence files are handled separately and are not part of counter-statement auto-save.</p>
+                    <?php if (!empty($attachments)): ?>
+                        <?php foreach ($attachments as $attachment): ?>
+                        <div class="attach-row">
+                            <a class="btn btn-secondary" target="_blank" href="../complaints/attachment.php?id=<?= (int) $attachment['evidence_id'] ?>&amp;mode=view"><i class="bi bi-eye"></i> View</a>
+                            <a class="btn btn-secondary" href="../complaints/attachment.php?id=<?= (int) $attachment['evidence_id'] ?>&amp;mode=download"><i class="bi bi-download"></i> Download</a>
+                            <span class="muted" style="font-size:13px"><?= h($attachment['original_filename']) ?> (<?= h(number_format($attachment['file_size'] / 1024, 1)) ?> KB)</span>
+                            <form method="POST" action="case_show.php?id=<?= (int) $complaintId ?>" style="display:inline" data-ajax-target="#evidence">
+                                <?= Security::csrfField() ?>
+                                <input type="hidden" name="case_action" value="remove_counter_evidence">
+                                <input type="hidden" name="evidence_id" value="<?= (int) $attachment['evidence_id'] ?>">
+                                <button class="btn btn-remove" type="submit" data-swal-confirm="Remove this supporting file?" data-evidence-name="<?= h($attachment['original_filename']) ?>" data-sicms-processing-label="Removing Evidence..." data-sicms-processing-modal="true"><i class="bi bi-trash"></i> Remove</button>
+                            </form>
+                        </div>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                    <form class="action-form" method="POST" action="case_show.php?id=<?= (int) $complaintId ?>" enctype="multipart/form-data" data-sicms-validate data-ajax-target="#evidence" data-ajax-reset="true">
+                        <?= Security::csrfField() ?>
+                        <input type="hidden" name="case_action" value="upload_counter_evidence">
+                        <div class="form-group">
+                            <label for="counter_evidence">Attach Supporting Evidence (pdf, jpg, jpeg, png, docx &middot; max 5MB each)</label>
+                            <input type="file" id="counter_evidence" name="counter_evidence[]" multiple accept=".pdf,.jpg,.jpeg,.png,.docx" data-sicms-size-mb="5" data-sicms-accept-ext=".pdf,.jpg,.jpeg,.png,.docx">
+                        </div>
+                        <div><button class="btn btn-remove" type="submit" data-evidence-upload data-sicms-processing-label="Uploading Evidence..." data-sicms-processing-modal="true" style="background:#eef1ee;color:#3f4c3e"><i class="bi bi-paperclip"></i> Attach Files</button></div>
+                    </form>
+                    </div>
+                <?php elseif ($statement): ?>
+                    <?php if ($statement['status'] === 'Submitted'): ?>
+                    <div class="statement-confirmed">
+                        <i class="bi bi-check-circle-fill" aria-hidden="true"></i>
+                        <div>
+                            <strong>Counter-Statement Submitted</strong>
+                            <div>Your counter-statement has been submitted for review.</div>
+                            <div class="muted" style="font-size:12px;margin-top:4px">Case: <?= h($case['case_number']) ?> &middot; Submitted: <?= h(date('M d, Y h:i A', strtotime($statement['submitted_at']))) ?> &middot; Current Status: <?= h($caseStatus) ?></div>
+                        </div>
+                    </div>
+                    <?php endif; ?>
+                    <div class="statement-locked">
+                        <p class="muted" style="margin:0 0 8px;font-size:12px">
+                            <?php if ($statement['status'] === 'Submitted'): ?>
+                                <i class="bi bi-lock-fill"></i> Submitted on <?= h(date('M d, Y h:i A', strtotime($statement['submitted_at']))) ?> — this statement is final unless the SDRU requests a revision.
+                            <?php else: ?>
+                                <i class="bi bi-lock-fill"></i> This case is closed and can no longer be edited.
+                            <?php endif; ?>
+                        </p>
+                        <div class="statement-text"><?= nl2br(h($statement['content'] ?? '')) ?></div>
+                    </div>
+                <?php else: ?>
+                    <p class="muted">No counter-statement recorded for this case.</p>
+                <?php endif; ?>
+            </section>
+
+            <section class="panel" id="case-progress">
+                <h2><i class="bi bi-clock-history"></i> Case Progress</h2>
+                <?php if (empty($timeline)): ?>
+                    <p class="muted">No case progress has been recorded yet.</p>
+                <?php else: foreach ($timeline as $event): ?>
+                    <div class="timeline-item">
+                        <div class="timeline-action"><?= h($stageLabel($event['action'])) ?></div>
+                        <div class="timeline-time"><?= h(date('M d, Y h:i A', strtotime($event['created_at']))) ?><?= !empty($event['is_own_action']) ? ' · You' : '' ?><?= !empty($event['new_status']) && $event['new_status'] !== $event['action'] ? ' · Status: ' . h($event['new_status']) : '' ?></div>
+                    </div>
+                <?php endforeach; endif; ?>
+            </section>
+
+            <?php if ($visibility['hearings']): ?>
+            <section class="panel" id="hearing">
+                <h2><i class="bi bi-calendar-event"></i> Hearing</h2>
+                <?php if (empty($hearings)): ?>
+                    <p class="muted">No hearings have been scheduled for this case.</p>
+                <?php else: foreach ($hearings as $hearing): ?>
+                    <div class="hearing-item <?= h(strtolower((string) $hearing['status'])) ?>">
+                        <div class="value"><strong><i class="bi bi-clock"></i> <?= h(date('M d, Y - h:i A', strtotime($hearing['hearing_datetime']))) ?></strong></div>
+                        <div class="muted" style="font-size:13px">Status: <?= h($hearing['status']) ?></div>
+                        <?php if (!empty($hearing['venue'])): ?>
+                            <div class="muted" style="font-size:13px">Venue: <?= h($hearing['venue']) ?></div>
+                        <?php endif; ?>
+                        <?php if (!empty($hearing['google_meet_link'])): ?>
+                            <div style="margin-top:4px"><a href="<?= h($hearing['google_meet_link']) ?>" target="_blank" rel="noopener"><i class="bi bi-camera-video"></i> Join Google Meet</a></div>
+                        <?php endif; ?>
+                    </div>
+                <?php endforeach; endif; ?>
+            </section>
+            <?php endif; ?>
+
+            <?php if ($visibility['final_information']): ?>
+            <section class="panel" id="final-information">
+                <h2><i class="bi bi-clipboard-check"></i> Final Information</h2>
+                <?php if (!$hasFinalInfo): ?>
+                    <p class="muted">No final outcome has been recorded for this case yet.</p>
+                <?php else: ?>
+                    <div class="details-grid">
+                        <?php if (!empty($case['resolution_date'])): ?>
+                        <div><div class="label">Resolution Date</div><div class="value"><?= h(date('M d, Y', strtotime($case['resolution_date']))) ?></div></div>
+                        <?php endif; ?>
+                        <?php if (in_array($caseStatus, $finalStatuses, true)): ?>
+                        <div><div class="label">Final Status</div><div class="value"><?= h($caseStatus) ?></div></div>
+                        <?php endif; ?>
+                        <?php if (!empty($case['outcome'])): ?>
+                        <div class="full"><div class="label">Outcome</div><div class="value" style="white-space:pre-wrap"><?= nl2br(h($case['outcome'])) ?></div></div>
+                        <?php endif; ?>
+                        <?php if (!empty($case['action_taken'])): ?>
+                        <div class="full"><div class="label">Action Taken</div><div class="value" style="white-space:pre-wrap"><?= nl2br(h($case['action_taken'])) ?></div></div>
+                        <?php endif; ?>
+                        <?php if (!empty($case['remarks_notes'])): ?>
+                        <div class="full"><div class="label">Remarks</div><div class="value" style="white-space:pre-wrap"><?= nl2br(h($case['remarks_notes'])) ?></div></div>
+                        <?php endif; ?>
+                    </div>
+                <?php endif; ?>
+            </section>
+            <?php endif; ?>
+        </main>
+    </div>
+</div>
+<script>
+(() => {
+    const counterForm = document.getElementById('counterStatementForm');
+    const counterText = document.getElementById('statement_content');
+    const counterSaveButton = document.getElementById('saveCounterDraft');
+    const counterStatus = document.getElementById('counterDraftStatus');
+    let counterVersion = <?= (int) ($statement['draft_version'] ?? 0) ?>;
+    let counterDirty = false;
+    let counterSaving = false;
+    let counterPending = false;
+    let counterTimer = null;
+    let counterFinalizing = false;
+
+    function setCounterStatus(message, isError = false) {
+        if (!counterStatus) return;
+        counterStatus.textContent = message;
+        counterStatus.classList.toggle('is-error', isError);
+    }
+
+    async function saveCounterDraft(manual = false) {
+        clearTimeout(counterTimer);
+        if (!counterForm || counterFinalizing || (!counterDirty && !manual)) return;
+        if (counterSaving) { counterPending = true; return; }
+        counterSaving = true;
+        counterSaveButton.disabled = true;
+        setCounterStatus('Saving draft…');
+        const body = new FormData();
+        body.set('csrf_token', counterForm.elements.csrf_token.value);
+        body.set('case_action', 'autosave_counter_statement');
+        body.set('statement_content', counterText.value);
+        body.set('draft_version', String(counterVersion));
+        try {
+            const response = await fetch(counterForm.action, { method: 'POST', body, headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } });
+            const result = await response.json();
+            if (!response.ok || !result.success) throw new Error(result.message || 'Draft could not be saved.');
+            counterVersion = result.version;
+            counterDirty = false;
+            setCounterStatus('Draft saved ' + new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) + '.');
+        } catch (error) {
+            setCounterStatus(error.message || 'Draft could not be saved. Your text remains on this page.', true);
+        } finally {
+            counterSaving = false;
+            counterSaveButton.disabled = false;
+            if (counterPending) { counterPending = false; counterDirty = true; saveCounterDraft(); }
+        }
+    }
+
+    counterText?.addEventListener('input', () => {
+        if (counterFinalizing) return;
+        counterDirty = true;
+        if (counterSaving) counterPending = true;
+        setCounterStatus('Unsaved changes');
+        clearTimeout(counterTimer);
+        counterTimer = setTimeout(() => saveCounterDraft(), 4000);
+    });
+    counterSaveButton?.addEventListener('click', () => { counterDirty = true; saveCounterDraft(true); });
+    counterForm?.addEventListener('submit', event => {
+        if (event.submitter?.value === 'submit_counter_statement') {
+            counterFinalizing = true;
+            clearTimeout(counterTimer);
+        }
+    });
+    window.addEventListener('beforeunload', event => {
+        if (!counterFinalizing && (counterDirty || counterSaving)) { event.preventDefault(); event.returnValue = ''; }
+    });
+
+    document.addEventListener('click', event => {
+        const button = event.target.closest('[data-evidence-upload]');
+        if (!button) return;
+        const fileInput = button.form?.querySelector('input[type="file"]');
+        if (fileInput?.files?.length) return;
+        event.preventDefault();
+        window.DARISAlert?.toast('warning', 'Evidence Required', 'Please select at least one evidence file to upload.');
+        fileInput?.focus();
+    });
+
+    document.addEventListener('click', event => {
+        const button = event.target.closest('[data-swal-confirm]');
+        if (!button || !window.Swal) return;
+        event.preventDefault();
+        const action = button.value || button.form?.querySelector('[name="case_action"]')?.value || '';
+        const copy = action === 'submit_counter_statement'
+            ? { title: 'Submit this counter-statement?', text: 'It will be sent to the SDRU and cannot be edited unless it is returned for revision.', confirm: 'Submit Counter-Statement' }
+            : action === 'remove_counter_evidence'
+                ? { title: 'Remove Evidence?', text: `Are you sure you want to remove “${button.dataset.evidenceName || 'this file'}”?`, confirm: 'Remove Evidence' }
+                : { title: 'Attach these supporting files?', text: button.dataset.swalConfirm, confirm: 'Attach Files' };
+        if (action === 'submit_counter_statement') {
+            const statement = button.form?.querySelector('[name="statement_content"]');
+            if (!statement?.value.trim()) {
+                event.preventDefault();
+                window.DARISAlert?.toast('warning', 'Counter-Statement Required', 'Please provide your counter-statement before submitting.');
+                statement?.focus();
+                return;
+            }
+        }
+        const options = { icon: action === 'remove_counter_evidence' ? 'warning' : 'question', title: copy.title, text: copy.text, showCancelButton: true, confirmButtonText: copy.confirm, cancelButtonText: 'Cancel', reverseButtons: true, allowOutsideClick: false };
+        (window.DARISAlert?.fire(options) || Swal.fire(options))
+            .then(result => { if (result.isConfirmed) button.form?.requestSubmit(button); });
+    });
+
+    <?php $counterInfoText = is_array($counterInfo) ? implode(' ', $counterInfo) : (string) $counterInfo; ?>
+    <?php if (strpos($counterInfoText, 'Counter-Statement Submitted') !== false): ?>
+    if (window.Swal) {
+        const options = { toast: true, position: 'top', icon: 'success', title: 'Counter-Statement Submitted', text: 'Your counter-statement has been sent to the SDRU successfully.', timer: 4800, showConfirmButton: false, showCloseButton: true, backdrop: false };
+        (window.DARISAlert?.toast('success', options.title, options.text) || Swal.fire(options));
+    }
+    <?php endif; ?>
+})();
+</script>
+<script src="../layout/system.js?v=20260922b" defer></script>
+</body>
+</html>

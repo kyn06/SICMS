@@ -16,6 +16,8 @@ require_once __DIR__ . '/../services/FileUploadService.php';
 require_once __DIR__ . '/../services/Mailer.php';
 require_once __DIR__ . '/../services/UserGoogleMailer.php';
 require_once __DIR__ . '/../helpers/Security.php';
+require_once __DIR__ . '/../helpers/PhoneNumber.php';
+require_once __DIR__ . '/../helpers/PersonName.php';
 
 class CaseController {
     private $database;
@@ -324,6 +326,9 @@ class CaseController {
         }
         if ($action === 'case_update') {
             $updateType = trim((string) ($_POST['update_type'] ?? ''));
+            if ($updateType === 'other' && trim((string) ($_POST['update_type_other'] ?? '')) === '') {
+                return 'Please specify the other update type.';
+            }
             if (!in_array($updateType, array_keys(CaseUpdate::updateTypes()), true)) {
                 return 'Please select a valid update type.';
             }
@@ -352,10 +357,27 @@ class CaseController {
                         break;
                     }
                 }
-                if (empty($respondents)
-                    && (trim((string) ($_POST['respondent_type'] ?? '')) === '' || trim((string) ($_POST['respondent_name'] ?? '')) === '')
-                ) {
-                    return 'Respondent type and full name are required to add the first respondent.';
+                $respType = trim((string) ($_POST['respondent_type'] ?? ''));
+                $respName = trim((string) ($_POST['respondent_name'] ?? ''));
+                $respEmail = trim((string) ($_POST['respondent_email'] ?? ''));
+
+                if ($respType === '') {
+                    return 'Please select a respondent type.';
+                }
+                if ($respName === '') {
+                    return 'Please provide the respondent full name.';
+                }
+                if ($respEmail === '' || !filter_var($respEmail, FILTER_VALIDATE_EMAIL)) {
+                    return 'Please provide a valid respondent email.';
+                }
+                if ($respType === 'Student' && trim((string) ($_POST['respondent_student_no'] ?? '')) === '') {
+                    return 'Student number is required for student respondents.';
+                }
+                if ($respType === 'Employee' && trim((string) ($_POST['respondent_employee_no'] ?? '')) === '') {
+                    return 'Employee number is required for employee respondents.';
+                }
+                if (!empty($_POST['respondent_contact']) && !PhoneNumber::isValid($_POST['respondent_contact'])) {
+                    return PhoneNumber::ERROR_MESSAGE;
                 }
                 if (!empty($respondents) && !$existing) {
                     return 'Please select a valid respondent.';
@@ -364,11 +386,9 @@ class CaseController {
                     'respondent_type' => 'respondent_type', 'respondent_name' => 'full_name',
                     'respondent_gender' => 'gender', 'respondent_age' => 'age',
                     'respondent_student_no' => 'student_no', 'respondent_employee_no' => 'employee_no',
-                    'respondent_college' => 'college', 'respondent_department' => 'office_department',
-                    'respondent_course_year' => 'course_year', 'respondent_position' => 'position',
-                    'respondent_affiliation' => 'affiliation', 'respondent_contact' => 'contact_info',
-                    'respondent_email' => 'email', 'respondent_address' => 'address',
-                    'respondent_details' => 'details',
+                    'respondent_college' => 'college', 'respondent_course_year' => 'course_year',
+                    'respondent_contact' => 'contact_info', 'respondent_email' => 'email',
+                    'respondent_address' => 'address', 'respondent_details' => 'details',
                 ];
                 $course = trim((string) ($_POST['respondent_course'] ?? ''));
                 $section = trim((string) ($_POST['respondent_section'] ?? ''));
@@ -814,6 +834,17 @@ class CaseController {
                 }
                 $respondentType = trim((string) ($_POST['respondent_type'] ?? ''));
                 $respondentName = trim((string) ($_POST['respondent_name'] ?? ''));
+                $respondentContact = PhoneNumber::normalize($_POST['respondent_contact'] ?? '');
+                if ($respondentContact === null) {
+                    $_SESSION['case_errors'] = [PhoneNumber::ERROR_MESSAGE];
+                    header('Location: ' . $this->caseRedirect($complaintId));
+                    exit;
+                }
+                $_POST['respondent_contact'] = $respondentContact;
+                if (isset($_POST['respondent_name'])) {
+                    $_POST['respondent_name'] = PersonName::normalize($_POST['respondent_name']);
+                    $respondentName = $_POST['respondent_name'];
+                }
                 if (!$existing && empty($existingRespondents)) {
                     if ($respondentType === '' || $respondentName === '') {
                         $_SESSION['case_errors'] = ['Respondent type and full name are required to add the first respondent.'];
@@ -1063,6 +1094,14 @@ class CaseController {
                 $_SESSION['case_message'] = 'Coordinator assigned.';
             } elseif ($action === 'case_update') {
                 $updateType = trim((string) ($_POST['update_type'] ?? ''));
+                if ($updateType === 'other') {
+                    $otherUpdateType = substr(trim((string) ($_POST['update_type_other'] ?? '')), 0, 100);
+                    if ($otherUpdateType === '') {
+                        $_SESSION['case_errors'] = ['Please specify the other update type.'];
+                        header('Location: ' . $this->caseRedirect($complaintId));
+                        exit;
+                    }
+                }
                 $details = trim((string) ($_POST['details'] ?? ''));
                 $allowedTypes = array_keys(CaseUpdate::updateTypes());
 
@@ -1078,22 +1117,29 @@ class CaseController {
                     exit;
                 }
 
-                $approvedFiles = ($approvalExecution && !empty($approvalFiles['attachments']))
-                    ? (array) $approvalFiles['attachments']
-                    : [];
-                if (!empty($approvedFiles)) {
-                    $savedFiles = FileUploadService::validateStoredFiles($approvedFiles);
+                if ($updateType === 'additional_details') {
+                    $savedFiles = [];
                 } else {
-                    $attachmentErrors = FileUploadService::validateFiles($_FILES['attachments'] ?? []);
-                    $hasAttachments = !empty(array_values(array_filter(($_FILES['attachments']['name'] ?? []), fn($name) => $name !== '')));
+                    $approvedFiles = ($approvalExecution && !empty($approvalFiles['attachments']))
+                        ? (array) $approvalFiles['attachments']
+                        : [];
+                    if (!empty($approvedFiles)) {
+                        $savedFiles = FileUploadService::validateStoredFiles($approvedFiles);
+                    } else {
+                        $attachmentErrors = FileUploadService::validateFiles($_FILES['attachments'] ?? []);
+                        $hasAttachments = !empty(array_values(array_filter(($_FILES['attachments']['name'] ?? []), fn($name) => $name !== '')));
 
-                    if (!empty($attachmentErrors)) {
-                        $_SESSION['case_errors'] = ['Unable to attach evidence: ' . implode(' ', $attachmentErrors)];
-                        header('Location: ' . $this->caseRedirect($complaintId));
-                        exit;
+                        if (!empty($attachmentErrors)) {
+                            $_SESSION['case_errors'] = ['Unable to attach evidence: ' . implode(' ', $attachmentErrors)];
+                            header('Location: ' . $this->caseRedirect($complaintId));
+                            exit;
+                        }
+
+                        $savedFiles = $hasAttachments ? FileUploadService::saveToEvidence($_FILES['attachments']) : [];
                     }
-
-                    $savedFiles = $hasAttachments ? FileUploadService::saveToEvidence($_FILES['attachments']) : [];
+                }
+                if ($updateType === 'other') {
+                    $details = 'Update type: ' . $otherUpdateType . "\n\n" . $details;
                 }
                 CaseUpdate::add($complaintId, $caseActorAccountId, $updateType, $details, $caseStatus, $savedFiles);
 
@@ -1256,8 +1302,8 @@ class CaseController {
                     header('Location: ' . $this->caseRedirect($complaintId)); exit;
                 }
 
-                $firstName = trim((string) ($_POST['account_first_name'] ?? ''));
-                $lastName = trim((string) ($_POST['account_last_name'] ?? ''));
+                $firstName = PersonName::normalize($_POST['account_first_name'] ?? '');
+                $lastName = PersonName::normalize($_POST['account_last_name'] ?? '');
                 if ($firstName === '' || $lastName === '') {
                     $_SESSION['case_errors'] = ['First name and last name are required for the new account.'];
                     header('Location: ' . $this->caseRedirect($complaintId)); exit;
