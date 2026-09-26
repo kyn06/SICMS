@@ -3,6 +3,7 @@
 require_once 'Model.php';
 require_once 'AuditLog.php';
 require_once 'LoginSession.php';
+require_once __DIR__ . '/../helpers/PersonName.php';
 
 class User extends Model {
     protected static $table = 'accounts';
@@ -250,6 +251,9 @@ class User extends Model {
     }
 
     public static function create(array $data) {
+        foreach (['first_name', 'last_name'] as $field) {
+            if (array_key_exists($field, $data)) $data[$field] = PersonName::normalize($data[$field]);
+        }
         $result = parent::create($data);
         if ($result) {
             AuditLog::record($result, 'User Creation', 'User account created for ' . ($result['email'] ?? 'new account') . '.');
@@ -261,6 +265,9 @@ class User extends Model {
     }
 
     public function update(array $data) {
+        foreach (['first_name', 'last_name'] as $field) {
+            if (array_key_exists($field, $data)) $data[$field] = PersonName::normalize($data[$field]);
+        }
         $previousRole = $this->role;
         $previousStatus = $this->status;
         $result = parent::updateById($this->account_id, $data);

@@ -9,6 +9,8 @@ require_once __DIR__ . '/../models/AuditLog.php';
 require_once __DIR__ . '/../helpers/Security.php';
 require_once __DIR__ . '/../helpers/Colleges.php';
 require_once __DIR__ . '/../helpers/Courses.php';
+require_once __DIR__ . '/../helpers/PhoneNumber.php';
+require_once __DIR__ . '/../helpers/PersonName.php';
 
 class LegacyCaseController {
     private $database;
@@ -475,7 +477,7 @@ class LegacyCaseController {
             'complaint_title' => trim($post['case_classification'] ?? ''),
             'submitted_by_account_id' => (int) $this->user['account_id'],
             'complainant_type' => $complainantType,
-            'complainant_name' => trim($post['complainant_name'] ?? ''),
+            'complainant_name' => PersonName::normalize($post['complainant_name'] ?? ''),
             'complainant_gender' => $this->genderOrNull($post['complainant_gender'] ?? ''),
             'complainant_relationship' => $complainantType === 'Private Individual' ? trim($post['complainant_relationship'] ?? '') : null,
             'complainant_employee_no' => $complainantType === 'Employee' ? trim($post['complainant_employee_no'] ?? '') : null,
@@ -485,7 +487,7 @@ class LegacyCaseController {
             'complainant_purpose' => $complainantType === 'Others' ? trim($post['complainant_purpose'] ?? '') : null,
             'complainant_student_no' => $isStudent ? trim($post['complainant_student_no'] ?? '') : null,
             'complainant_email' => trim($post['complainant_email'] ?? '') ?: null,
-            'complainant_contact' => trim($post['complainant_contact'] ?? '') ?: null,
+            'complainant_contact' => PhoneNumber::normalize($post['complainant_contact'] ?? '') ?: null,
             'complainant_college' => $isStudent ? trim($post['complainant_college'] ?? '') : null,
             'complainant_course' => $isStudent ? trim($post['complainant_course'] ?? '') : null,
             'complainant_year_level' => $isStudent ? Courses::yearLevel(trim($post['complainant_section'] ?? '')) : '',
@@ -543,6 +545,9 @@ class LegacyCaseController {
         if (!empty($post['complainant_email']) && !filter_var($post['complainant_email'], FILTER_VALIDATE_EMAIL)) {
             $errors[] = 'Please enter a valid complainant email address.';
         }
+        if (!PhoneNumber::isValid($post['complainant_contact'] ?? '')) {
+            $errors[] = PhoneNumber::ERROR_MESSAGE;
+        }
 
         $errors = array_merge($errors, $this->validatePeople($_POST));
         $errors = array_merge($errors, $this->validateUploads($files['evidence'] ?? []));
@@ -560,6 +565,7 @@ class LegacyCaseController {
             if (!in_array($type, ['Student', 'Employee', 'Private Individual', 'Other'], true)) {
                 $errors[] = 'Please select a valid respondent type.';
             }
+            if (!PhoneNumber::isValid($post['respondent_contact'][$index] ?? '')) $errors[] = PhoneNumber::ERROR_MESSAGE;
         }
 
         foreach (($post['witness_name'] ?? []) as $index => $name) {
@@ -569,6 +575,7 @@ class LegacyCaseController {
             if (!in_array($type, ['Student', 'Employee', 'Private Individual', 'Other'], true)) {
                 $errors[] = 'Please select a valid witness type.';
             }
+            if (!PhoneNumber::isValid($post['witness_contact'][$index] ?? '')) $errors[] = PhoneNumber::ERROR_MESSAGE;
         }
 
         foreach (($post['hearing_datetime'] ?? []) as $index => $datetime) {
@@ -685,7 +692,7 @@ class LegacyCaseController {
     private function normalizeRespondents(array $post) {
         $respondents = [];
         foreach (($post['respondent_name'] ?? []) as $index => $name) {
-            $name = trim($name);
+            $name = PersonName::normalize($name);
             if ($name === '') continue;
             $type = trim($post['respondent_type'][$index] ?? '');
             if (!in_array($type, ['Student', 'Employee', 'Private Individual', 'Other'], true)) $type = 'Student';
@@ -704,7 +711,7 @@ class LegacyCaseController {
                 'course_year' => $courseYear ?: null,
                 'position' => trim($post['respondent_position'][$index] ?? '') ?: null,
                 'affiliation' => trim($post['respondent_affiliation'][$index] ?? '') ?: null,
-                'contact_info' => trim($post['respondent_contact'][$index] ?? '') ?: null,
+                'contact_info' => PhoneNumber::normalize($post['respondent_contact'][$index] ?? '') ?: null,
                 'details' => trim($post['respondent_details'][$index] ?? '') ?: null,
             ];
         }
@@ -714,7 +721,7 @@ class LegacyCaseController {
     private function normalizeWitnesses(array $post) {
         $witnesses = [];
         foreach (($post['witness_name'] ?? []) as $index => $name) {
-            $name = trim($name);
+            $name = PersonName::normalize($name);
             if ($name === '') continue;
             $type = trim($post['witness_type'][$index] ?? '');
             if (!in_array($type, ['Student', 'Employee', 'Private Individual', 'Other'], true)) $type = 'Student';
@@ -727,7 +734,7 @@ class LegacyCaseController {
                 'full_name' => $name,
                 'gender' => $this->genderOrNull($post['witness_gender'][$index] ?? ''),
                 'student_no' => trim($post['witness_student_no'][$index] ?? '') ?: null,
-                'contact_info' => trim($post['witness_contact'][$index] ?? '') ?: null,
+                'contact_info' => PhoneNumber::normalize($post['witness_contact'][$index] ?? '') ?: null,
                 'statement' => trim($post['witness_statement'][$index] ?? '') ?: null,
                 'employee_no' => trim($post['witness_employee_no'][$index] ?? '') ?: null,
                 'college' => trim($post['witness_college'][$index] ?? '') ?: null,

@@ -4,6 +4,8 @@ require_once __DIR__ . '/../config/Database.php';
 require_once __DIR__ . '/../models/User.php';
 require_once __DIR__ . '/../models/AuditLog.php';
 require_once __DIR__ . '/../helpers/Security.php';
+require_once __DIR__ . '/../helpers/PhoneNumber.php';
+require_once __DIR__ . '/../helpers/PersonName.php';
 
 class AccountController {
     private $database;
@@ -144,7 +146,8 @@ class AccountController {
         $respondent = $this->respondentById($respondentId);
         if (!$respondent) $this->flashError('Respondent record not found.');
         $email = strtolower(trim((string) ($_POST['email'] ?? '')));
-        $contact = substr(trim((string) ($_POST['contact_info'] ?? '')), 0, 255);
+        $contact = PhoneNumber::normalize($_POST['contact_info'] ?? '');
+        if ($contact === null) $this->flashError(PhoneNumber::ERROR_MESSAGE);
         if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) $this->flashError('Please enter a valid respondent email address.');
         if (!empty($respondent['account_id'])) {
             $existing = User::findByEmailInexact($email);
@@ -158,7 +161,7 @@ class AccountController {
             if (!empty($respondent['account_id'])) {
                 $stmt = $this->db->prepare('UPDATE accounts SET email = ?, phone_number = ?, updated_at = ? WHERE account_id = ?');
                 $now = date('Y-m-d H:i:s');
-                $phone = substr($contact, 0, 20);
+                $phone = $contact;
                 $stmt->bind_param('sssi', $email, $phone, $now, $respondent['account_id']);
                 if (!$stmt->execute()) throw new RuntimeException($stmt->error);
             }
@@ -209,8 +212,8 @@ class AccountController {
         $account = User::findRow((int) $respondent['account_id']);
         if (!$account || $this->roleKey($account['role'] ?? '') !== 'respondent') $this->flashError('Respondent account not found.');
 
-        $firstName = trim((string) ($_POST['first_name'] ?? ''));
-        $lastName = trim((string) ($_POST['last_name'] ?? ''));
+        $firstName = PersonName::normalize($_POST['first_name'] ?? '');
+        $lastName = PersonName::normalize($_POST['last_name'] ?? '');
         $email = strtolower(trim((string) ($_POST['email'] ?? '')));
         if ($firstName === '' || $lastName === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
             $this->flashError('Provide a name and valid email address.');
@@ -218,7 +221,8 @@ class AccountController {
         $existing = User::findByEmailInexact($email);
         if ($existing && (int) $existing['account_id'] !== (int) $account['account_id']) $this->flashError('That email is already used by another account.');
 
-        $contact = substr(trim((string) ($_POST['contact_info'] ?? '')), 0, 20);
+        $contact = PhoneNumber::normalize($_POST['contact_info'] ?? '');
+        if ($contact === null) $this->flashError(PhoneNumber::ERROR_MESSAGE);
         $fullName = $firstName . ' ' . $lastName;
         $this->db->begin_transaction();
         try {
@@ -277,8 +281,8 @@ class AccountController {
 
         $now = date('Y-m-d H:i:s');
         $created = User::create([
-            'first_name' => trim($_POST['first_name']),
-            'last_name' => trim($_POST['last_name']),
+            'first_name' => PersonName::normalize($_POST['first_name']),
+            'last_name' => PersonName::normalize($_POST['last_name']),
             'email' => trim($_POST['email']),
             'password_hash' => password_hash($_POST['password'], PASSWORD_DEFAULT),
             'role' => trim($_POST['role']),

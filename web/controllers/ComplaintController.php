@@ -10,6 +10,8 @@ require_once __DIR__ . '/../models/AuditLog.php';
 require_once __DIR__ . '/../models/CounterStatement.php';
 require_once __DIR__ . '/../models/ComplaintDraft.php';
 require_once __DIR__ . '/../helpers/Security.php';
+require_once __DIR__ . '/../helpers/PhoneNumber.php';
+require_once __DIR__ . '/../helpers/PersonName.php';
 require_once __DIR__ . '/../helpers/Colleges.php';
 require_once __DIR__ . '/../helpers/Courses.php';
 
@@ -346,7 +348,7 @@ class ComplaintController {
                 'complaint_title' => 'Student Complaint',
                 'submitted_by_account_id' => (int) $this->user['account_id'],
                 'complainant_type' => $complainantType,
-                'complainant_name' => $isStudentComplainant ? trim($this->user['first_name'] . ' ' . $this->user['last_name']) : trim($_POST['complainant_name']),
+                'complainant_name' => PersonName::normalize($isStudentComplainant ? ($this->user['first_name'] . ' ' . $this->user['last_name']) : $_POST['complainant_name']),
                 'complainant_gender' => $this->normalizedGender($_POST['complainant_gender'] ?? ($isStudentComplainant ? ($this->user['gender'] ?? '') : '')),
                 'complainant_age' => (int) $_POST['complainant_age'],
                 'complainant_relationship' => $complainantType === 'Private Individual' ? trim($_POST['complainant_relationship'] ?? '') : '',
@@ -357,7 +359,7 @@ class ComplaintController {
                 'complainant_purpose' => $complainantType === 'Others' ? trim($_POST['complainant_purpose'] ?? '') : '',
                 'complainant_student_no' => $isStudentComplainant ? trim($_POST['complainant_student_no'] ?? '') : '',
                 'complainant_email' => $isStudentComplainant ? trim($this->user['email']) : trim($_POST['complainant_email'] ?? ''),
-                'complainant_contact' => trim($_POST['complainant_contact']),
+                'complainant_contact' => PhoneNumber::normalize($_POST['complainant_contact']) ?? '',
                 'complainant_college' => $isStudentComplainant ? trim($_POST['complainant_college'] ?? '') : '',
                 'complainant_course' => $isStudentComplainant ? Courses::canonical($_POST['complainant_course'] ?? '') : '',
                 'complainant_year_level' => $isStudentComplainant ? Courses::yearLevel(trim($_POST['complainant_section'] ?? '')) : '',
@@ -455,8 +457,8 @@ class ComplaintController {
         }
 
         $contact = trim((string) ($post['complainant_contact'] ?? ''));
-        if ($contact !== '' && !preg_match('/^[0-9+()\-\s.]{7,20}$/', $contact)) {
-            $field('complainant_contact', 'Please enter a valid contact number using digits, spaces, +, -, or parentheses (7 to 20 characters).');
+        if (!PhoneNumber::isValid($contact, true)) {
+            $field('complainant_contact', PhoneNumber::ERROR_MESSAGE);
         }
 
         $incident = trim((string) ($post['incident_datetime'] ?? ''));
@@ -650,7 +652,7 @@ class ComplaintController {
         $validTypes = ['Student', 'Employee', 'Private Individual', 'Other'];
 
         foreach ($names as $index => $name) {
-            $name = trim($name);
+            $name = PersonName::normalize($name);
 
             if ($name === '') {
                 continue;
@@ -679,7 +681,7 @@ class ComplaintController {
                 'course_year' => $courseYear,
                 'position' => trim($post['respondent_position'][$index] ?? ''),
                 'affiliation' => trim($post['respondent_affiliation'][$index] ?? ''),
-                'contact_info' => trim($post['respondent_contact'][$index] ?? ''),
+                'contact_info' => PhoneNumber::normalize($post['respondent_contact'][$index] ?? '') ?? '',
                 'email' => trim($post['respondent_email'][$index] ?? ''),
                 'address' => trim($post['respondent_address'][$index] ?? ''),
                 'details' => trim($post['respondent_details'][$index] ?? ''),
@@ -804,11 +806,16 @@ class ComplaintController {
         if (!empty($post['witness_none'])) {
             return $witnesses;
         }
+
+        $contact = trim((string) ($post[$prefix . '_contact'][$index] ?? ''));
+        if ($contact !== '' && !PhoneNumber::isValid($contact)) {
+            $errors[] = PhoneNumber::ERROR_MESSAGE;
+        }
         $names = $post['witness_name'] ?? [];
         $validTypes = ['Student', 'Employee', 'Private Individual', 'Other'];
 
         foreach ($names as $index => $name) {
-            $name = trim($name);
+            $name = PersonName::normalize($name);
 
             if ($name === '') {
                 continue;
@@ -831,7 +838,7 @@ class ComplaintController {
                 'gender' => $this->normalizedGender($post['witness_gender'][$index] ?? ''),
                 'age' => $this->personAge($post['witness_age'][$index] ?? ''),
                 'student_no' => $isStudent ? trim($post['witness_student_no'][$index] ?? '') : '',
-                'contact_info' => trim($post['witness_contact'][$index] ?? ''),
+                'contact_info' => PhoneNumber::normalize($post['witness_contact'][$index] ?? '') ?? '',
                 'email' => trim($post['witness_email'][$index] ?? ''),
                 'address' => trim($post['witness_address'][$index] ?? ''),
                 'statement' => trim($post['witness_statement'][$index] ?? ''),

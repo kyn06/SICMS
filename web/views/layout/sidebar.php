@@ -56,7 +56,8 @@ try {
                 <div class="nav-heading"><?= h($groupLabel) ?></div>
                 <nav class="nav-list" aria-label="<?= h($groupLabel) ?> navigation">
                     <?php foreach ($visibleItems as $item): ?>
-                        <a class="nav-link <?= $item['route'] !== null && $item['route'] === $currentRoute ? 'active' : '' ?>" href="<?= h($item['href']) ?>">
+                        <?php $isActive = $item['route'] !== null && $item['route'] === $currentRoute; ?>
+                        <a class="nav-link <?= $isActive ? 'active' : '' ?>" <?= $isActive ? 'aria-current="page"' : '' ?> href="<?= h($item['href']) ?>">
                             <i class="bi <?= h($item['icon']) ?>" aria-hidden="true"></i>
                             <span><?= h($item['label']) ?></span>
                         </a>
